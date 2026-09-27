@@ -1,0 +1,41 @@
+%%%%
+%%%%
+\begin{table}[H]
+%%%%
+\centering
+\normalsize
+%%%%
+\caption{
+\footnotesize{
+% Experiment 3 on the HPC: estimated time to the target minimum ESS over sensitivities, specificities and prevalence. Targets are 7000, 2500 and 1000 across the three sample sizes. Stan entries are means over fifteen runs and exclude unrecorded posterior-summary costs, so their total times and speed-up ratios are conservative lower bounds; the BayesMVP entries are means over three runs of each selected configuration. Mplus uses the mean estimated total time from three PS5 runs at each sample size, scaling its full run time to retain its half-run burn-in allocation. Ratios are reported only for the same device and sample size.
+Experiment 3 on the HPC: estimated time to the target minimum ESS over sensitivities, specificities and prevalence. Targets are 7000, 2500 and 1000 across the three sample sizes. Stan entries are means over three runs of the selected Stan configuration (the asymmetric burn-in: 250 burn-in iterations with 4 chains and the unpartitioned model, then 250 sampling iterations with 96 chains at $N=500$ and 64 chains at $N=2500$ and $10,000$, with tape chunking; see section \ref{section:paper1_absolute_efficiency_design}), including the recorded posterior-summary times; the NicoStan+BayesMVP entries are means over three runs of each selected configuration. Mplus uses the mean estimated total time from three PS5 runs at each sample size, scaling its full run time to retain its half-run burn-in allocation. Ratios are reported only for the same device and sample size.
+}}
+%%%%
+\label{S:table:exp3_absolute_efficiency_hpc}
+%%%%
+\begin{tabular}{lrrrrrr}
+%%%%
+\toprule
+%%%%
+ & \multicolumn{2}{c}{$N = 500$} & \multicolumn{2}{c}{$N = 2500$} & \multicolumn{2}{c}{$N = 10,000$} \\
+ & Time & Speed-up & Time & Speed-up & Time & Speed-up \\
+ %%%%
+\midrule
+%%%%
+% BayesMVP & \textbf{7.66 s} & 1$\times$ & \textbf{4.71 s} & 1$\times$ & \textbf{11.64 s} & 1$\times$ \\
+% BayesMVP & \textbf{2.27 s} & 1$\times$ & \textbf{3.63 s} & 1$\times$ & \textbf{10.51 s} & 1$\times$ \\
+% NicoStan+BayesMVP & \textbf{2.27 s} & 1$\times$ & \textbf{3.63 s} & 1$\times$ & \textbf{10.51 s} & 1$\times$ \\
+NicoStan+BayesMVP & \textbf{2.27 s} & 1$\times$ & \textbf{3.30 s} & 1$\times$ & \textbf{10.51 s} & 1$\times$ \\
+% Stan (NUTS) & 49.58 s & $6-7\times$ & 2996 s (49.9 min) & $600-700\times$ & 35,462 s (591.0 min) & $3050\times$ \\
+% Stan (NUTS) & 49.58 s & $20-25\times$ & 2996 s (49.9 min) & $800-850\times$ & 35,462 s (591.0 min) & $3370\times$ \\
+Stan (NUTS) & 42.01 s & $18.5\times$ & 242.07 s (4.03 min) & $65-75\times$ & 1974 s (32.9 min) & $190\times$ \\
+% Mplus (PX-Gibbs) & 36.03 s & $5\times$ & 110.20 s (1.84 min) & $20-25\times$ & 520.52 s (8.68 min) & $40-50\times$ \\
+Mplus (PX-Gibbs) & 36.03 s & $16\times$ & 110.20 s (1.84 min) & $25-35\times$ & 520.52 s (8.68 min) & $45-55\times$ \\
+%%%%
+\bottomrule
+%%%%
+\end{tabular}
+%%%%
+\end{table}
+%%%%
+%%%%
