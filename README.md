@@ -2,15 +2,13 @@
 # Cache-aware chunking dramatically improves parallel scaling for HMC with autodiff and manual gradients: Application to multivariate probit model in Stan and NicoStan/BayesMVP
 <!-- ------------------------------------------------------------------------------------------------------------------------------- -->
 
-Enzo Cerullo¹, Olivia Carter², Charles Margossian³, Hayley E Jones⁴, Tim Lucas¹, Nicola J. Cooper¹, Alex J. Sutton¹
+Enzo Cerullo¹, Olivia Carter², Hayley E Jones³, Tim Lucas¹, Nicola J. Cooper¹, Alex J. Sutton¹
 
 ¹ Biostatistics Research Group, Division of Public Health & Epidemiology, School of Medical Sciences, University of Leicester, Leicester, UK
 
 ² Queen's Veterinary School Hospital, Cambridge, University of Cambridge, UK
 
-³ Flatiron Institute, Center for Computational Mathematics, USA
-
-⁴ Population Health Sciences, Bristol Medical School, University of Bristol, UK
+³ Population Health Sciences, Bristol Medical School, University of Bristol, UK
 
 [Abstract](#abstract) ·
 [Key results](#key-results) ·
