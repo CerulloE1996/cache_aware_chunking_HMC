@@ -94,7 +94,10 @@
             BayesMVP, 100 chunks                   | 8      | 46.1       | 1.63 | 12                  | 0.21
             BayesMVP, 100 chunks                   | 96     | 292.7      | 1.50 | 110                 | 0.25
             BayesMVP, 100 chunks                   | 180    | 355.7      | 0.95 | 159                 | 0.29
-            Stan model, 1 chunk                    | 8      | 25.3       | 2.34 | 150                 | 3.44
+            BayesMVP, 500 chunks                   | 8      | 40.7       | 2.16 | 9                   | 0.18
+            BayesMVP, 500 chunks                   | 96     | 283.8      | 2.04 | 95                  | 0.22
+            BayesMVP, 500 chunks                   | 180    | 351.4      | 1.35 | 133                 | 0.25
+            Stan model, 1 chunk                    | 8      | 25.3      | 2.34 | 150                 | 3.44
             Stan model, 1 chunk                    | 96     | 42.8       | 0.37 | 321                 | 4.76
             Stan model, 1 chunk                    | 180    | 39.9       | 0.18 | 325                 | 5.41
             Stan model + tape chunking, 250 chunks | 8      | 22.2       | 3.11 | 17                  | 0.60
@@ -185,6 +188,8 @@
             fn_paper("res_reads_BayesMVP_100chunks_96",     results_section, "BayesMVP with 100 chunks, [...] to 0.25 GB at 96 chains",          "0.25",              "rounded",     2),
             fn_paper("res_reads_BayesMVP_1chunk_180",       results_section, "from 9.35 [...] GB at 180 chains",                                 "9.35",              "rounded",     2),
             fn_paper("res_reads_BayesMVP_100chunks_180",    results_section, "[...] to 0.29 GB at 180 chains",                                   "0.29",              "rounded",     2),
+            fn_paper("res_reads_BayesMVP_500chunks_96",     results_section, "and with 500 chunks, to 0.22 and 0.25 GB, respectively (96 chains)", "0.22",      "rounded",     2),
+            fn_paper("res_reads_BayesMVP_500chunks_180",    results_section, "and with 500 chunks, to 0.22 and 0.25 GB, respectively (180 chains)", "0.25",     "rounded",     2),
             fn_paper("res_reads_Stan_1chunk_96",            results_section, "Stan model with tape chunking using 250 chunks, from 4.76 [...] GB", "4.76",            "rounded",     2),
             fn_paper("res_reads_Stan_tape250_96",           results_section, "Stan model with tape chunking using 250 chunks, [...] to 0.52 GB", "0.52",              "rounded",     2),
             fn_paper("res_IPC_BayesMVP_100chunks_96",       results_section, "the IPC remains high (1.50 for BayesMVP [...] at 96 chains)",      "1.50",              "rounded",     2),
@@ -287,11 +292,11 @@
             fn_paper("disc_plateau_lower_GB_per_s",         discussion_section, "the measured DRAM traffic plateaus at ~305-360 GB/s (lower)",   "305",               "approximate", 0),
             fn_paper("disc_plateau_upper_GB_per_s",         discussion_section, "the measured DRAM traffic plateaus at ~305-360 GB/s (upper)",   "360",               "approximate", 0),
             fn_paper("disc_peak_GB_per_s",                  discussion_section, "below but reasonably close to its theoretical peak of 460.8 GB/s", "460.8",          "rounded",     1, "derived"),
-            fn_paper("disc_BayesMVP_reads_reduction",       discussion_section, "reducing the DRAM reads per chain-iteration by up to ~32x for BayesMVP", "32",       "approximate", 0),
+            fn_paper("disc_BayesMVP_reads_reduction",       discussion_section, "reducing the DRAM reads per chain-iteration by up to ~38x for BayesMVP with 500 chunks", "38", "approximate", 0),
             fn_paper("disc_Stan_plateau_lower_GB_per_s",    discussion_section, "the Stan model also saturates the memory bandwidth (~305-325 GB/s at 48 to 180 chains) (lower)", "305", "approximate", 0),
             fn_paper("disc_Stan_plateau_upper_GB_per_s",    discussion_section, "the Stan model also saturates the memory bandwidth (~305-325 GB/s at 48 to 180 chains) (upper)", "325", "approximate", 0),
             fn_paper("disc_Stan_tape_traffic_reduction_96", discussion_section, "tape chunking reduced its DRAM traffic per chain-iteration by ~9x at 96 chains", "9", "approximate", 0),
-            fn_paper("concl_BayesMVP_reads_reduction",      conclusion_section, "reducing DRAM reads per chain-iteration by up to ~32x",         "32",                "approximate", 0)
+            fn_paper("concl_BayesMVP_reads_reduction",      conclusion_section, "reducing DRAM reads per chain-iteration by up to ~38x (for BayesMVP with 500 chunks)", "38", "approximate", 0)
       ))
 }
 
@@ -490,11 +495,12 @@
 ## the Stan model with tape chunking (AD_Stan_tape_chunked, 250 chunks); N_chains = 8, 96 and 180.
 ## Columns: throughput (1 decimal), IPC (2 decimals), DRAM traffic = reads + writes at the memory controllers in GB/s (0 decimals),
 ## DRAM reads at the memory controllers per chain-iteration in GB (2 decimals).
+## The rows for BayesMVP with 500 chunks (the same runs, same selection) follow the 100-chunk rows, as in the paper's tabular.
 ##
 {
-      panel_A_rows <-  data.frame( implementation = c("BayesMVP, 1 chunk", "BayesMVP, 100 chunks", "Stan model, 1 chunk", "Stan model + tape chunking, 250 chunks"),
-                                   algorithm      = c("MD_BayesMVP", "MD_BayesMVP", "AD_Stan", "AD_Stan_tape_chunked"),
-                                   chunks         = c(1, 100, 1, 250),
+      panel_A_rows <-  data.frame( implementation = c("BayesMVP, 1 chunk", "BayesMVP, 100 chunks", "BayesMVP, 500 chunks", "Stan model, 1 chunk", "Stan model + tape chunking, 250 chunks"),
+                                   algorithm      = c("MD_BayesMVP", "MD_BayesMVP", "MD_BayesMVP", "AD_Stan", "AD_Stan_tape_chunked"),
+                                   chunks         = c(1, 100, 500, 1, 250),
                                    stringsAsFactors = FALSE)
       panel_A_columns <-  data.frame( column = c("Throughput", "IPC", "DRAM traffic (GB/s)", "DRAM reads per chain-iteration (GB)"),
                                       metric = c("throughput", "IPC", "DRAM_total_GB_per_second", "DRAM_read_GB_per_chain_iteration"),
@@ -685,6 +691,25 @@
       reads_reduction_100 <-  sapply(X = E5_chains, FUN = function(chains) {
             E5("MD_BayesMVP", 1, chains)$DRAM_read_GB_per_chain_iteration / E5("MD_BayesMVP", 100, chains)$DRAM_read_GB_per_chain_iteration
       })
+      ## BayesMVP DRAM reads per chain-iteration, 1 chunk vs 500 chunks (the configuration of the "up to ~38x" in the discussion and
+      ## conclusion), at every E5 chain count; the same ratio from the values printed in panel A (8, 96 and 180 chains) is kept so
+      ## that the quoted maximum can be traced to the table:
+      reads_reduction_500 <-  sapply(X = E5_chains, FUN = function(chains) {
+            E5("MD_BayesMVP", 1, chains)$DRAM_read_GB_per_chain_iteration / E5("MD_BayesMVP", 500, chains)$DRAM_read_GB_per_chain_iteration
+      })
+      reads_reduction_500_chains <-  E5_chains[which.max(reads_reduction_500)]
+      reads_reduction_500_printed <-  sapply(X = panel_A_chains, FUN = function(chains) {
+            printed_reads <-  function(implementation) {
+                  as.numeric(table_cells$value_as_printed[ table_cells$panel == "A" & table_cells$implementation == implementation &
+                                                           table_cells$chains == chains & table_cells$column == "DRAM reads per chain-iteration (GB)"])
+            }
+            printed_reads("BayesMVP, 1 chunk") / printed_reads("BayesMVP, 500 chunks")
+      })
+      reads_reduction_500_detail <-  paste0( "1 chunk / 500 chunks at ", paste(E5_chains, collapse = "/"), " chains: ",
+                                             paste(formatC(reads_reduction_500, format = "f", digits = 2), collapse = ", "),
+                                             "; from the values printed in panel A at ", paste(panel_A_chains, collapse = "/"), " chains: ",
+                                             paste(formatC(reads_reduction_500_printed, format = "f", digits = 2), collapse = ", "),
+                                             "; with 100 chunks the maximum is ", formatC(max(reads_reduction_100), format = "f", digits = 2))
       ## The same over every chunked BayesMVP configuration of the DRAM-traffic runs (25, 100 and 500 chunks), for information:
       E5_BayesMVP_chunked <-  case_measures[case_measures$experiment == "E5" & case_measures$algorithm == "MD_BayesMVP" & case_measures$num_chunks > 1, , drop = FALSE]
       reads_reduction_all <-  sapply(X = seq_len(nrow(E5_BayesMVP_chunked)), FUN = function(row_index) {
@@ -798,6 +823,8 @@
             res_reads_BayesMVP_100chunks_96     = fn_reproduced(B100_96$DRAM_read_GB_per_chain_iteration, B100_96$label),
             res_reads_BayesMVP_1chunk_180       = fn_reproduced(B1_180$DRAM_read_GB_per_chain_iteration, B1_180$label),
             res_reads_BayesMVP_100chunks_180    = fn_reproduced(B100_180$DRAM_read_GB_per_chain_iteration, B100_180$label),
+            res_reads_BayesMVP_500chunks_96     = fn_reproduced(B500_96$DRAM_read_GB_per_chain_iteration, B500_96$label),
+            res_reads_BayesMVP_500chunks_180    = fn_reproduced(B500_180$DRAM_read_GB_per_chain_iteration, B500_180$label),
             res_reads_Stan_1chunk_96            = fn_reproduced(S1_96$DRAM_read_GB_per_chain_iteration, S1_96$label),
             res_reads_Stan_tape250_96           = fn_reproduced(T250_96$DRAM_read_GB_per_chain_iteration, T250_96$label),
             res_IPC_BayesMVP_100chunks_96       = fn_reproduced(B100_96$IPC, B100_96$label),
@@ -899,13 +926,14 @@
             disc_plateau_lower_GB_per_s         = fn_reproduced(min(plateau_cases$DRAM_total_GB_per_second), plateau_cases$label[which.min(plateau_cases$DRAM_total_GB_per_second)], "as res_plateau_lower_GB_per_s"),
             disc_plateau_upper_GB_per_s         = fn_reproduced(max(plateau_cases$DRAM_total_GB_per_second), plateau_cases$label[which.max(plateau_cases$DRAM_total_GB_per_second)], "as res_plateau_upper_GB_per_s"),
             disc_peak_GB_per_s                  = fn_reproduced(peak_GB_per_second, detail = "12 channels x 4800 MT/s x 8 bytes"),
-            disc_BayesMVP_reads_reduction       = fn_reproduced(max(reads_reduction_100), paste0("E5 MD_BayesMVP, 1 vs 100 chunks, ", E5_chains[which.max(reads_reduction_100)], " chains"),
-                                                                paste0("1 chunk / 100 chunks at 8/48/96/180 chains: ", paste(formatC(reads_reduction_100, format = "f", digits = 2), collapse = ", "))),
+            disc_BayesMVP_reads_reduction       = fn_reproduced(max(reads_reduction_500), c(E5("MD_BayesMVP", 1, reads_reduction_500_chains)$label, E5("MD_BayesMVP", 500, reads_reduction_500_chains)$label),
+                                                                reads_reduction_500_detail),
             disc_Stan_plateau_lower_GB_per_s    = fn_reproduced(min(Stan_plateau_cases$DRAM_total_GB_per_second), Stan_plateau_cases$label[which.min(Stan_plateau_cases$DRAM_total_GB_per_second)]),
             disc_Stan_plateau_upper_GB_per_s    = fn_reproduced(max(Stan_plateau_cases$DRAM_total_GB_per_second), Stan_plateau_cases$label[which.max(Stan_plateau_cases$DRAM_total_GB_per_second)]),
             disc_Stan_tape_traffic_reduction_96 = fn_reproduced(Stan_traffic_reduction_96, c(S1_96$label, T250_96$label),
                                                                 paste0("reads + writes per chain-iteration; reads only: ", formatC(Stan_reads_reduction_96, format = "f", digits = 2))),
-            concl_BayesMVP_reads_reduction      = fn_reproduced(max(reads_reduction_100), paste0("E5 MD_BayesMVP, 1 vs 100 chunks, ", E5_chains[which.max(reads_reduction_100)], " chains"), "as disc_BayesMVP_reads_reduction")
+            concl_BayesMVP_reads_reduction      = fn_reproduced(max(reads_reduction_500), c(E5("MD_BayesMVP", 1, reads_reduction_500_chains)$label, E5("MD_BayesMVP", 500, reads_reduction_500_chains)$label),
+                                                                "as disc_BayesMVP_reads_reduction")
       ))
 }
 
@@ -963,8 +991,9 @@
       ## Related values, printed for information only (not counted):
       message(fn_colour(paste0( "\n  For information (not counted): over every chunked BayesMVP configuration of the DRAM-traffic runs (25, 100 and 500 chunks), ",
                                 "the largest reduction in DRAM reads per chain-iteration is ", formatC(max(reads_reduction_all), format = "f", digits = 1), "x (",
-                                reads_reduction_all_max$num_chunks, " chunks, ", reads_reduction_all_max$n_chains, " chains); with 100 chunks it is ",
-                                formatC(max(reads_reduction_100), format = "f", digits = 1), "x."), "cyan"))
+                                reads_reduction_all_max$num_chunks, " chunks, ", reads_reduction_all_max$n_chains, " chains); with 500 chunks it is ",
+                                formatC(max(reads_reduction_500), format = "f", digits = 1), "x (", reads_reduction_500_chains, " chains; the value quoted in the discussion and conclusion)",
+                                "; with 100 chunks it is ", formatC(max(reads_reduction_100), format = "f", digits = 1), "x."), "cyan"))
 }
 
 ##

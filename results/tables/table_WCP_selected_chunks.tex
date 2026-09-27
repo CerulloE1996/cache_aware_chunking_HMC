@@ -1,0 +1,59 @@
+%%%%
+%%%%
+\begin{table}[H]
+%%%%
+\centering
+\small
+%%%%
+\caption{
+\footnotesize{
+Selected $N_{\text{chunks}}$ for the chunking + WCP configurations of BayesMVP (\texttt{MD\_BayesMVP\_WCP\_chunking}) and the Stan model (\texttt{AD\_Stan\_WCP\_chunking}), for each device, allocation ($N_{\text{chains}} \times N_{\text{threads\_per\_chain}}$) and $N$ (i.e., the $N_{\text{chunks}}$ with the lowest mean run time for that allocation; see section \ref{section:paper1_chunk_wcp_selection_design}). Hyphens mark allocations which were not tested at that $N$.
+}}
+%%%%
+\label{S:table:WCP_selected_chunks}
+%%%%
+\PaperOneFitTable{
+\begin{tabular}{llrrrrrrrr}
+%%%%
+\toprule
+%%%%
+ & & \multicolumn{4}{c}{BayesMVP ($N$)} & \multicolumn{4}{c}{Stan model ($N$)} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+Device & $N_{\text{chains}} \times N_{\text{threads\_per\_chain}}$ & $500$ & $2500$ & $10,000$ & $50,000$ & $500$ & $2500$ & $10,000$ & $50,000$ \\
+%%%%
+\midrule
+%%%%
+local-HPC & $4 \times 2$ & 4 & 4 & 10 & 50 & 4 & 4 & 10 & 50 \\
+ & $4 \times 4$ & 4 & 4 & 50 & 100 & 10 & 10 & 25 & 100 \\
+ & $4 \times 8$ & 8 & 8 & 8 & 250 & 10 & 10 & 50 & 250 \\
+ & $4 \times 16$ & - & - & 50 & 50 & - & - & 100 & 250 \\
+ & $4 \times 24$ & - & - & 24 & 24 & - & - & 100 & 250 \\
+ & $4 \times 32$ & - & - & 50 & 500 & - & - & 100 & 250 \\
+ & $4 \times 44$ & - & - & 44 & 44 & - & - & 44 & 500 \\
+ & $8 \times 2$ & 2 & 10 & 10 & 50 & 4 & 4 & 10 & 50 \\
+ & $8 \times 4$ & 4 & 4 & 50 & 100 & 10 & 10 & 25 & 250 \\
+ & $8 \times 8$ & 8 & 8 & 8 & 50 & 8 & 25 & 100 & 250 \\
+ & $8 \times 12$ & - & - & 50 & 100 & - & - & 50 & 250 \\
+ & $8 \times 16$ & - & - & 16 & 100 & - & - & 50 & 500 \\
+ & $8 \times 22$ & - & - & 25 & 100 & - & - & 100 & 500 \\
+ & $16 \times 2$ & 2 & 4 & 10 & 100 & 4 & 10 & 25 & 250 \\
+ & $16 \times 4$ & 4 & 4 & 25 & 100 & 10 & 10 & 50 & 250 \\
+ & $16 \times 6$ & 6 & 6 & 50 & 100 & 6 & 25 & 50 & 250 \\
+ & $16 \times 8$ & 8 & 8 & 25 & 100 & 8 & 25 & 100 & 500 \\
+ & $16 \times 11$ & - & - & 25 & 100 & - & - & 100 & 500 \\
+\midrule
+Laptop & $2 \times 2$ & 2 & 4 & 10 & 50 & 4 & 10 & 50 & 500 \\
+ & $2 \times 4$ & 4 & 4 & 50 & 100 & 10 & 25 & 100 & 500 \\
+ & $2 \times 8$ & 8 & 8 & 50 & 250 & 10 & 50 & 100 & 500 \\
+ & $4 \times 2$ & 2 & 10 & 50 & 100 & 10 & 25 & 100 & 500 \\
+ & $4 \times 4$ & 4 & 25 & 50 & 100 & 10 & 50 & 100 & 500 \\
+ & $8 \times 2$ & 2 & 10 & 50 & 250 & 10 & 50 & 100 & 500 \\
+%%%%
+\bottomrule
+%%%%
+\end{tabular}
+}
+%%%%
+\end{table}
+%%%%
+%%%%

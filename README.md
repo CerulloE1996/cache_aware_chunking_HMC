@@ -31,7 +31,7 @@ This has an important consequence for simultaneous multithreading (SMT): HMC wor
 
 Our results suggested three computational profiles - bandwidth-bound (plain Stan, and NicoStan+BayesMVP without chunking), compute-bound (NicoStan+BayesMVP with chunking), and latency-bound (Mplus) - with predictable consequences for parallel scaling and SMT behaviour.
 
-These parallel scaling results should be interpreted alongside raw efficiency: NicoStan+BayesMVP with chunking is approximately 50× and 190× faster than Mplus and Stan, respectively, in time to achieve a target ESS (at N = 10,000).
+These parallel scaling results should be interpreted alongside raw efficiency: NicoStan+BayesMVP with chunking is approximately [TBD]× and [TBD]× faster than Mplus and Stan, respectively, in time to achieve a target ESS (at N = 10,000; final values to follow).
 
 Looking ahead, CPUs with larger L3 caches - such as AMD's 3D V-Cache line - would likely amplify these benefits.
 Furthermore, tape chunking improved the parallel scaling of the Stan model in this study; similar strategies applied to the Stan math C++ library may improve parallel scaling for general Stan models.
@@ -43,13 +43,13 @@ The full BayesMVP algorithm and benchmarks, and acceleration of arbitrary Stan m
 ## Key results
 <!-- ------------------------------------------------------------------------------------------------------------------------------- -->
 
-![Figure 1](results/figures/Figure_N_chunks_pilot_study_plot_1_n_threads_HPC_96_Laptop_8.png)
+![Figure 1](results/figures/Figure_N_chunks_pilot_study_plot_1_n_threads_SMT_vs_no_SMT_cache_lines.png)
 
-*Figure 1: Mean NicoStan+BayesMVP sampling time (seconds) against the number of chunks, for N = 500, 2,500, 10,000 and 50,000. Direct comparison of HPC (96 threads, solid lines), and laptop (8 threads, dashed lines), with error bars showing the standard deviation across 4 runs.*
+*Figure 1: Mean NicoStan+BayesMVP sampling time (seconds) against the number of chunks (log scale), for N = 500, 2,500, 10,000 and 50,000. Direct comparison of HPC (solid lines) and laptop (dashed lines), without SMT (HPC: 96 threads, laptop: 8 threads; blue lines) and with SMT (HPC: 180 threads, laptop: 16 threads; orange lines), with error bars showing the standard deviation across 4 runs. The vertical lines show the number of chunks at which one chunk (1,608 bytes per individual) first fits within the L3 or L2 cache per active thread, in the colour and line type of the corresponding data line; to the left of an L3 line, one chunk no longer fits within the L3 cache per active thread.*
 
-![Figure 2](results/figures/Figure_ps2_plot_2_adj_scalability.png)
+![Figure 2](results/figures/Figure_ps2_plot_2_adj_scalability_markers.png)
 
-*Figure 2: Normalised parallel scaling for each algorithm, computed as: (N_chains/second) × T_0, where T_0 is the time of each algorithm's own one-chain, one-thread reference at the same number of iterations (for WCP, the corresponding implementation without WCP); i.e., the speed-up over the one-chain, one-thread reference, as defined in the paper (with the same reference as the paper's parallel efficiency tables). Note: this normalisation removes absolute speed differences between algorithms, allowing direct comparison of how well each algorithm's performance scales with additional threads, but relative to its own baseline. Top half: HPC (1-180 threads; WCP allocations from 8 up to 128 or 176 threads). Bottom half: Laptop (1-16 threads; WCP allocations from 4 threads). Higher values indicate greater throughput. The dashed grey line shows perfect linear scaling (i.e., speed-up = number of threads). Note: these results reflect parallelisation behaviour only, and do not account for differences in effective sample size (ESS) per second between algorithms; a method that scales perfectly here may still require more total computation to achieve equivalent posterior precision.*
+*Figure 2: Normalised parallel scaling for each algorithm, computed as: (N_chains/second) × T_0, where T_0 is the time of each algorithm's own one-chain, one-thread reference at the same number of iterations (for WCP, the corresponding implementation without WCP); i.e., the speed-up over the one-chain, one-thread reference, as defined in the paper (with the same reference as the paper's parallel efficiency tables). Note: this normalisation removes absolute speed differences between algorithms, allowing direct comparison of how well each algorithm's performance scales with additional threads, but relative to its own baseline. Top half: HPC (1-180 threads; WCP allocations from 8 up to 128 or 176 threads). Bottom half: Laptop (1-16 threads; WCP allocations from 4 threads). Higher values indicate greater throughput. The dashed grey line shows perfect linear scaling (i.e., speed-up = number of threads). The dotted vertical lines mark 96 threads (HPC) and 8 threads (laptop), above which SMT is used. Note: these results reflect parallelisation behaviour only, and do not account for differences in effective sample size (ESS) per second between algorithms; a method that scales perfectly here may still require more total computation to achieve equivalent posterior precision.*
 
 
 <!-- ------------------------------------------------------------------------------------------------------------------------------- -->
@@ -105,7 +105,7 @@ Hence, `alg_paper_1_experiment_3_table.R` also needs the saved outputs of our Ni
 ```bibtex
 @misc{Cerullo_2026_cache_aware_chunking,
   title  = {Cache-aware chunking dramatically improves parallel scaling for {HMC} with autodiff and manual gradients: Application to multivariate probit model in {Stan} and {NicoStan}/{BayesMVP}},
-  author = {Cerullo, Enzo and Carter, Olivia and Margossian, Charles and Jones, Hayley E. and Lucas, Tim and Cooper, Nicola J. and Sutton, Alex J.},
+  author = {Cerullo, Enzo and Carter, Olivia and Jones, Hayley E. and Lucas, Tim and Cooper, Nicola J. and Sutton, Alex J.},
   year   = {2026}
 }
 ```
