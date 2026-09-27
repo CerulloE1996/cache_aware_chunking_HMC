@@ -1,0 +1,3 @@
+"N","device","n_chains","threads_per_chain","n_threads_total","SMT","level","cache_bytes_per_thread","c_star","label","label_row"
+50000,"Laptop",2,"2/4","4/8","FALSE","L3",2097152,456.619262695312,"L3 (WCP ≤ 4)",0
+50000,"Laptop",4,"2","8","FALSE","L3",2097152,456.619262695312,"L3 (WCP 2)",0

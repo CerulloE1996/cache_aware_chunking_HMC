@@ -653,6 +653,31 @@ fn_paper1_NicoStan_comparisons <-  function( configurations ) {
 
 }
 ##
+## ---- Stan variants figure: add the WCP-only arm (one chunk per WCP thread) ---------------------------------------------------------
+##
+## The WCP-only rows are exactly the "NicoStan-WCP" rows of fn_paper1_NicoStan_comparisons()$by_budget: AD_Stan_WCP with
+## num_chunks = threads_per_chain, keeping the highest total iterations per second at each device, N and total thread budget
+## (the same rule as "BayesMVP-WCP"). They are relabelled in the Stan figure style; the four existing arms (views$stan) are
+## passed through unchanged. Columns present in only one of the two inputs are filled with NA.
+##
+fn_paper1_Stan_variants_with_WCP_only <-  function( stan,
+                                                    NicoStan_by_budget,
+                                                    WCP_only_label = "Stan model (NicoStan) + WCP") {
+
+        WCP_only <-  NicoStan_by_budget[NicoStan_by_budget$comparison_mode == "NicoStan-WCP", , drop = FALSE]
+        ##
+        if (!nrow(WCP_only)) return(stan)
+        ##
+        WCP_only$Algorithm_label <-  WCP_only$Stan_variant_label <-  rep(WCP_only_label, nrow(WCP_only))
+        ##
+        for (column in setdiff(x = names(stan), y = names(WCP_only))) WCP_only[[column]] <-  rep(NA, nrow(WCP_only))
+        ##
+        for (column in setdiff(x = names(WCP_only), y = names(stan))) stan[[column]] <-  rep(NA, nrow(stan))
+        ##
+        return(rbind(stan, WCP_only[, names(stan), drop = FALSE]))
+
+}
+##
 ## ---- Export manuscript figures, tables and provenance --------------------------------------------------------------------------------
 ##
 ## ---- Serial baseline for every arm, matched PER ITERATION: the WCP arms run more long-run iterations than their
@@ -983,6 +1008,53 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
                            'Point labels give the selected chunk count; all measured WCP choices remain visible.'),
                        label = paste0('figure:', file_prefix, '_optimal_chunks_by_WCP'))
             ##
+            ## ---- The same NicoStan+BayesMVP chunk search with cache-capacity lines, for N = 500 and 50,000 (the figure without lines is
+            ##      kept): chunk count at which one chunk first fits in the L3 / L2 cache per active thread (chains x WCP threads).
+            if (group$algorithm == 'MD_BayesMVP_WCP' && group$N %in% c(500, 50000)) {
+
+                templates$fn_plot_paper1_WCP_chunk_search( chunk_search = chunk_search,
+                                                           best_chunks = best_chunks,
+                                                           output_path = figdir,
+                                                           file_prefix = file_prefix,
+                                                           show_cache_lines = TRUE,
+                                                           thresholds_file = file.path(csvdir, paste0(file_prefix, '_chunk_search_cache_lines_thresholds.csv')))
+                ##
+                add_asset( kind = 'figure',
+                           file = file.path('figures', paste0(file_prefix, '_chunk_search_cache_lines.png')),
+                           caption = paste0(group$device, ', ', chunk_search$Algorithm_label[1], ', N = ', group$N,
+                               ': all measured chunk settings (log scale), separately by chain count and WCP threads. ',
+                               'Grey lines mark the chunk count at which one chunk (',
+                               fn_paper1_format_number_commas_from_10000(templates$paper1_bytes_per_row_BayesMVP),
+                               ' bytes per individual) first fits in the L3 or L2 cache per active thread (chains x WCP threads); ',
+                               'to the left of an L3 line, one chunk exceeds the L3 cache per active thread.'),
+                           label = paste0('figure:', file_prefix, '_chunk_search_cache_lines'))
+
+            }
+            ##
+            ## ---- The same for the Stan model (NicoStan) + tape chunking + WCP chunk search, for N = 500 and 50,000 (the figure without
+            ##      lines is kept), with the working set per individual of one Stan partial sum (autodiff tape, stacks and temporaries).
+            if (group$algorithm == 'AD_Stan_WCP' && group$N %in% c(500, 50000)) {
+
+                templates$fn_plot_paper1_WCP_chunk_search( chunk_search = chunk_search,
+                                                           best_chunks = best_chunks,
+                                                           output_path = figdir,
+                                                           file_prefix = file_prefix,
+                                                           show_cache_lines = TRUE,
+                                                           bytes_per_row = templates$paper1_bytes_per_row_Stan,
+                                                           thresholds_file = file.path(csvdir, paste0(file_prefix, '_chunk_search_cache_lines_thresholds.csv')))
+                ##
+                add_asset( kind = 'figure',
+                           file = file.path('figures', paste0(file_prefix, '_chunk_search_cache_lines.png')),
+                           caption = paste0(group$device, ', ', chunk_search$Algorithm_label[1], ', N = ', group$N,
+                               ': all measured chunk settings (log scale), separately by chain count and WCP threads. ',
+                               'Grey lines mark the chunk count at which one chunk (',
+                               fn_paper1_format_number_commas_from_10000(templates$paper1_bytes_per_row_Stan),
+                               ' bytes per individual: autodiff tape, its stacks and temporaries) first fits in the L3 or L2 cache per active thread ',
+                               '(chains x WCP threads); to the left of an L3 line, one chunk exceeds the L3 cache per active thread.'),
+                           label = paste0('figure:', file_prefix, '_chunk_search_cache_lines'))
+
+            }
+            ##
             table_filename <-  paste0(file_prefix, '_best_chunks_by_WCP.tex')
             table_label <-  paste0('table:', file_prefix, '_best_chunks_by_WCP')
             templates$fn_make_paper1_configuration_table( configurations = best_chunks,
@@ -1002,7 +1074,24 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
             ##
             templates$R_fn_plot_ps1_N_chunks_ggplot_1(views$ps1, output_path = figdir, n_threads_for_HPC = 180, n_threads_for_Laptop = 16)
             ##
+            ## Both thread settings on one plot (colour = SMT use; line type = device):
+            templates$R_fn_plot_ps1_N_chunks_ggplot_SMT_combined(views$ps1, output_path = figdir)
+            ##
+            ## The same, with cache-capacity lines (chunk count at which one chunk first fits in the L3 / L2 / L1 cache per active thread):
+            templates$R_fn_plot_ps1_N_chunks_ggplot_SMT_combined( views$ps1,
+                                                                  output_path = figdir,
+                                                                  show_cache_lines = TRUE,
+                                                                  thresholds_file = file.path(csvdir, 'Figure_N_chunks_pilot_study_plot_1_n_threads_SMT_vs_no_SMT_cache_lines_thresholds.csv'))
+            ##
             templates$R_fn_plot_ps1_efficiency(subset(views$ps1, device == 'HPC'), subset(views$ps1, device == 'Laptop'), output_path = figdir)
+            ##
+            ## Efficiency for both devices on one set of panels (colour = thread level; line type = device), without and with cache-capacity lines:
+            templates$R_fn_plot_ps1_efficiency_combined(views$ps1, output_path = figdir)
+            ##
+            templates$R_fn_plot_ps1_efficiency_combined( views$ps1,
+                                                         output_path = figdir,
+                                                         show_cache_lines = TRUE,
+                                                         thresholds_file = file.path(csvdir, 'Figure_N_chunks_pilot_study_plot_3_both_devices_cache_lines_thresholds.csv'))
             ##
             for (pair in list(c(96, 8), c(180, 16))) {
 
@@ -1022,9 +1111,38 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
             }
             ##
             add_asset( 'figure',
+                       'figures/Figure_N_chunks_pilot_study_plot_1_n_threads_SMT_vs_no_SMT.png',
+                       paste0( 'COVID-19-derived data: BayesMVP sampling time against chunk count, without SMT (HPC 96, Laptop 8 total threads) ',
+                               'and with SMT (HPC 180, Laptop 16 total threads). Mean and one SD across saved repeats; absent data are labelled.'),
+                       'figure:ps1_n_chunks_time_SMT_combined')
+            ##
+            add_asset( 'figure',
+                       'figures/Figure_N_chunks_pilot_study_plot_1_n_threads_SMT_vs_no_SMT_cache_lines.png',
+                       paste0( 'COVID-19-derived data: BayesMVP sampling time against chunk count (log scale), without SMT (HPC 96, Laptop 8 total threads) ',
+                               'and with SMT (HPC 180, Laptop 16 total threads). Vertical lines mark the chunk count at which one chunk (',
+                               fn_paper1_format_number_commas_from_10000(templates$paper1_bytes_per_row_BayesMVP),
+                               ' bytes per individual) first fits in the L3, L2 or L1 cache per active thread, in the colour and line type of its data line; ',
+                               'to the left of the L3 line, one chunk exceeds the L3 cache per active thread. Mean and one SD across saved repeats.'),
+                       'figure:ps1_n_chunks_time_SMT_combined_cache_lines')
+            ##
+            add_asset( 'figure',
                        'figures/Figure_N_chunks_pilot_study_plot_3.png',
                        'BayesMVP efficiency, number of threads divided by elapsed seconds, by chunk count, matching the manuscript PS1 definition.',
                        'figure:ps1_n_chunks_combined')
+            ##
+            add_asset( 'figure',
+                       'figures/Figure_N_chunks_pilot_study_plot_3_both_devices.png',
+                       paste0( 'BayesMVP efficiency, number of threads divided by elapsed seconds (log scale), by chunk count, for the HPC (solid lines; ',
+                               '64, 96 and 180 threads) and the laptop (dashed lines; 4, 8 and 16 threads).'),
+                       'figure:ps1_n_chunks_combined_both_devices')
+            ##
+            add_asset( 'figure',
+                       'figures/Figure_N_chunks_pilot_study_plot_3_both_devices_cache_lines.png',
+                       paste0( 'BayesMVP efficiency, number of threads divided by elapsed seconds (log scale), by chunk count (log scale), for the HPC (solid lines; ',
+                               '64, 96 and 180 threads) and the laptop (dashed lines; 4, 8 and 16 threads). Vertical lines mark the chunk count at which one chunk (',
+                               fn_paper1_format_number_commas_from_10000(templates$paper1_bytes_per_row_BayesMVP),
+                               ' bytes per individual) first fits in the L3, L2 or L1 cache per active thread; thread levels with identical thresholds share one line.'),
+                       'figure:ps1_n_chunks_combined_both_devices_cache_lines')
             ##
             best_chunks <-  templates$get_best_chunks(views$ps1)
             ##
@@ -1137,6 +1255,11 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
             ##      one-thread reference (equation eq:paper1_serial_efficiency), not each arm's own minimum time.
             templates$R_fn_plot_ps2_scaling(views$scaling, metric = 'serial_speedup', output_path = figdir,
                                             values_file = file.path(csvdir, 'Figure_ps2_plot_2_adj_scalability_values.csv'))
+            ##
+            ## The same figure with light markers where SMT starts and the L3 cache per active thread falls below the L3 cache per core:
+            templates$R_fn_plot_ps2_scaling(views$scaling, metric = 'serial_speedup', output_path = figdir,
+                                            show_markers = TRUE,
+                                            markers_file = file.path(csvdir, 'Figure_ps2_plot_2_adj_scalability_markers.csv'))
             serial_plot_data <- views$serial_efficiency[is.finite(views$serial_efficiency$parallel_efficiency), , drop = FALSE]
             if (nrow(serial_plot_data)) {
                 p_serial <- ggplot2::ggplot(serial_plot_data,
@@ -1168,6 +1291,13 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
                               'The best remaining allocation is then selected separately by algorithm at each actual thread total. ',
                               'The dashed grey line shows ideal scaling, S = total threads.'),
                        'figure:ps2_parallel_scalability_plot_1_adj_scalability')
+            ##
+            add_asset( 'figure',
+                       'figures/Figure_ps2_plot_2_adj_scalability_markers.png',
+                       paste0('Speed-up S = n_chains x T0_eq / time over the one-chain, one-thread reference of the ps2 tables, as in the figure without markers. ',
+                              'The dotted vertical line marks the thread count after which SMT is in use and the L3 cache per active thread falls below ',
+                              'the L3 cache per core (4 MB on the HPC, 2 MB on the laptop). The dashed grey line shows ideal scaling, S = total threads.'),
+                       'figure:ps2_parallel_scalability_plot_1_adj_scalability_markers')
             ##
             templates$manus_rows <-  unique(views$scaling$Algorithm_label)
             ##
@@ -1265,7 +1395,10 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
         ##
         if (nrow(views$stan)) {
 
-            templates$R_fn_plot_Stan_variants_throughput(views$stan, output_path = figdir)
+            ## The total-throughput figure also shows the WCP-only arm (the NicoStan-WCP selection; see fn_paper1_Stan_variants_with_WCP_only).
+            stan_variants_throughput <-  fn_paper1_Stan_variants_with_WCP_only(stan = views$stan, NicoStan_by_budget = views$NicoStan_by_budget)
+            ##
+            templates$R_fn_plot_Stan_variants_throughput(stan_variants_throughput, output_path = figdir, legend_nrow = 5)
             ##
             templates$R_fn_plot_Stan_variants_relative(views$stan, output_path = figdir)
             ##

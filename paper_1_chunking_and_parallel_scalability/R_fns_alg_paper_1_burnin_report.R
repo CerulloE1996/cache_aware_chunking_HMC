@@ -85,6 +85,16 @@ fn_paper1_burnin_format_speed_up <-  function( speed_up_vector ) {
         return(formatted_strings)
 
 }
+##
+## ---- Plain-text speed-up labels for figures (e.g. "4.23-fold"), same 2 decimal places as fn_paper1_burnin_format_speed_up:
+##
+fn_paper1_burnin_format_fold <-  function( fold_vector ) {
+
+        formatted_strings <-  paste0(formatC(x = fold_vector, digits = 2, format = "f"), "-fold")
+        formatted_strings[is.na(x = fold_vector)] <-  "n/a"
+        return(formatted_strings)
+
+}
 
 ##
 ## ---- fn_paper1_burnin_read_outputs: read every saved PS1 burn-in .rds for ONE device into tidy rows: ----------------------------------
@@ -423,6 +433,308 @@ fn_paper1_burnin_figure <-  function( rows,
 }
 
 ##
+## ---- fn_paper1_burnin_figure_best_chunks_panel (private helper): one (N, burn-in chains) panel of fn_paper1_burnin_figure_best_chunks: ---
+##
+## x = N_WCP on a log2 scale with breaks only at the N_WCP values measured in this panel; y = seconds per burn-in iteration (log10),
+## with this panel's own range. The N_chunks = 1, N_WCP = 1 measurement is an open square with a dashed line at its level, the best
+## N_chunks at each N_WCP is a solid line (each point labelled with its N_chunks), and the best measured configuration is outlined.
+##
+fn_paper1_burnin_figure_best_chunks_panel <-  function( panel_best_by_WCP,
+                                                        panel_no_chunking,
+                                                        panel_best_overall,
+                                                        panel_speed_up_label,
+                                                        show_N_strip,
+                                                        show_chains_strip,
+                                                        series_levels,
+                                                        series_labels,
+                                                        best_overall_label
+) {
+
+        ##
+        ## ---- x breaks only at the N_WCP values measured in this panel:
+        ##
+        measured_WCP_values <-  sort(x = unique(x = c(panel_best_by_WCP$n_threads_WCP_burnin, panel_no_chunking$n_threads_WCP_burnin)))
+        ##
+        ## ---- two rows of x labels where adjacent measured N_WCP values are close on the log2 axis (e.g. 16, 24, 32, 44):
+        ##
+        measured_WCP_log2     <-  log2(x = measured_WCP_values)
+        smallest_relative_gap <-  if (length(x = measured_WCP_values) > 1) min(diff(x = measured_WCP_log2)) / diff(x = range(measured_WCP_log2)) else 1
+        x_axis_label_rows     <-  if (smallest_relative_gap < 0.10) 2 else 1
+        ##
+        ## ---- log10 y breaks, thinned from the top down so that no two labels are closer than 9% of the panel's log10 range:
+        ##
+        y_breaks_function <-  function(y_limits) {
+
+              candidate_breaks <-  scales::breaks_log(n = 6)(y_limits)
+              candidate_breaks <-  sort(x = candidate_breaks[candidate_breaks >= min(y_limits) & candidate_breaks <= max(y_limits)], decreasing = TRUE)
+              if (length(x = candidate_breaks) < 2) return(candidate_breaks)
+              minimum_log10_gap <-  0.09 * diff(x = log10(x = range(y_limits)))
+              kept_breaks <-  candidate_breaks[1]
+              for (candidate_break in candidate_breaks[-1]) {
+                    if (log10(x = kept_breaks[length(x = kept_breaks)]) - log10(x = candidate_break) >= minimum_log10_gap) {
+                          kept_breaks <-  c(kept_breaks, candidate_break)
+                    }
+              }
+              return(sort(x = kept_breaks))
+
+        }
+        ##
+        ## ---- N_chunks labels sit below each point, except above a point that is slower than its left-hand neighbour (so that the label
+        ##      does not sit on the rising line segment); the label of the outlined best point sits further below, clear of its circle:
+        ##
+        panel_best_by_WCP   <-  panel_best_by_WCP[order(panel_best_by_WCP$n_threads_WCP_burnin), , drop = FALSE]
+        rises_from_left     <-  c(FALSE, diff(x = panel_best_by_WCP$sec_per_iter) > 0)
+        is_best_overall     <-  panel_best_by_WCP$n_threads_WCP_burnin == panel_best_overall$n_threads_WCP_burnin[1]
+        panel_best_by_WCP$label_vjust <-  ifelse(test = rises_from_left, yes = -1.0, no = ifelse(test = is_best_overall, yes = 3.0, no = 2.0))
+        ##
+        ## ---- Series styles (first level = no chunking reference, second level = best N_chunks at each N_WCP):
+        ##
+        series_colours   <-  c("#D55E00", "#0072B2")
+        series_linetypes <-  c("dashed",  "solid")
+        series_shapes    <-  c(0,         16)
+        names(x = series_colours)   <-  series_levels
+        names(x = series_linetypes) <-  series_levels
+        names(x = series_shapes)    <-  series_levels
+        ##
+        best_overall_fill <-  c(NA)
+        names(x = best_overall_fill) <-  best_overall_label
+        ##
+        panel_plot <-  ggplot2::ggplot() +
+              ##
+              ## ---- dashed reference level of N_chunks = 1, N_WCP = 1 across the whole panel:
+              ##
+              ggplot2::geom_hline( data        = panel_no_chunking,
+                                   mapping     = ggplot2::aes(yintercept = .data$sec_per_iter,
+                                                              colour     = .data$series,
+                                                              linetype   = .data$series),
+                                   linewidth   = 0.6) +
+              ##
+              ## ---- best N_chunks at each N_WCP:
+              ##
+              ggplot2::geom_line( data        = panel_best_by_WCP,
+                                  mapping     = ggplot2::aes(x        = .data$n_threads_WCP_burnin,
+                                                             y        = .data$sec_per_iter,
+                                                             colour   = .data$series,
+                                                             linetype = .data$series),
+                                  linewidth   = 0.8) +
+              ggplot2::geom_point( data        = panel_best_by_WCP,
+                                   mapping     = ggplot2::aes(x      = .data$n_threads_WCP_burnin,
+                                                              y      = .data$sec_per_iter,
+                                                              colour = .data$series,
+                                                              shape  = .data$series),
+                                   size        = 2.2) +
+              ggplot2::geom_text( data        = panel_best_by_WCP,
+                                  mapping     = ggplot2::aes(x     = .data$n_threads_WCP_burnin,
+                                                             y     = .data$sec_per_iter,
+                                                             label = .data$num_chunks_burnin,
+                                                             vjust = .data$label_vjust),
+                                  colour      = series_colours[[2]],
+                                  size        = 3.3,
+                                  show.legend = FALSE) +
+              ##
+              ## ---- N_chunks = 1, N_WCP = 1 measurement (drawn after the best line, so it stays visible where the two coincide):
+              ##
+              ggplot2::geom_point( data        = panel_no_chunking,
+                                   mapping     = ggplot2::aes(x      = .data$n_threads_WCP_burnin,
+                                                              y      = .data$sec_per_iter,
+                                                              colour = .data$series,
+                                                              shape  = .data$series),
+                                   size        = 3.4,
+                                   stroke      = 1.1) +
+              ##
+              ## ---- best measured (N_chunks, N_WCP) configuration, outlined:
+              ##
+              ggplot2::geom_point( data        = panel_best_overall,
+                                   mapping     = ggplot2::aes(x    = .data$n_threads_WCP_burnin,
+                                                              y    = .data$sec_per_iter,
+                                                              fill = .data$best_overall_series),
+                                   shape       = 21,
+                                   size        = 5.0,
+                                   stroke      = 1.0,
+                                   colour      = "black") +
+              ##
+              ## ---- speed-ups of the best configuration relative to both references (as in fn_paper1_burnin_best_table_tex):
+              ##
+              ggplot2::annotate( geom  = "text",
+                                 x     = Inf,
+                                 y     = Inf,
+                                 label = panel_speed_up_label,
+                                 hjust = 1.06,
+                                 vjust = 1.25,
+                                 size  = 3.4) +
+              ggplot2::scale_x_continuous( transform    = "log2",
+                                           breaks       = measured_WCP_values,
+                                           labels       = measured_WCP_values,
+                                           minor_breaks = NULL,
+                                           expand       = ggplot2::expansion(mult = 0.08),
+                                           guide        = ggplot2::guide_axis(n.dodge = x_axis_label_rows)) +
+              ggplot2::scale_y_log10( breaks = y_breaks_function,
+                                      expand = ggplot2::expansion(mult = c(0.20, 0.45)),
+                                      guide  = ggplot2::guide_axis(check.overlap = TRUE)) +
+              ggplot2::scale_colour_manual(   name = NULL, values = series_colours,   breaks = series_levels, labels = series_labels) +
+              ggplot2::scale_linetype_manual( name = NULL, values = series_linetypes, breaks = series_levels, labels = series_labels) +
+              ggplot2::scale_shape_manual(    name = NULL, values = series_shapes,    breaks = series_levels, labels = series_labels) +
+              ggplot2::scale_fill_manual(     name = NULL, values = best_overall_fill, na.value = NA) +
+              ggplot2::guides( colour   = ggplot2::guide_legend(order = 1),
+                               linetype = ggplot2::guide_legend(order = 1),
+                               shape    = ggplot2::guide_legend(order = 1),
+                               fill     = ggplot2::guide_legend(order = 2)) +
+              ggplot2::labs( x = expression(N[WCP] ~ "(within-chain-parallelism threads per burn-in chain)"),
+                             y = "Seconds per burn-in iteration (log scale)") +
+              ggplot2::theme_bw(base_size = 14) +
+              ggplot2::theme( legend.position  = "bottom",
+                              legend.direction = "vertical",
+                              legend.key.width = ggplot2::unit(x = 1.6, units = "lines"))
+        ##
+        ## ---- strips on the outer edges of the grid only (N along the top row, burn-in chains down the right-hand column):
+        ##
+        if (show_N_strip && show_chains_strip) {
+              panel_plot <-  panel_plot + ggplot2::facet_grid(rows = ggplot2::vars(.data$chains_label), cols = ggplot2::vars(.data$N_label))
+        } else if (show_N_strip) {
+              panel_plot <-  panel_plot + ggplot2::facet_grid(cols = ggplot2::vars(.data$N_label))
+        } else if (show_chains_strip) {
+              panel_plot <-  panel_plot + ggplot2::facet_grid(rows = ggplot2::vars(.data$chains_label))
+        }
+        ##
+        return(panel_plot)
+
+}
+##
+## ---- fn_paper1_burnin_figure_best_chunks: seconds per burn-in iteration vs N_WCP against both burn-in references, per (N, chains): ------
+##
+## Manuscript version of the burn-in figure (fn_paper1_burnin_figure above, one line per chunk count on shared axes, is kept unchanged).
+## Rows = burn-in chains, columns = N; each panel has its own x and y range. Per panel:
+##   - "No chunking, no WCP" = the N_chunks = 1, N_WCP = 1 measurement (open square, dashed line at its level) = reference (i);
+##   - "Best N_chunks at each N_WCP" = the fastest measured chunk count at each N_WCP (solid line, points labelled with N_chunks);
+##     its N_WCP = 1 point is the best chunking-only setting = reference (ii);
+##   - the best measured (N_chunks, N_WCP) configuration (outlined point), and its speed-up relative to (i) ("total") and to (ii) ("WCP"),
+##     computed exactly as in fn_paper1_burnin_best_table_tex().
+## facet_grid() shares y along a row and x along a column, so each panel is its own ggplot and patchwork assembles the grid.
+##
+fn_paper1_burnin_figure_best_chunks <-  function( rows,
+                                                  device,
+                                                  file_path
+) {
+
+        for (required_string_argument in list(device = device, file_path = file_path)) {
+              if (!is.character(x = required_string_argument) || length(x = required_string_argument) != 1 ||
+                  is.na(x = required_string_argument)) {
+                    stop("fn_paper1_burnin_figure_best_chunks: device and file_path must both be single non-missing strings.")
+              }
+        }
+        ##
+        configuration_summary <-  fn_paper1_burnin_summarise_rows(rows = rows, device = device)
+        ##
+        N_values      <-  sort(x = unique(x = configuration_summary$N))
+        chains_values <-  sort(x = unique(x = configuration_summary$n_chains_burnin))
+        ##
+        configuration_summary <-  dplyr::mutate( .data        = configuration_summary,
+                                                 N_label      = factor(x      = paste0("N = ", fn_paper1_format_number_commas_from_10000(.data$N)),
+                                                                       levels = paste0("N = ", fn_paper1_format_number_commas_from_10000(N_values))),
+                                                 chains_label = factor(x      = paste0(.data$n_chains_burnin, " burn-in chains"),
+                                                                       levels = paste0(chains_values, " burn-in chains")))
+        ##
+        series_levels      <-  c("no_chunking", "best_chunks_at_each_WCP")
+        series_labels      <-  c(expression("No chunking, no WCP (" * N[chunks] * " = 1, " * N[WCP] * " = 1)"),
+                                 expression("Best " * N[chunks] * " at each " * N[WCP] * " (point labels give " * N[chunks] * ")"))
+        best_overall_label <-  "Best measured configuration"
+        ##
+        ## ---- Reference (i): N_chunks = 1, N_WCP = 1 per (N, chains):
+        ##
+        no_chunking <-  dplyr::filter(.data = configuration_summary, .data$num_chunks_burnin == 1, .data$n_threads_WCP_burnin == 1)
+        no_chunking <-  dplyr::mutate(.data = no_chunking, series = factor(x = "no_chunking", levels = series_levels))
+        ##
+        ## ---- Best N_chunks at each (N, chains, N_WCP); its N_WCP = 1 row is reference (ii), the best chunking-only setting:
+        ##
+        best_by_WCP <-  dplyr::group_by(.data = configuration_summary, .data$N, .data$n_chains_burnin, .data$n_threads_WCP_burnin)
+        best_by_WCP <-  dplyr::slice(.data = best_by_WCP, which.min(.data$sec_per_iter))
+        best_by_WCP <-  dplyr::ungroup(x = best_by_WCP)
+        best_by_WCP <-  dplyr::mutate(.data = best_by_WCP, series = factor(x = "best_chunks_at_each_WCP", levels = series_levels))
+        ##
+        ## ---- Best measured (N_chunks, N_WCP) per (N, chains):
+        ##
+        best_overall <-  dplyr::group_by(.data = configuration_summary, .data$N, .data$n_chains_burnin)
+        best_overall <-  dplyr::slice(.data = best_overall, which.min(.data$sec_per_iter))
+        best_overall <-  dplyr::ungroup(x = best_overall)
+        best_overall <-  dplyr::mutate(.data = best_overall, best_overall_series = best_overall_label)
+        ##
+        ## ---- One panel per (chains, N), row-major (rows = burn-in chains, columns = N):
+        ##
+        panel_list    <-  list()
+        panel_summary <-  list()
+        ##
+        for (chains_index in seq_along(along.with = chains_values)) {
+              for (N_index in seq_along(along.with = N_values)) {
+
+                    this_chains <-  chains_values[chains_index]
+                    this_N      <-  N_values[N_index]
+                    ##
+                    panel_best_by_WCP  <-  best_by_WCP[best_by_WCP$N   == this_N & best_by_WCP$n_chains_burnin  == this_chains, , drop = FALSE]
+                    panel_no_chunking  <-  no_chunking[no_chunking$N   == this_N & no_chunking$n_chains_burnin  == this_chains, , drop = FALSE]
+                    panel_best_overall <-  best_overall[best_overall$N == this_N & best_overall$n_chains_burnin == this_chains, , drop = FALSE]
+                    ##
+                    if (nrow(x = panel_best_by_WCP) == 0) {
+                          message(paste0("\033[36m", "fn_paper1_burnin_figure_best_chunks: no rows for N = ", this_N, ", ", this_chains,
+                                         " burn-in chains on device = '", device, "'; leaving that panel empty.", "\033[0m"))
+                          panel_list[[length(x = panel_list) + 1]] <-  patchwork::plot_spacer()
+                          next
+                    }
+                    ##
+                    ## ---- speed-ups, computed exactly as in fn_paper1_burnin_best_table_tex():
+                    ##
+                    best_sec_per_iter          <-  panel_best_overall$sec_per_iter
+                    best_chunking_only_sec     <-  panel_best_by_WCP$sec_per_iter[panel_best_by_WCP$n_threads_WCP_burnin == 1]
+                    no_chunking_sec            <-  panel_no_chunking$sec_per_iter
+                    speed_up_vs_1_chunk_WCP_1  <-  if (length(x = no_chunking_sec) == 1)        no_chunking_sec        / best_sec_per_iter else NA_real_
+                    speed_up_vs_best_chunks    <-  if (length(x = best_chunking_only_sec) == 1) best_chunking_only_sec / best_sec_per_iter else NA_real_
+                    ##
+                    panel_speed_up_label <-  paste0("total ", fn_paper1_burnin_format_fold(fold_vector = speed_up_vs_1_chunk_WCP_1), "\n",
+                                                    "WCP ",   fn_paper1_burnin_format_fold(fold_vector = speed_up_vs_best_chunks))
+                    ##
+                    panel_summary[[length(x = panel_summary) + 1]] <-  data.frame( device                    = device,
+                                                                                   N                         = this_N,
+                                                                                   n_chains_burnin           = this_chains,
+                                                                                   best_num_chunks_burnin    = panel_best_overall$num_chunks_burnin,
+                                                                                   best_n_threads_WCP_burnin = panel_best_overall$n_threads_WCP_burnin,
+                                                                                   best_sec_per_iter         = best_sec_per_iter,
+                                                                                   no_chunking_sec_per_iter  = if (length(x = no_chunking_sec) == 1) no_chunking_sec else NA_real_,
+                                                                                   best_chunking_only_sec    = if (length(x = best_chunking_only_sec) == 1) best_chunking_only_sec else NA_real_,
+                                                                                   speed_up_vs_1_chunk_WCP_1 = speed_up_vs_1_chunk_WCP_1,
+                                                                                   speed_up_vs_best_chunks   = speed_up_vs_best_chunks,
+                                                                                   panel_speed_up_label      = panel_speed_up_label)
+                    ##
+                    panel_list[[length(x = panel_list) + 1]] <-  fn_paper1_burnin_figure_best_chunks_panel( panel_best_by_WCP    = panel_best_by_WCP,
+                                                                                                            panel_no_chunking    = panel_no_chunking,
+                                                                                                            panel_best_overall   = panel_best_overall,
+                                                                                                            panel_speed_up_label = panel_speed_up_label,
+                                                                                                            show_N_strip         = (chains_index == 1),
+                                                                                                            show_chains_strip    = (N_index == length(x = N_values)),
+                                                                                                            series_levels        = series_levels,
+                                                                                                            series_labels        = series_labels,
+                                                                                                            best_overall_label   = best_overall_label)
+
+              }
+        }
+        ##
+        ## ---- Assemble the grid: one collected legend at the bottom, one x-axis title and one y-axis title:
+        ##
+        burnin_figure <-  patchwork::wrap_plots(panel_list, ncol = length(x = N_values), byrow = TRUE) +
+              patchwork::plot_layout(guides = "collect", axis_titles = "collect") &
+              ggplot2::theme(legend.position = "bottom", legend.box = "horizontal")
+        ##
+        dir.create(path = dirname(path = file_path), recursive = TRUE, showWarnings = FALSE)
+        ggplot2::ggsave( filename = file_path,
+                         plot     = burnin_figure,
+                         width    = 10,
+                         height   = 3 * length(x = chains_values) + 1.6,
+                         dpi      = 150)
+        message(paste0("\033[36m", "fn_paper1_burnin_figure_best_chunks: wrote figure (", length(x = panel_summary), " panel(s)) to ", file_path, "\033[0m"))
+        ##
+        return(invisible(list(figure = burnin_figure, panel_summary = do.call(what = rbind, args = panel_summary))))
+
+}
+
+##
 ## ---- fn_paper1_burnin_write_bundle: writes paper_sections/Burnin_chunks_WCP/{figures,tables,section.tex}, optionally to manuscript_dir: -
 ##
 fn_paper1_burnin_write_bundle <-  function( rows,
@@ -478,18 +790,25 @@ fn_paper1_burnin_write_bundle <-  function( rows,
               ##
               figure_file_name <-  paste0("figure_burnin_", device_selector, ".png")
               figure_label       <-  paste0("figure:burnin_", device_selector)
-              fn_paper1_burnin_figure( rows      = rows,
-                                       device    = device_selector,
-                                       file_path = file.path(figure_dir, figure_file_name))
+              ## fn_paper1_burnin_figure( rows      = rows,
+              ##                          device    = device_selector,
+              ##                          file_path = file.path(figure_dir, figure_file_name))
+              fn_paper1_burnin_figure_best_chunks( rows      = rows,
+                                                   device    = device_selector,
+                                                   file_path = file.path(figure_dir, figure_file_name))
               ##
               section_tex_lines <-  c( section_tex_lines,
                                        "\\begin{figure}[H]",
                                        "\\centering",
                                        paste0("\\includegraphics[width=\\textwidth,height=0.8\\textheight,keepaspectratio]{",
                                              "Files/Generated/", bundle_name, "/figures/", figure_file_name, "}"),
+                                       ## paste0("\\caption{BayesMVP burn-in, ", device_full_name[[device_selector]],
+                                       ##       ": seconds per burn-in iteration against $N_{\\text{WCP}}$, one line per chunk count,",
+                                       ##       " facetted by $N$ and burn-in chain count (log-scale $y$-axis).}"),
                                        paste0("\\caption{BayesMVP burn-in, ", device_full_name[[device_selector]],
-                                             ": seconds per burn-in iteration against $N_{\\text{WCP}}$, one line per chunk count,",
-                                             " facetted by $N$ and burn-in chain count (log-scale $y$-axis).}"),
+                                             ": seconds per burn-in iteration against $N_{\\text{WCP}}$ for each $N$ and burn-in chain count,",
+                                             " for $N_{\\text{chunks}} = 1$ at $N_{\\text{WCP}} = 1$ and for the best measured $N_{\\text{chunks}}$",
+                                             " at each $N_{\\text{WCP}}$ (log-scale axes).}"),
                                        paste0("\\label{", figure_label, "}"),
                                        "\\end{figure}",
                                        paste0("\\input{Files/Generated/", bundle_name, "/tables/", table_file_name, "}"))

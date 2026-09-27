@@ -1,0 +1,27 @@
+"N","device","n_threads_total","SMT_level","level","cache_bytes_per_thread","c_star","label","label_row"
+500,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",524288,1.53350830078125,"L2 HPC",0
+500,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",524288,1.53350830078125,"L2 laptop",1
+500,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",262144,3.0670166015625,"L2 laptop",0
+2500,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L3",2236962.13333333,1.79708003997803,"L3 HPC",0
+2500,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L3",2097152,1.91688537597656,"L3 laptop",1
+2500,"HPC",96,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",1048576,3.83377075195312,"L2 HPC",0
+2500,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L3",1048576,3.83377075195312,"L3 laptop",1
+2500,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",524288,7.66754150390625,"L2 HPC",0
+2500,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",524288,7.66754150390625,"L2 laptop",1
+2500,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",262144,15.3350830078125,"L2 laptop",0
+10000,"HPC",96,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L3",4194304,3.83377075195312,"L3 HPC",0
+10000,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L3",2236962.13333333,7.18832015991211,"L3 HPC",0
+10000,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L3",2097152,7.66754150390625,"L3 laptop",1
+10000,"HPC",96,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",1048576,15.3350830078125,"L2 HPC",0
+10000,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L3",1048576,15.3350830078125,"L3 laptop",1
+10000,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",524288,30.670166015625,"L2 HPC",0
+10000,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",524288,30.670166015625,"L2 laptop",1
+10000,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",262144,61.34033203125,"L2 laptop",0
+50000,"HPC",96,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L3",4194304,19.1688537597656,"L3 HPC",0
+50000,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L3",2236962.13333333,35.9416007995605,"L3 HPC",1
+50000,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L3",2097152,38.3377075195312,"L3 laptop",2
+50000,"HPC",96,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",1048576,76.6754150390625,"L2 HPC",0
+50000,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L3",1048576,76.6754150390625,"L3 laptop",3
+50000,"HPC",180,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",524288,153.350830078125,"L2 HPC",0
+50000,"Laptop",8,"Without SMT (HPC: 96 threads, laptop: 8 threads)","L2",524288,153.350830078125,"L2 laptop",1
+50000,"Laptop",16,"With SMT (HPC: 180 threads, laptop: 16 threads)","L2",262144,306.70166015625,"L2 laptop",2

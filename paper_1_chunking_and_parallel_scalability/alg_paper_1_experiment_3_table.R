@@ -70,8 +70,25 @@ ps7_runs_directory_by_device <-  list(
 ps7_old_configuration_runs_directory_by_device <-  list(
       Laptop = NA_character_,
       HPC    = file.path(pilot_study_dir, "ps_7_basic_MCMC_settings_BayesMVP", "outputs", "DGM_3", "2nd_Sept_2026_backup"))
+# ps7_old_configuration_N_values_by_device <-  list( Laptop = numeric(0),
+#                                                    HPC    = c(500))
+## Paper results use only runs matching the CURRENT runner settings, so no N is taken from the backup folder:
 ps7_old_configuration_N_values_by_device <-  list( Laptop = numeric(0),
-                                                   HPC    = c(500))
+                                                   HPC    = numeric(0))
+##
+## ---- Only ps7 runs with the runner's CURRENT number of sampling iterations are used; n_iter is read from the active line of
+##      the ps7 runner at run time (never hard-coded here), and matched through the "_it<n_iter>_" file-name token:
+##
+ps7_runner_file <-  file.path(pilot_study_dir, "ps_7_basic_MCMC_settings_BayesMVP", "ps_7_MCMC_settings_BayesMVP.R")
+ps7_runner_n_iter_lines <-  grep( pattern = "^[[:space:]]*n_iter[[:space:]]*=[[:space:]]*[0-9]+[[:space:]]*,",
+                                  x = readLines(con = ps7_runner_file),
+                                  value = TRUE)
+if (length(ps7_runner_n_iter_lines) != 1) {
+      stop(paste0("Expected exactly one active 'n_iter = <number>,' line in ", ps7_runner_file, "; found ", length(ps7_runner_n_iter_lines), "."))
+}
+ps7_current_n_iter <-  as.numeric(sub(pattern = "^[[:space:]]*n_iter[[:space:]]*=[[:space:]]*([0-9]+).*$", replacement = "\\1",
+                                      x = ps7_runner_n_iter_lines))
+message(paste0("\033[36m", "ps7: using only runs with n_iter = ", ps7_current_n_iter, " (the current setting in ", basename(ps7_runner_file), ")", "\033[0m"))
 ##
 ## ---- Target minimum ESS per N (over Se / Sp / prevalence), same target used for every software at that N ---------------------------
 ##
@@ -145,7 +162,8 @@ for (device_label in names(ps5_csv_file_path_by_device)) {
             exp3_rows_for_this_device$bayesmvp <-  fn_paper1_exp3_rows_from_ps7_directory( ps7_runs_directory       = ps7_runs_directory,
                                                                                             device_label             = device_label,
                                                                                             target_min_ESS_by_N      = target_min_ESS_by_N,
-                                                                                            ps7_functions_directory  = ps7_functions_dir)
+                                                                                            ps7_functions_directory  = ps7_functions_dir,
+                                                                                            ps7_file_pattern         = paste0("^ps7_run_.*_it", ps7_current_n_iter, "_"))
 
       }
       ##

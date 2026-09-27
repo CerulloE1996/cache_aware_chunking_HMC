@@ -1,0 +1,6 @@
+"N","device","n_chains","threads_per_chain","n_threads_total","SMT","level","cache_bytes_per_thread","c_star","label","label_row"
+500,"Laptop",2,"2/4","4/8","FALSE","L3",2097152,4.56619262695312,"L3 (WCP ≤ 4)",0
+500,"Laptop",2,"8","16","TRUE","L3",1048576,9.13238525390625,"L3 (WCP 8)",0
+500,"Laptop",4,"2","8","FALSE","L3",2097152,4.56619262695312,"L3 (WCP 2)",0
+500,"Laptop",4,"4","16","TRUE","L3",1048576,9.13238525390625,"L3 (WCP 4)",0
+500,"Laptop",8,"2","16","TRUE","L3",1048576,9.13238525390625,"L3 (WCP 2)",0

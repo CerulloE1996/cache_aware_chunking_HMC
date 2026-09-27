@@ -4,11 +4,11 @@
 "HPC","AD_Stan_chunked",500,"iteration_difference",108
 "Laptop","AD_Stan_chunked",500,"iteration_difference",60
 "HPC","AD_Stan_tape_chunked",500,"iteration_difference",116
-"Laptop","AD_Stan_tape_chunked",500,"iteration_difference",60
+"Laptop","AD_Stan_tape_chunked",500,"iteration_difference",64
 "HPC","AD_Stan_WCP",500,"iteration_difference",92
 "Laptop","AD_Stan_WCP",500,"iteration_difference",60
 "HPC","MD_BayesMVP",500,"iteration_difference",152
-"Laptop","MD_BayesMVP",500,"iteration_difference",80
+"Laptop","MD_BayesMVP",500,"iteration_difference",84
 "HPC","MD_BayesMVP_WCP",500,"iteration_difference",92
 "Laptop","MD_BayesMVP_WCP",500,"iteration_difference",60
 "HPC","AD_Stan",2500,"iteration_difference",36
@@ -16,11 +16,11 @@
 "HPC","AD_Stan_chunked",2500,"iteration_difference",144
 "Laptop","AD_Stan_chunked",2500,"iteration_difference",80
 "HPC","AD_Stan_tape_chunked",2500,"iteration_difference",156
-"Laptop","AD_Stan_tape_chunked",2500,"iteration_difference",80
+"Laptop","AD_Stan_tape_chunked",2500,"iteration_difference",88
 "HPC","AD_Stan_WCP",2500,"iteration_difference",172
 "Laptop","AD_Stan_WCP",2500,"iteration_difference",108
 "HPC","MD_BayesMVP",2500,"iteration_difference",188
-"Laptop","MD_BayesMVP",2500,"iteration_difference",100
+"Laptop","MD_BayesMVP",2500,"iteration_difference",104
 "HPC","MD_BayesMVP_WCP",2500,"iteration_difference",132
 "Laptop","MD_BayesMVP_WCP",2500,"iteration_difference",84
 "HPC","AD_Stan",10000,"iteration_difference",36

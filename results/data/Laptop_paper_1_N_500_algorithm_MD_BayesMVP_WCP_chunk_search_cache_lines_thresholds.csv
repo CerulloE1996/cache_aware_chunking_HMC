@@ -1,0 +1,2 @@
+"N","device","n_chains","threads_per_chain","n_threads_total","SMT","level","cache_bytes_per_thread","c_star","label","label_row"
+500,"Laptop",8,"2","16","TRUE","L2",262144,3.0670166015625,"L2 (WCP 2)",0

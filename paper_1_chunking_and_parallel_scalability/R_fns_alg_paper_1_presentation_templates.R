@@ -56,6 +56,341 @@ fn_paper1_presentation_templates <-  function() {
 
         }
 
+        ## ---- Cache-capacity lines on the chunk-count figures (links the E4 cache/RAM mechanism to E1/E2) -----------------------------
+        ##
+        ## Cache sizes (bytes) of the two machines: L1d and L2 per physical core; S_L3 = size of one L3 cache, N_L3 = number of L3
+        ## caches, C_L3 = physical cores sharing each L3 cache and s = hardware threads per core (as in equation eq:paper1_auto_n_chunks).
+        ##
+        paper1_cache_specs <-  list( HPC    = list( physical_cores = 96,                   ## AMD EPYC 9654
+                                                    L1d_per_core   = 32 * 1024,
+                                                    L2_per_core    = 1024 * 1024,
+                                                    S_L3           = 32 * 1024 * 1024,     ## per CCD
+                                                    N_L3           = 12,
+                                                    C_L3           = 8,
+                                                    s              = 2),
+                                     Laptop = list( physical_cores = 8,                    ## AMD Ryzen 7 5800H
+                                                    L1d_per_core   = 32 * 1024,
+                                                    L2_per_core    = 512 * 1024,
+                                                    S_L3           = 16 * 1024 * 1024,
+                                                    N_L3           = 1,
+                                                    C_L3           = 8,
+                                                    s              = 2))
+        ##
+        ## Working set of lp_grad per individual (row) for NicoStan+BayesMVP (binary LC-MVP, 2 classes, T = 6): 31 T + 15 doubles = 1,608 bytes.
+        paper1_bytes_per_row_BayesMVP <-  8 * (31 * 6 + 15)
+        ##
+        ## Working set per individual (row) of one reduce_sum_static partial sum of the Stan model used by AD_Stan_tape_chunked,
+        ## AD_Stan_WCP and AD_Stan_WCP_chunking (LC_MVP_bin_PartialLog_v5_reduce_sum_static.stan, 2 classes, T = 6), measured from
+        ## single-threaded gradient evaluations (Stan Math, stanc 2.36.0; exactly linear in the rows of the partial sum):
+        ## nested autodiff tape (arena) 15,936 + autodiff stacks 2,360 + heap temporaries 804 + data rows read 52 = 19,152 bytes.
+        paper1_bytes_per_row_Stan <-  15936 + 2360 + 804 + 52
+
+        ## ---- Cache capacity per active thread, for a total number of active threads (chains x WCP threads per chain):
+        ##      L3 per active thread = S_L3 / max(C_L3, A_L3), A_L3 = min(s C_L3, ceiling(N_threads / N_L3)) (equation eq:paper1_auto_n_chunks);
+        ##      SMT is in use when the active threads exceed the physical cores, and then L1d and L2 per thread are divided by s.
+        ##
+        fn_paper1_cache_per_thread <-  function( device,
+                                                 n_threads_total,
+                                                 cache_specs = paper1_cache_specs
+        ) {
+
+                spec <-  cache_specs[[device]]
+                ##
+                if (is.null(spec)) stop(paste0("fn_paper1_cache_per_thread: no cache specification for device = '", device, "'."))
+                ##
+                SMT <-  n_threads_total > spec$physical_cores
+                ##
+                A_L3 <-  pmin(spec$s * spec$C_L3, ceiling(n_threads_total / spec$N_L3))
+                ##
+                data.frame( device           = device,
+                            n_threads_total  = n_threads_total,
+                            SMT              = SMT,
+                            L3               = spec$S_L3 / pmax(spec$C_L3, A_L3),
+                            L2               = spec$L2_per_core  / ifelse(SMT, spec$s, 1),
+                            L1               = spec$L1d_per_core / ifelse(SMT, spec$s, 1),
+                            stringsAsFactors = FALSE)
+
+        }
+
+        ## ---- Chunk count c* = bytes_per_row x N / (cache per active thread) at which one chunk first fits in each cache level.
+        ##      Only thresholds strictly inside chunk_range (the tested chunk counts of a panel) are returned; to the left of the
+        ##      L3 line, one chunk exceeds the L3 cache per active thread (and spills to RAM).
+        ##
+        fn_paper1_cache_threshold_lines <-  function( N,
+                                                      chunk_range,
+                                                      device,
+                                                      n_threads_total,
+                                                      bytes_per_row = paper1_bytes_per_row_BayesMVP,
+                                                      cache_levels  = c("L3", "L2", "L1"),
+                                                      cache_specs   = paper1_cache_specs
+        ) {
+
+                per_thread <-  fn_paper1_cache_per_thread( device          = device,
+                                                           n_threads_total = n_threads_total,
+                                                           cache_specs     = cache_specs)
+                ##
+                thresholds <-  do.call(rbind, lapply(cache_levels, function(cache_level) {
+
+                        data.frame( N                      = N,
+                                    device                 = device,
+                                    n_threads_total        = per_thread$n_threads_total,
+                                    SMT                    = per_thread$SMT,
+                                    level                  = cache_level,
+                                    cache_bytes_per_thread = per_thread[[cache_level]],
+                                    c_star                 = bytes_per_row * N / per_thread[[cache_level]],
+                                    stringsAsFactors       = FALSE)
+
+                }))
+                ##
+                inside <-  thresholds$c_star > min(chunk_range) & thresholds$c_star < max(chunk_range)
+                ##
+                thresholds <-  thresholds[inside, , drop = FALSE]
+                ##
+                rownames(thresholds) <-  NULL
+                ##
+                thresholds
+
+        }
+
+        ## ---- Rows for the cache-line labels at the top of a panel: a label moves down one row whenever it would overlap a label
+        ##      already placed in that row (label widths estimated from the number of characters, in log10 units of the chunk axis):
+        ##
+        fn_paper1_cache_label_rows <-  function( x,
+                                                 labels,
+                                                 chunk_range,
+                                                 panel_width_in,
+                                                 label_size = 4.3,
+                                                 label_x = NULL
+        ) {
+
+                log10_span <-  1.1 * diff(log10(range(chunk_range)))
+                ##
+                ## ~0.0215 inches per character per mm of text size, plus the label padding and a small gap:
+                half_width <-  0.5 * (nchar(labels) * 0.0215 * label_size + 0.15) / panel_width_in * log10_span
+                ##
+                ## label centres (by default on the lines themselves; see fn_paper1_cache_label_x for labels kept inside the panel):
+                if (is.null(label_x)) label_x <-  x
+                ##
+                rows <-  rep(NA_real_, length(x))
+                ##
+                for (i in order(x)) {
+
+                    row <-  0
+                    ##
+                    repeat {
+
+                        in_row <-  which(rows == row)
+                        ##
+                        if (!any(abs(log10(label_x[i]) - log10(label_x[in_row])) < half_width[i] + half_width[in_row])) break
+                        ##
+                        row <-  row + 1
+
+                    }
+                    ##
+                    rows[i] <-  row
+
+                }
+                ##
+                rows
+
+        }
+
+        ## ---- Centres for the cache-line labels that keep each label inside the panel: a label centred on its line stays there,
+        ##      and a label that would run past either end of the log10 chunk axis (default 5% expansion on each side) moves inwards
+        ##      just far enough to fit (label widths estimated as in fn_paper1_cache_label_rows):
+        ##
+        fn_paper1_cache_label_x <-  function( x,
+                                              labels,
+                                              chunk_range,
+                                              panel_width_in,
+                                              label_size = 4.3
+        ) {
+
+                log10_range <-  log10(range(chunk_range))
+                ##
+                log10_span <-  1.1 * diff(log10_range)
+                ##
+                half_width <-  0.5 * (nchar(labels) * 0.0215 * label_size + 0.15) / panel_width_in * log10_span
+                ##
+                panel_left  <-  log10_range[1] - 0.05 * diff(log10_range)
+                panel_right <-  log10_range[2] + 0.05 * diff(log10_range)
+                ##
+                label_x <-  x
+                ##
+                ## (a label wider than the whole panel stays on its line)
+                fits_in_panel <-  2 * half_width < panel_right - panel_left
+                ##
+                past_left  <-  fits_in_panel & log10(x) < panel_left + half_width
+                past_right <-  fits_in_panel & log10(x) > panel_right - half_width
+                ##
+                label_x[past_left]  <-  10^(panel_left + half_width[past_left])
+                label_x[past_right] <-  10^(panel_right - half_width[past_right])
+                ##
+                label_x
+
+        }
+
+        ## ---- Breaks for a log10 chunk axis with free facet scales: the tested chunk counts of the panel whose tested range best
+        ##      matches the panel limits (the breaks function is called once per panel, with that panel's limits):
+        ##
+        fn_paper1_log10_chunk_breaks <-  function( chunks_by_panel ) {
+
+                panel_log10_ranges <-  t(vapply(chunks_by_panel, function(chunks) log10(range(chunks)), numeric(2)))
+                ##
+                function(limits) {
+
+                        if (any(!is.finite(limits))) return(sort(unique(unlist(chunks_by_panel))))
+                        ##
+                        distance <-  abs(panel_log10_ranges[, 1] - log10(limits[1])) + abs(panel_log10_ranges[, 2] - log10(limits[2]))
+                        ##
+                        closest <-  which(abs(distance - min(distance)) < 1e-9)
+                        ##
+                        chunks <-  sort(unique(unlist(chunks_by_panel[closest])))
+                        ##
+                        chunks[chunks >= limits[1] & chunks <= limits[2]]
+
+                }
+
+        }
+
+        ## ---- Labels for a log10 chunk axis: every break in priority_chunks is labelled; any other break is labelled only if it is at
+        ##      least min_gap_log10 (log10 units) from every labelled break, so neighbouring tick labels do not overlap. Breaks in
+        ##      secondary_chunks are considered before the remaining breaks:
+        ##
+        fn_paper1_log10_chunk_labels <-  function( breaks,
+                                                   priority_chunks,
+                                                   min_gap_log10,
+                                                   secondary_chunks = NULL
+        ) {
+
+                keep <-  breaks %in% priority_chunks
+                ##
+                for (i in which(!keep & breaks %in% secondary_chunks)) {
+
+                    if (all(abs(log10(breaks[i]) - log10(breaks[keep])) >= min_gap_log10)) keep[i] <-  TRUE
+
+                }
+                ##
+                for (i in which(!keep)) {
+
+                    if (all(abs(log10(breaks[i]) - log10(breaks[keep])) >= min_gap_log10)) keep[i] <-  TRUE
+
+                }
+                ##
+                chunk_labels <-  fn_paper1_format_number_commas_from_10000(breaks)
+                ##
+                chunk_labels[!keep] <-  ""
+                ##
+                ## two labelled breaks closer than min_gap_log10 (both in priority_chunks): the label of the second is padded with
+                ## trailing spaces, which moves it further from the axis (rotated tick labels), so the two labels do not overlap:
+                kept <-  which(keep)
+                ##
+                for (j in seq_along(kept)[-1]) {
+
+                    if (abs(log10(breaks[kept[j]]) - log10(breaks[kept[j - 1]])) < min_gap_log10 && !grepl(" $", chunk_labels[kept[j - 1]])) {
+
+                        chunk_labels[kept[j]] <-  paste0(chunk_labels[kept[j]], strrep(" ", 2 * nchar(chunk_labels[kept[j - 1]]) + 1))
+
+                    }
+
+                }
+                ##
+                chunk_labels
+
+        }
+
+        ## ---- Layers for the cache-capacity lines and their labels. With colour_column/linetype_column the lines take the colour
+        ##      and line type of the data line they belong to; otherwise they are drawn in grey:
+        ##
+        fn_paper1_cache_line_layers <-  function( thresholds,
+                                                  colour_column   = NULL,
+                                                  linetype_column = NULL,
+                                                  label_size      = 4.3
+        ) {
+
+                if (is.null(thresholds) || nrow(thresholds) == 0) return(NULL)
+                ##
+                ## grey labels are centred on label_x when the thresholds carry it (labels kept inside the panel), otherwise on the line:
+                label_x_column <-  if ("label_x" %in% names(thresholds)) "label_x" else "c_star"
+                ##
+                if (is.null(colour_column)) {
+
+                    list( ggplot2::geom_vline( data = thresholds,
+                                               mapping = ggplot2::aes(xintercept = c_star),
+                                               colour = "grey45",
+                                               linetype = "22",
+                                               linewidth = 0.6,
+                                               alpha = 0.8),
+                          ggplot2::geom_label( data = thresholds,
+                                               mapping = ggplot2::aes(x = .data[[label_x_column]], y = Inf, label = label, vjust = vjust),
+                                               inherit.aes = FALSE,
+                                               colour = "grey25",
+                                               size = label_size,
+                                               label.size = 0,
+                                               fill = "white",
+                                               label.padding = ggplot2::unit(0.08, "lines")))
+
+                } else {
+
+                    list( ggplot2::geom_vline( data = thresholds,
+                                               mapping = ggplot2::aes( xintercept = c_star,
+                                                                       colour     = .data[[colour_column]],
+                                                                       linetype   = .data[[linetype_column]]),
+                                               linewidth = 0.6,
+                                               alpha = 0.55,
+                                               show.legend = FALSE),
+                          ggplot2::geom_label( data = thresholds,
+                                               mapping = ggplot2::aes( x      = c_star,
+                                                                       y      = Inf,
+                                                                       label  = label,
+                                                                       colour = .data[[colour_column]],
+                                                                       vjust  = vjust),
+                                               inherit.aes = FALSE,
+                                               size = label_size,
+                                               label.size = 0,
+                                               fill = "white",
+                                               label.padding = ggplot2::unit(0.08, "lines"),
+                                               show.legend = FALSE))
+
+                }
+
+        }
+
+        ## ---- Thread counts on the E2 scaling figure after which SMT is in use and the L3 cache per active thread falls below the
+        ##      L3 cache per core (equation eq:paper1_auto_n_chunks); changes at the same thread count share one marker:
+        ##
+        fn_paper1_thread_markers <-  function( device,
+                                               n_threads_max,
+                                               cache_specs = paper1_cache_specs
+        ) {
+
+                spec <-  cache_specs[[device]]
+                ##
+                per_thread <-  fn_paper1_cache_per_thread( device          = device,
+                                                           n_threads_total = seq_len(n_threads_max),
+                                                           cache_specs     = cache_specs)
+                ##
+                L3_per_core <-  spec$S_L3 / spec$C_L3
+                ##
+                markers <-  data.frame( device          = device,
+                                        after_n_threads = c( max(per_thread$n_threads_total[!per_thread$SMT]),
+                                                             max(per_thread$n_threads_total[per_thread$L3 >= L3_per_core])),
+                                        change          = c( "SMT",
+                                                             paste0("L3 per thread < ", L3_per_core / (1024 * 1024), " MB")),
+                                        stringsAsFactors = FALSE)
+                ##
+                markers <-  markers[markers$after_n_threads < n_threads_max, , drop = FALSE]
+                ##
+                if (nrow(markers) == 0) return(data.frame(device = character(), after_n_threads = numeric(), label = character()))
+                ##
+                markers <-  stats::aggregate(change ~ device + after_n_threads, data = markers, FUN = function(changes) paste(changes, collapse = ";\n"))
+                ##
+                markers$label <-  paste0("> ", markers$after_n_threads, " threads: ", markers$change)
+                ##
+                markers[order(markers$after_n_threads), c("device", "after_n_threads", "label"), drop = FALSE]
+
+        }
+
         ## ---- From
         ## legacy/ps_1_optimizing_N_chunks_and_N_threads/ps_1_optimizing_N_chunks.R:369
         R_fn_plot_ps1_N_chunks_ggplot_1 <-  function( df_both,
@@ -135,6 +470,205 @@ fn_paper1_presentation_templates <-  function() {
 
         }
 
+        ## ---- Both thread settings on ONE plot: colour = SMT (physical cores only vs. SMT threads),
+        ##      line type = device (local-HPC solid, laptop dashed), as in R_fn_plot_ps1_N_chunks_ggplot_1 above:
+        ##
+        R_fn_plot_ps1_N_chunks_ggplot_SMT_combined <-  function( df_both,
+                                                                 save_plot = TRUE,
+                                                                 output_path,
+                                                                 n_threads_for_HPC_no_SMT = 96,
+                                                                 n_threads_for_Laptop_no_SMT = 8,
+                                                                 n_threads_for_HPC_SMT = 180,
+                                                                 n_threads_for_Laptop_SMT = 16,
+                                                                 show_cache_lines = FALSE,
+                                                                 bytes_per_row = paper1_bytes_per_row_BayesMVP,
+                                                                 thresholds_file = NULL,
+                                                                 panel_width_in = 7.2
+        ) {
+
+                ##
+                SMT_levels <-  c( paste0("Without SMT (HPC: ", n_threads_for_HPC_no_SMT, " threads, laptop: ", n_threads_for_Laptop_no_SMT, " threads)"),
+                                  paste0("With SMT (HPC: ",    n_threads_for_HPC_SMT,    " threads, laptop: ", n_threads_for_Laptop_SMT,    " threads)"))
+                ##
+                SMT_colours <-  stats::setNames(c("#0072B2", "#D55E00"), SMT_levels)
+                ##
+                keep_rows <-  (df_both$device == "HPC"    & df_both$n_threads %in% c(n_threads_for_HPC_no_SMT,    n_threads_for_HPC_SMT)) |
+                              (df_both$device == "Laptop" & df_both$n_threads %in% c(n_threads_for_Laptop_no_SMT, n_threads_for_Laptop_SMT))
+                ##
+                df_SMT <-  df_both[keep_rows, , drop = FALSE]
+                ##
+                df_SMT$Device <-  factor( ifelse(df_SMT$device == "HPC", "HPC", "Laptop"),
+                                          levels = c("HPC", "Laptop"))
+                ##
+                df_SMT$SMT <-  factor( ifelse( df_SMT$n_threads %in% c(n_threads_for_HPC_SMT, n_threads_for_Laptop_SMT),
+                                               SMT_levels[2],
+                                               SMT_levels[1]),
+                                       levels = SMT_levels)
+                ##
+                ## ---- Optional cache-capacity lines (show_cache_lines = TRUE): for each device and SMT setting, the chunk count at which
+                ##      one chunk first fits in the L3, L2 or L1 cache per active thread, drawn within each panel's tested chunk range in
+                ##      the colour and line type of the data line it belongs to (left of the L3 line, one chunk spills to RAM):
+                ##
+                cache_thresholds <-  NULL
+                ##
+                if (show_cache_lines) {
+
+                        df_SMT$N_chunks_value <-  as.numeric(as.character(df_SMT$N_chunks))
+                        ##
+                        cache_cases <-  data.frame( Device    = c("HPC", "HPC", "Laptop", "Laptop"),
+                                                    n_threads = c( n_threads_for_HPC_no_SMT, n_threads_for_HPC_SMT,
+                                                                   n_threads_for_Laptop_no_SMT, n_threads_for_Laptop_SMT),
+                                                    SMT_level = SMT_levels[c(1, 2, 1, 2)],
+                                                    stringsAsFactors = FALSE)
+                        ##
+                        cache_thresholds <-  do.call(rbind, lapply(sort(unique(as.numeric(as.character(df_SMT$N)))), function(N_value) {
+
+                                df_N <-  df_SMT[as.numeric(as.character(df_SMT$N)) == N_value, , drop = FALSE]
+                                ##
+                                thresholds_N <-  do.call(rbind, lapply(seq_len(nrow(cache_cases)), function(i) {
+
+                                        ## only device/thread settings with data in this panel
+                                        if (!any(df_N$Device == cache_cases$Device[i] & df_N$n_threads == cache_cases$n_threads[i])) return(NULL)
+                                        ##
+                                        thresholds_i <-  fn_paper1_cache_threshold_lines( N               = N_value,
+                                                                                          chunk_range     = range(df_N$N_chunks_value),
+                                                                                          device          = cache_cases$Device[i],
+                                                                                          n_threads_total = cache_cases$n_threads[i],
+                                                                                          bytes_per_row   = bytes_per_row)
+                                        ##
+                                        if (nrow(thresholds_i)) thresholds_i$SMT_level <-  cache_cases$SMT_level[i]
+                                        ##
+                                        thresholds_i
+
+                                }))
+                                ##
+                                if (is.null(thresholds_N) || nrow(thresholds_N) == 0) return(NULL)
+                                ##
+                                thresholds_N$N_label <-  as.character(df_N$N_label[1])
+                                ##
+                                thresholds_N$label <-  paste0(thresholds_N$level, ifelse(thresholds_N$device == "HPC", " HPC", " laptop"))
+                                ##
+                                thresholds_N$label_row <-  fn_paper1_cache_label_rows( x              = thresholds_N$c_star,
+                                                                                       labels         = thresholds_N$label,
+                                                                                       chunk_range    = range(df_N$N_chunks_value),
+                                                                                       panel_width_in = panel_width_in)
+                                ##
+                                thresholds_N
+
+                        }))
+                        ##
+                        if (!is.null(cache_thresholds) && nrow(cache_thresholds)) {
+
+                            cache_thresholds <-  cache_thresholds[order(cache_thresholds$N, cache_thresholds$c_star), , drop = FALSE]
+                            ##
+                            cache_thresholds$N_label <-  factor(cache_thresholds$N_label, levels = levels(factor(df_SMT$N_label)))
+                            cache_thresholds$Device  <-  factor(cache_thresholds$device, levels = c("HPC", "Laptop"))
+                            cache_thresholds$SMT     <-  factor(cache_thresholds$SMT_level, levels = SMT_levels)
+                            cache_thresholds$vjust   <-  1.3 + 1.35 * cache_thresholds$label_row
+                            ##
+                            if (!is.null(thresholds_file)) {
+
+                                utils::write.csv( x = cache_thresholds[, c("N", "device", "n_threads_total", "SMT_level", "level",
+                                                                           "cache_bytes_per_thread", "c_star", "label", "label_row")],
+                                                  file = thresholds_file,
+                                                  row.names = FALSE)
+                                ##
+                                message(paste0("\033[36m", "Cache-capacity thresholds written to: ", thresholds_file, "\033[0m"))
+
+                            }
+
+                        }
+
+                }
+                ##
+                make_half <-  function( N_range,
+                                        hide_legend) {
+
+                        df_f <-  df_SMT[as.numeric(as.character(df_SMT$N)) %in% N_range, , drop = FALSE]
+                        ##
+                        if (nrow(df_f) == 0) {
+
+                            return(empty_panel(paste0( "No matching results supplied for N = ",
+                                                       paste(N_range, collapse = ", "))))
+
+                        }
+                        ##
+                        cache_thresholds_half <-  if (is.null(cache_thresholds)) NULL else
+                            cache_thresholds[cache_thresholds$N %in% N_range, , drop = FALSE]
+                        ##
+                        cache_line_layers <-  fn_paper1_cache_line_layers( thresholds      = cache_thresholds_half,
+                                                                           colour_column   = "SMT",
+                                                                           linetype_column = "Device")
+                        ##
+                        p <-  ggplot2::ggplot(df_f, ggplot2::aes( x = N_chunks,
+                                                                  y = time_avg,
+                                                                  colour = SMT,
+                                                                  linetype = Device,
+                                                                  group = interaction(Device, SMT))) +
+                            cache_line_layers +
+                            ggplot2::geom_point(size = 5) +
+                            ggplot2::geom_errorbar( linewidth = 1,
+                                                    width = 0.02,
+                                                    ggplot2::aes( ymin = time_avg - time_SD,        ## +/- 1 SD (caption says "standard deviation")
+                                                                  ymax = time_avg + time_SD)) +
+                            ggplot2::geom_line(linewidth = 1) +
+                            ggplot2::scale_colour_manual(values = SMT_colours, limits = SMT_levels, drop = FALSE) +
+                            ggplot2::scale_linetype_manual(values = c(HPC = "solid", Laptop = "22"), drop = FALSE) +
+                            ggplot2::theme_bw(base_size = 24) +
+                            ggplot2::ylab("Time (sec.)") + ggplot2::xlab(expression(N[chunks])) +
+                            ggplot2::labs(colour = NULL, linetype = "Device") +
+                            ggplot2::facet_wrap(~ N_label, scales = "free") +
+                            ggplot2::guides( colour = ggplot2::guide_legend(order = 1, ncol = 1),
+                                             linetype = ggplot2::guide_legend(order = 2, override.aes = list(colour = "black"))) +
+                            ggplot2::theme( axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
+                                            legend.position = if (hide_legend) "none" else "bottom",
+                                            legend.box = "vertical",
+                                            legend.key.width = ggplot2::unit(3, "lines"))
+                        ##
+                        ## ---- With cache lines: log10 chunk axis (breaks at each panel's tested chunk counts) and head room for the labels:
+                        if (show_cache_lines) {
+
+                            n_label_rows <-  if (is.null(cache_thresholds_half) || nrow(cache_thresholds_half) == 0) 0 else
+                                max(cache_thresholds_half$label_row) + 1
+                            ##
+                            p <-  p +
+                                ggplot2::aes(x = N_chunks_value) +
+                                ggplot2::scale_x_log10(breaks = fn_paper1_log10_chunk_breaks(split(df_f$N_chunks_value, df_f$N))) +
+                                ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.05 + 0.07 * n_label_rows))) +
+                                ggplot2::xlab(expression(N[chunks]~"(log scale)"))
+
+                        }
+                        ##
+                        p
+
+                }
+                ##
+                has_bottom <-  any(as.numeric(as.character(df_SMT$N)) %in% c(10000, 50000))
+                ##
+                p_top    <-  make_half(c(500, 2500),     hide_legend = has_bottom) + ggplot2::xlab(" ")
+                ##
+                p_bottom <-  make_half(c(10000, 50000),  hide_legend = FALSE)
+                ##
+                combined <-  p_top + p_bottom + patchwork::plot_layout(ncol = 1)
+                ##
+                print(combined)
+                ##
+                if (save_plot) {
+
+                    ggplot2::ggsave( file.path( output_path,
+                                                if (show_cache_lines) "Figure_N_chunks_pilot_study_plot_1_n_threads_SMT_vs_no_SMT_cache_lines.png" else
+                                                    "Figure_N_chunks_pilot_study_plot_1_n_threads_SMT_vs_no_SMT.png"),
+                                     combined,
+                                     width = 16,
+                                     height = 17,
+                                     dpi = 100)
+
+                }
+                ##
+                invisible(combined)
+
+        }
+
         ## ---- From
         ## legacy/ps_1_optimizing_N_chunks_and_N_threads/ps_1_optimizing_N_chunks.R:432
         R_fn_plot_ps1_efficiency <-  function( df_HPC,
@@ -190,11 +724,204 @@ fn_paper1_presentation_templates <-  function() {
 
         }
 
+        ## ---- Efficiency for both devices on ONE set of four panels: colour = thread level, line type = device
+        ##      (local-HPC solid, laptop dashed); log y axis, since the HPC values are about 15 times the laptop's:
+        ##
+        R_fn_plot_ps1_efficiency_combined <-  function( df_both,
+                                                        threads_HPC    = c(64, t_phys_HPC, t_smt_HPC),
+                                                        threads_Laptop = c(4,  t_phys_Laptop, t_smt_Laptop),
+                                                        save_plot = TRUE,
+                                                        output_path,
+                                                        show_cache_lines = FALSE,
+                                                        bytes_per_row = paper1_bytes_per_row_BayesMVP,
+                                                        thresholds_file = NULL,
+                                                        panel_width_in = 7.2
+        ) {
+
+                ##
+                level_labels <-  c( paste0("HPC: ", threads_HPC[1], " threads, laptop: ", threads_Laptop[1], " threads"),
+                                    paste0("HPC: ", threads_HPC[2], " threads, laptop: ", threads_Laptop[2], " threads (without SMT)"),
+                                    paste0("HPC: ", threads_HPC[3], " threads, laptop: ", threads_Laptop[3], " threads (with SMT)"))
+                ##
+                level_colours <-  stats::setNames(c("#009E73", "#0072B2", "#D55E00"), level_labels)
+                ##
+                keep_rows <-  (df_both$device == "HPC"    & df_both$n_threads %in% threads_HPC) |
+                              (df_both$device == "Laptop" & df_both$n_threads %in% threads_Laptop)
+                ##
+                df_eff <-  df_both[keep_rows, , drop = FALSE]
+                ##
+                if (nrow(df_eff) == 0) return(empty_panel("No matching efficiency results supplied"))
+                ##
+                df_eff$Device <-  factor( ifelse(df_eff$device == "HPC", "HPC", "Laptop"),
+                                          levels = c("HPC", "Laptop"))
+                ##
+                df_eff$Threads <-  factor( level_labels[ifelse( df_eff$device == "HPC",
+                                                                match(df_eff$n_threads, threads_HPC),
+                                                                match(df_eff$n_threads, threads_Laptop))],
+                                           levels = level_labels)
+                ##
+                ## ---- Optional cache-capacity lines (show_cache_lines = TRUE): for each device and thread level, the chunk count at which
+                ##      one chunk first fits in the L3, L2 or L1 cache per active thread, within each panel's tested chunk range. Thread
+                ##      levels of one device with identical thresholds (e.g. 64 and 96 HPC threads, both without SMT) share one line, in
+                ##      the colour of the highest of those levels and labelled with all of their thread counts:
+                ##
+                cache_thresholds <-  NULL
+                ##
+                y_expand <-  ggplot2::waiver()
+                ##
+                if (show_cache_lines) {
+
+                        df_eff$N_chunks_value <-  as.numeric(as.character(df_eff$N_chunks))
+                        ##
+                        cache_thresholds <-  do.call(rbind, lapply(sort(unique(as.numeric(as.character(df_eff$N)))), function(N_value) {
+
+                                df_N <-  df_eff[as.numeric(as.character(df_eff$N)) == N_value, , drop = FALSE]
+                                ##
+                                thresholds_N <-  do.call(rbind, lapply(c("HPC", "Laptop"), function(dev) {
+
+                                        threads_dev <-  if (dev == "HPC") threads_HPC else threads_Laptop
+                                        ##
+                                        threads_present <-  threads_dev[threads_dev %in% df_N$n_threads[df_N$Device == dev]]
+                                        ##
+                                        if (length(threads_present) == 0) return(NULL)
+                                        ##
+                                        thresholds_dev <-  fn_paper1_cache_threshold_lines( N               = N_value,
+                                                                                            chunk_range     = range(df_N$N_chunks_value),
+                                                                                            device          = dev,
+                                                                                            n_threads_total = threads_present,
+                                                                                            bytes_per_row   = bytes_per_row)
+                                        ##
+                                        if (nrow(thresholds_dev) == 0) return(NULL)
+                                        ##
+                                        ## one line per distinct threshold of this device:
+                                        thresholds_dev$key <-  paste(thresholds_dev$level, signif(thresholds_dev$c_star, 10))
+                                        ##
+                                        do.call(rbind, lapply(split(thresholds_dev, thresholds_dev$key), function(group) {
+
+                                                group <-  group[order(group$n_threads_total), , drop = FALSE]
+                                                ##
+                                                highest <-  max(group$n_threads_total)
+                                                ##
+                                                data.frame( N                      = N_value,
+                                                            device                 = dev,
+                                                            n_threads_total        = paste(group$n_threads_total, collapse = "/"),
+                                                            SMT                    = group$SMT[nrow(group)],
+                                                            level                  = group$level[1],
+                                                            cache_bytes_per_thread = group$cache_bytes_per_thread[1],
+                                                            c_star                 = group$c_star[1],
+                                                            Threads_level          = level_labels[match(highest, threads_dev)],
+                                                            label                  = paste0( group$level[1],
+                                                                                             ifelse(dev == "HPC", " HPC ", " laptop "),
+                                                                                             paste(group$n_threads_total, collapse = "/")),
+                                                            stringsAsFactors       = FALSE)
+
+                                        }))
+
+                                }))
+                                ##
+                                if (is.null(thresholds_N) || nrow(thresholds_N) == 0) return(NULL)
+                                ##
+                                thresholds_N$N_label <-  as.character(df_N$N_label[1])
+                                ##
+                                thresholds_N$label_row <-  fn_paper1_cache_label_rows( x              = thresholds_N$c_star,
+                                                                                       labels         = thresholds_N$label,
+                                                                                       chunk_range    = range(df_N$N_chunks_value),
+                                                                                       panel_width_in = panel_width_in)
+                                ##
+                                thresholds_N
+
+                        }))
+                        ##
+                        if (!is.null(cache_thresholds) && nrow(cache_thresholds)) {
+
+                            cache_thresholds <-  cache_thresholds[order(cache_thresholds$N, cache_thresholds$c_star), , drop = FALSE]
+                            ##
+                            cache_thresholds$N_label <-  factor(cache_thresholds$N_label, levels = levels(factor(df_eff$N_label)))
+                            cache_thresholds$Device  <-  factor(cache_thresholds$device, levels = c("HPC", "Laptop"))
+                            cache_thresholds$Threads <-  factor(cache_thresholds$Threads_level, levels = level_labels)
+                            cache_thresholds$vjust   <-  1.3 + 1.35 * cache_thresholds$label_row
+                            ##
+                            y_expand <-  ggplot2::expansion(mult = c(0.05, 0.05 + 0.07 * (max(cache_thresholds$label_row) + 1)))
+                            ##
+                            if (!is.null(thresholds_file)) {
+
+                                utils::write.csv( x = cache_thresholds[, c("N", "device", "n_threads_total", "SMT", "level", "cache_bytes_per_thread",
+                                                                           "c_star", "Threads_level", "label", "label_row")],
+                                                  file = thresholds_file,
+                                                  row.names = FALSE)
+                                ##
+                                message(paste0("\033[36m", "Cache-capacity thresholds written to: ", thresholds_file, "\033[0m"))
+
+                            }
+
+                        }
+
+                }
+                ##
+                cache_line_layers <-  fn_paper1_cache_line_layers( thresholds      = cache_thresholds,
+                                                                   colour_column   = "Threads",
+                                                                   linetype_column = "Device")
+                ##
+                combined <-  ggplot2::ggplot(df_eff, ggplot2::aes( x = N_chunks,
+                                                                   y = Efficiency,
+                                                                   colour = Threads,
+                                                                   linetype = Device,
+                                                                   group = interaction(Device, Threads))) +
+                    cache_line_layers +
+                    ggplot2::geom_point(size = 5) +
+                    ggplot2::geom_line(linewidth = 1) +
+                    ggplot2::scale_y_log10(expand = y_expand) +
+                    ggplot2::scale_colour_manual(values = level_colours, limits = level_labels, drop = FALSE) +
+                    ggplot2::scale_linetype_manual(values = c(HPC = "solid", Laptop = "22"), drop = FALSE) +
+                    ggplot2::theme_bw(base_size = 24) +
+                    ggplot2::ylab(expression(Efficiency~(N[threads] / time)~"(log scale)")) +
+                    ggplot2::xlab(expression(N[chunks])) +
+                    ggplot2::labs(colour = NULL, linetype = "Device") +
+                    ggplot2::facet_wrap(~ N_label, scales = "free") +
+                    ggplot2::guides( colour = ggplot2::guide_legend(order = 1, ncol = 1),
+                                     linetype = ggplot2::guide_legend(order = 2, override.aes = list(colour = "black"))) +
+                    ggplot2::theme( axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
+                                    legend.position = "bottom",
+                                    legend.box = "vertical",
+                                    legend.key.width = ggplot2::unit(3, "lines"))
+                ##
+                ## ---- With cache lines: log10 chunk axis, with breaks at each panel's tested chunk counts:
+                if (show_cache_lines) {
+
+                    combined <-  combined +
+                        ggplot2::aes(x = N_chunks_value) +
+                        ggplot2::scale_x_log10(breaks = fn_paper1_log10_chunk_breaks(split(df_eff$N_chunks_value, df_eff$N))) +
+                        ggplot2::xlab(expression(N[chunks]~"(log scale)"))
+
+                }
+                ##
+                print(combined)
+                ##
+                if (save_plot) {
+
+                    ggplot2::ggsave( file.path( output_path,
+                                                if (show_cache_lines) "Figure_N_chunks_pilot_study_plot_3_both_devices_cache_lines.png" else
+                                                    "Figure_N_chunks_pilot_study_plot_3_both_devices.png"),
+                                     combined,
+                                     width = 16,
+                                     height = 17,
+                                     dpi = 100)
+
+                }
+                ##
+                invisible(combined)
+
+        }
+
         ## ---- Paper 1 WCP chunk-search views -------------------------------------------------------------------------------------------
         fn_plot_paper1_WCP_chunk_search <-  function( chunk_search,
                                                        best_chunks,
                                                        output_path,
-                                                       file_prefix
+                                                       file_prefix,
+                                                       show_cache_lines = FALSE,
+                                                       bytes_per_row = paper1_bytes_per_row_BayesMVP,
+                                                       thresholds_file = NULL,
+                                                       panel_width_in = 4.5
         ) {
 
                 required_columns <-  c("device", "algorithm", "N", "configuration_id", "n_chains", "threads_per_chain",
@@ -228,8 +955,131 @@ fn_paper1_presentation_templates <-  function() {
 
                 } else "WCP threads / chain"
                 ##
+                ## ---- Optional cache-capacity lines (show_cache_lines = TRUE): in each chain-count panel the active threads are
+                ##      chains x WCP threads per chain. WCP counts with identical thresholds share one grey line, labelled with the cache
+                ##      level and the WCP counts it applies to; a line is drawn only where it lies inside the tested chunk range of at
+                ##      least one of those WCP series (left of an L3 line, one chunk exceeds the L3 cache per active thread):
+                ##
+                cache_thresholds <-  NULL
+                ##
+                if (show_cache_lines) {
+
+                        fn_WCP_range_text <-  function( WCP_group,
+                                                        WCP_panel) {
+
+                                if (length(WCP_group) == 1)                  return(paste0("WCP ", WCP_group))
+                                if (length(WCP_group) == length(WCP_panel)) return("all WCP")
+                                ## (WCP counts that are not neighbours in the panel are listed, not given as a range)
+                                if (any(diff(match(sort(WCP_group), WCP_panel)) != 1)) return(paste0("WCP ", paste(sort(WCP_group), collapse = "/")))
+                                if (min(WCP_group) == min(WCP_panel))       return(paste0("WCP \u2264 ", max(WCP_group)))
+                                if (max(WCP_group) == max(WCP_panel))       return(paste0("WCP \u2265 ", min(WCP_group)))
+                                ##
+                                paste0("WCP ", min(WCP_group), "-", max(WCP_group))
+
+                        }
+                        ##
+                        cache_thresholds <-  do.call(rbind, lapply(sort(unique(chunk_search$n_chains)), function(n_chains_value) {
+
+                                panel <-  chunk_search[chunk_search$n_chains == n_chains_value, , drop = FALSE]
+                                ##
+                                WCP_panel <-  sort(unique(panel$threads_per_chain))
+                                ##
+                                per_WCP <-  do.call(rbind, lapply(WCP_panel, function(WCP) {
+
+                                        series_chunks <-  panel$num_chunks[panel$threads_per_chain == WCP]
+                                        ##
+                                        thresholds_WCP <-  fn_paper1_cache_threshold_lines( N               = chunk_search$N[1],
+                                                                                            chunk_range     = c(0, Inf),
+                                                                                            device          = chunk_search$device[1],
+                                                                                            n_threads_total = n_chains_value * WCP,
+                                                                                            bytes_per_row   = bytes_per_row)
+                                        ##
+                                        thresholds_WCP$threads_per_chain <-  WCP
+                                        ##
+                                        thresholds_WCP$inside_series <-  thresholds_WCP$c_star > min(series_chunks) & thresholds_WCP$c_star < max(series_chunks)
+                                        ##
+                                        thresholds_WCP
+
+                                }))
+                                ##
+                                per_WCP$key <-  paste(per_WCP$level, signif(per_WCP$c_star, 10))
+                                ##
+                                thresholds_panel <-  do.call(rbind, lapply(split(per_WCP, per_WCP$key), function(group) {
+
+                                        if (!any(group$inside_series)) return(NULL)
+                                        ##
+                                        ## the line and its label apply only to the WCP series whose tested chunk range contains it:
+                                        group <-  group[group$inside_series, , drop = FALSE]
+                                        ##
+                                        data.frame( N                      = group$N[1],
+                                                    device                 = group$device[1],
+                                                    n_chains               = n_chains_value,
+                                                    threads_per_chain      = paste(group$threads_per_chain, collapse = "/"),
+                                                    n_threads_total        = paste(group$n_threads_total, collapse = "/"),
+                                                    SMT                    = paste(unique(group$SMT), collapse = "/"),
+                                                    level                  = group$level[1],
+                                                    cache_bytes_per_thread = group$cache_bytes_per_thread[1],
+                                                    c_star                 = group$c_star[1],
+                                                    label                  = paste0(group$level[1], " (", fn_WCP_range_text(group$threads_per_chain, WCP_panel), ")"),
+                                                    stringsAsFactors       = FALSE)
+
+                                }))
+                                ##
+                                if (is.null(thresholds_panel) || nrow(thresholds_panel) == 0) return(NULL)
+                                ##
+                                ## labels near either end of the chunk axis move inwards so they are not cut off by the panel edge:
+                                thresholds_panel$label_x <-  fn_paper1_cache_label_x( x              = thresholds_panel$c_star,
+                                                                                      labels         = thresholds_panel$label,
+                                                                                      chunk_range    = range(chunk_search$num_chunks),
+                                                                                      panel_width_in = panel_width_in,
+                                                                                      label_size     = 3.6)
+                                ##
+                                thresholds_panel$label_row <-  fn_paper1_cache_label_rows( x              = thresholds_panel$c_star,
+                                                                                           labels         = thresholds_panel$label,
+                                                                                           chunk_range    = range(chunk_search$num_chunks),
+                                                                                           panel_width_in = panel_width_in,
+                                                                                           label_size     = 3.6,
+                                                                                           label_x        = thresholds_panel$label_x)
+                                ##
+                                thresholds_panel
+
+                        }))
+                        ##
+                        if (!is.null(cache_thresholds) && nrow(cache_thresholds)) {
+
+                            cache_thresholds <-  cache_thresholds[order(cache_thresholds$n_chains, cache_thresholds$c_star), , drop = FALSE]
+                            ##
+                            cache_thresholds$vjust <-  1.3 + 1.35 * cache_thresholds$label_row
+                            ##
+                            if (!is.null(thresholds_file)) {
+
+                                utils::write.csv( x = cache_thresholds[, c("N", "device", "n_chains", "threads_per_chain", "n_threads_total", "SMT", "level",
+                                                                           "cache_bytes_per_thread", "c_star", "label", "label_row")],
+                                                  file = thresholds_file,
+                                                  row.names = FALSE)
+                                ##
+                                message(paste0("\033[36m", "Cache-capacity thresholds written to: ", thresholds_file, "\033[0m"))
+
+                            }
+
+                        } else if (!is.null(thresholds_file)) {
+
+                            ## no threshold within the tested chunk range: an empty table records this
+                            utils::write.csv( x = data.frame( N = numeric(), device = character(), n_chains = numeric(), threads_per_chain = character(),
+                                                              n_threads_total = character(), SMT = character(), level = character(),
+                                                              cache_bytes_per_thread = numeric(), c_star = numeric(), label = character(), label_row = numeric()),
+                                              file = thresholds_file,
+                                              row.names = FALSE)
+
+                        }
+
+                }
+                ##
+                cache_line_layers <-  fn_paper1_cache_line_layers(thresholds = cache_thresholds, label_size = 3.6)
+                ##
                 chunk_search_plot <-  ggplot( data = chunk_search,
                                                mapping = aes(x = chunk_label, y = chain_rate, colour = WCP_label, group = WCP_label)) +
+                    cache_line_layers +
                     geom_line(linewidth = 0.8) + geom_point(size = 3) +
                     geom_point(data = chunk_search[chunk_search$selected_best_chunks, , drop = FALSE],
                                shape = 21, fill = "white", size = 5, stroke = 1.2) +
@@ -238,6 +1088,60 @@ fn_paper1_presentation_templates <-  function() {
                     labs( x = "Chunks", y = "Within-method efficiency (chains / time)", colour = wcp_axis_label,
                            title = plot_title, subtitle = "All measured chunks; outlined points maximise throughput at each fixed chain/WCP count") +
                     facet_wrap(facets = ~ n_chains, scales = "free_y", labeller = label_both)
+                ##
+                ## ---- With cache lines: log10 chunk axis with breaks at the tested chunk counts (the chunk counts of the smallest WCP
+                ##      series first; any other tested count only where its tick label does not overlap a neighbouring one), and head
+                ##      room for the line labels:
+                if (show_cache_lines) {
+
+                    chunk_breaks <-  sort(unique(chunk_search$num_chunks))
+                    ##
+                    ## (the chunk counts of the outlined optima are always labelled)
+                    chunk_labels <-  fn_paper1_log10_chunk_labels( breaks           = chunk_breaks,
+                                                                   priority_chunks  = chunk_search$num_chunks[chunk_search$selected_best_chunks],
+                                                                   secondary_chunks = chunk_search$num_chunks[chunk_search$threads_per_chain ==
+                                                                                                               min(chunk_search$threads_per_chain)],
+                                                                   min_gap_log10    = 0.22 * 1.1 * diff(log10(range(chunk_breaks))) / panel_width_in)
+                    ##
+                    n_label_rows <-  if (is.null(cache_thresholds) || nrow(cache_thresholds) == 0) 0 else max(cache_thresholds$label_row) + 1
+                    ##
+                    levels_drawn <-  intersect(c("L3", "L2", "L1"), cache_thresholds$level)
+                    ##
+                    chunk_search_plot <-  chunk_search_plot +
+                        ggplot2::aes(x = num_chunks) +
+                        ggplot2::scale_x_log10( breaks = chunk_breaks[nzchar(chunk_labels)],
+                                                labels = chunk_labels[nzchar(chunk_labels)]) +
+                        ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.05 + 0.08 * n_label_rows))) +
+                        ggplot2::theme( axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
+                                        panel.grid.minor.x = ggplot2::element_blank()) +
+                        ggplot2::labs( x = "Chunks (log scale)",
+                                       subtitle = if (length(levels_drawn) == 0) {
+
+                                           ## (when every series' L2 threshold lies left of its smallest tested chunk count, every tested
+                                           ##  chunk already fits in the L2 cache per active thread)
+                                           all_chunks_fit_L2 <-  all(vapply(split(chunk_search, list(chunk_search$n_chains, chunk_search$threads_per_chain), drop = TRUE),
+                                                                            function(series) {
+
+                                                                                    L2_per_thread <-  fn_paper1_cache_per_thread( device          = series$device[1],
+                                                                                                                                  n_threads_total = series$n_chains[1] * series$threads_per_chain[1])$L2
+                                                                                    ##
+                                                                                    bytes_per_row * series$N[1] / L2_per_thread <= min(series$num_chunks)
+
+                                                                            }, logical(1)))
+                                           ##
+                                           paste0( chunk_search_plot$labels$subtitle,
+                                                   "\nNo cache-capacity threshold (L3/L2/L1 per active thread) lies within the tested chunk range",
+                                                   if (all_chunks_fit_L2) " (every tested chunk already fits in the L2 cache per active thread)" else "")
+
+                                       } else {
+
+                                           paste0( chunk_search_plot$labels$subtitle,
+                                                   "\nGrey lines: chunk count at which one chunk first fits in the ",
+                                                   paste(levels_drawn, collapse = "/"), " cache per active thread")
+
+                                       })
+
+                }
                 ##
                 ## Keep every WCP choice after selecting chunks and label the selected chunk count.
                 best_chunks_plot <-  ggplot(data = best_chunks, mapping = aes(x = threads_per_chain, y = chain_rate)) +
@@ -252,6 +1156,19 @@ fn_paper1_presentation_templates <-  function() {
                 ##
                 plot_paths <-  file.path(output_path, paste0(file_prefix, c("_chunk_search.png", "_optimal_chunks_by_WCP.png")))
                 plot_height <-  4 + 4 * ceiling(x = length(x = unique(x = chunk_search$n_chains)) / 3)
+                ##
+                ## ---- With cache lines, only the chunk-search view is written (under its own file name; the view without lines is kept):
+                if (show_cache_lines) {
+
+                    plot_paths <-  file.path(output_path, paste0(file_prefix, "_chunk_search_cache_lines.png"))
+                    ##
+                    ## half an inch taller per row of line labels above the data (at most two inches):
+                    ggplot2::ggsave(filename = plot_paths, plot = chunk_search_plot, width = 16, height = plot_height + min(2, 0.5 * n_label_rows), dpi = 150)
+                    ##
+                    return(invisible(x = plot_paths))
+
+                }
+                ##
                 ggsave(filename = plot_paths[1], plot = chunk_search_plot, width = 16, height = plot_height, dpi = 150)
                 ggsave(filename = plot_paths[2], plot = best_chunks_plot, width = 16, height = plot_height, dpi = 150)
                 ##
@@ -548,9 +1465,12 @@ fn_paper1_presentation_templates <-  function() {
                                                          save_plot = TRUE,
                                                          output_path,
                                                          file_prefix = "Figure_ps2_Stan_variants",
-                                                         highlight_best = FALSE
+                                                         highlight_best = FALSE,
+                                                         legend_nrow = 2
         ) {
 
+                ## legend_nrow: rows of the shared legend (2 by default; the five-arm Stan variants figure uses 5, i.e. one column,
+                ## so that its long labels are not cut off at the figure edge).
                 colour_scale <-  shared_colour_scale(stan_df$Stan_variant_label)
                 ##
                 plot_list <-  list()
@@ -576,7 +1496,7 @@ fn_paper1_presentation_templates <-  function() {
                         theme( legend.position = ifelse(dev == "Laptop", "bottom", "none"),
                                axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
                         colour_scale +
-                        guides(colour = guide_legend(title = NULL, nrow = 2)) +
+                        guides(colour = guide_legend(title = NULL, nrow = legend_nrow)) +
                         ylab(expression(Total~iterations / "second"~(N[chains] %*% N[iter] / time))) +
                         xlab(expression(log[2](N[threads]~total))) +
                         scale_x_continuous(breaks = x_breaks, trans = "log2") +
@@ -736,7 +1656,9 @@ fn_paper1_presentation_templates <-  function() {
                                             save_plot   = TRUE,
                                             ## output_path
                                             output_path,
-                                            values_file = NULL
+                                            values_file = NULL,
+                                            show_markers = FALSE,
+                                            markers_file = NULL
         ) {
 
                 ##
@@ -811,6 +1733,8 @@ fn_paper1_presentation_templates <-  function() {
                 ##
                 plot_list <-  list()
                 ##
+                thread_markers_all <-  NULL
+                ##
                 for (dev in c("HPC", "Laptop")) {
 
                     ##
@@ -881,11 +1805,48 @@ fn_paper1_presentation_templates <-  function() {
 
                     }
                     ##
+                    ## ---- Optional light markers (show_markers = TRUE): a dotted vertical line at the thread count after which SMT is in
+                    ##      use, and after which the L3 cache per active thread falls below the L3 cache per core (4 MB HPC, 2 MB laptop;
+                    ##      equation eq:paper1_auto_n_chunks). Changes at the same thread count share one line and label:
+                    ##
+                    marker_layers <-  NULL
+                    ##
+                    if (show_markers) {
+
+                        thread_markers <-  fn_paper1_thread_markers(device = dev, n_threads_max = max(df_dev$n_threads))
+                        ##
+                        if (nrow(thread_markers)) {
+
+                            thread_markers$vjust <-  1.15 + 2.7 * (seq_len(nrow(thread_markers)) - 1)
+                            ##
+                            marker_layers <-  list( ggplot2::geom_vline( data = thread_markers,
+                                                                         mapping = ggplot2::aes(xintercept = after_n_threads),
+                                                                         colour = "grey55",
+                                                                         linetype = "dotted",
+                                                                         linewidth = 1.1),
+                                                    ggplot2::geom_label( data = thread_markers,
+                                                                         mapping = ggplot2::aes(x = after_n_threads, y = Inf, label = label, vjust = vjust),
+                                                                         inherit.aes = FALSE,
+                                                                         hjust = 1.04,
+                                                                         colour = "grey30",
+                                                                         size = 5.5,
+                                                                         lineheight = 0.95,
+                                                                         label.size = 0,
+                                                                         fill = "white",
+                                                                         label.padding = ggplot2::unit(0.1, "lines")))
+                            ##
+                            thread_markers_all <-  rbind(thread_markers_all, thread_markers[, c("device", "after_n_threads", "label")])
+
+                        }
+
+                    }
+                    ##
                     p <-  ggplot( df_dev,
                                   aes( x = n_threads,
                                        y = y_val,
                                        colour = Algorithm_label,
                                        group  = Algorithm_label)) +
+                        marker_layers +
                         geom_point(size = 5) +
                         geom_line(linewidth = 2) +
                         reference_layer +
@@ -910,6 +1871,14 @@ fn_paper1_presentation_templates <-  function() {
                     message("No matching observations available for this plot; no file written.")
                     ##
                     return(invisible(NULL))
+
+                }
+                ##
+                if (!is.null(markers_file) && !is.null(thread_markers_all)) {
+
+                    thread_markers_all$label <-  gsub("\n", " ", thread_markers_all$label, fixed = TRUE)
+                    ##
+                    utils::write.csv(x = thread_markers_all, file = markers_file, row.names = FALSE)
 
                 }
                 ##
@@ -940,6 +1909,9 @@ fn_paper1_presentation_templates <-  function() {
                         "Figure_ps2_plot_2_adj_scalability.png"
 
                     }
+                    ##
+                    ## the markers figure has its own file name, so the figure without markers is kept:
+                    if (show_markers) scaling_figure_filename <-  sub("\\.png$", "_markers.png", scaling_figure_filename)
                     ##
                     ggsave( file.path(output_path, scaling_figure_filename),
                             combined_plot,

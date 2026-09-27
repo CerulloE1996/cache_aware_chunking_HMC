@@ -1,0 +1,3 @@
+"device","after_n_threads","label"
+"HPC",96,"> 96 threads: SMT; L3 per thread < 4 MB"
+"Laptop",8,"> 8 threads: SMT; L3 per thread < 2 MB"
