@@ -91,6 +91,176 @@ Hence, `alg_paper_1_experiment_3_table.R` also needs the saved outputs of our Ni
 
 
 <!-- ------------------------------------------------------------------------------------------------------------------------------- -->
+## Linux commands for hardware-counter profiling
+<!-- ------------------------------------------------------------------------------------------------------------------------------- -->
+
+This section lists the commands which we ran from a Linux terminal (i.e., the Bash command line) for the hardware-counter profiling in Experiment 4 (see the paper for the design and the results), on both the local-HPC and the laptop.
+In the listings, text after a `#` is a comment (i.e., it is not run), and a `\` at the end of a line means that the command continues on the next line.
+A file's extension shows its type: `.c` is C source code, `.R` an R script, `.py` a Python script, `.sh` a shell script, and `.csv` a plain-text table.
+The programs and scripts named below are in `paper_1_chunking_and_parallel_scalability/mechanism_study/`.
+
+Both machines run Pop!_OS 22.04 (with Linux kernel 6.12 on the local-HPC, and 6.5 on the laptop), and all programs below were compiled using GCC 11.4.
+The counters were read via the Linux kernel's `perf_event_open` interface (rather than the `perf` tool), by two small C programs (`pmc_stat` and `umc_stat`).
+More specifically, `pmc_stat` runs a command and records the CPU's own hardware counters for every thread of that command (user space only), whereas `umc_stat` records the DRAM traffic at the memory controllers of the whole machine (local-HPC only).
+Both programs append the running totals of the counters to a CSV file whenever they receive the `SIGUSR1` signal (i.e., a short message from another running program, telling it to act immediately), which we sent around each sampling call.
+
+### Checking the CPU topology and the available counters
+
+On each machine, we first checked the CPU and its caches, which logical CPUs share a physical core (SMT) and an L3 cache (i.e., a CCX; one per CCD on the local-HPC), and which counters the kernel exposes:
+
+```bash
+lscpu | grep -E "Model name|Thread|Core|Socket|L2 cache|L3 cache|NUMA node"
+free -g
+cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | sort -u
+cat /sys/devices/system/cpu/cpu*/cache/index3/shared_cpu_list | sort -u
+cat /proc/sys/kernel/perf_event_paranoid
+ls /sys/bus/event_source/devices/
+```
+
+Here, `lscpu` lists the details of the CPU, `free -g` shows the amount of RAM (in GiB), `cat` prints the contents of a file, and `ls` lists the contents of a folder; the files under `/sys` and `/proc` are where the Linux kernel reports the hardware details and settings.
+On the local-HPC, logical CPUs k and k + 96 are the two SMT threads of the same physical core, and each CCD consists of 8 consecutive physical cores (i.e., CPUs 0-7 and 96-103 share one L3 cache, CPUs 8-15 and 104-111 share the next, and so on).
+On the laptop, CPUs 2k and 2k + 1 are the two SMT threads of the same physical core, and all 16 CPUs share the one L3 cache.
+The layout of each CPU is shown in the CPU topology figures in the paper, in which each thread is labelled with its logical CPU number.
+
+Furthermore, on the local-HPC, we checked the memory type, and the encoding of the memory-controller counters (which are only listed once the AMD uncore driver has been loaded; see [Enabling the counters](#enabling-the-counters)):
+
+```bash
+cat /sys/devices/system/edac/mc/mc0/rank0/dimm_mem_type        # Registered-DDR5
+cat /sys/bus/event_source/devices/amd_umc_0/type
+cat /sys/bus/event_source/devices/amd_umc_0/format/event       # config:0-7
+cat /sys/bus/event_source/devices/amd_umc_0/format/rdwrmask    # config:8-9
+```
+
+### Enabling the counters
+
+The per-process counters used by `pmc_stat` can be read without root access under the default kernel setting (`kernel.perf_event_paranoid = 2`).
+However, the memory-controller counters are system-wide; hence, `umc_stat` requires the AMD uncore driver to be loaded, and this setting to be lowered to 0 or below.
+Therefore, we ran the following on both machines before the profiling (these commands only last until the machine is restarted):
+
+```bash
+sudo modprobe amd_uncore
+sudo sysctl kernel.perf_event_paranoid=-1
+```
+
+Here, `sudo` runs a command with administrator (i.e., root) rights, `modprobe` loads a kernel module (i.e., a driver), and `sysctl` changes a kernel setting.
+After the profiling, the default setting can be restored using:
+
+```bash
+sudo sysctl kernel.perf_event_paranoid=2
+```
+
+### Counter events
+
+`pmc_stat` records six events, one for each core counter on these AMD CPUs; hence, the events did not need to be multiplexed:
+
+- (i) CPU cycles and instructions, using the kernel's generic hardware events (`PERF_COUNT_HW_CPU_CYCLES` and `PERF_COUNT_HW_INSTRUCTIONS`).
+- (ii) L1 data-cache fills by where the data came from, using AMD event `PMCx044` (Zen 3 and Zen 4), as the raw events: `0x0144` (the core's own L2 cache); `0x0244` (the L3 cache of the same CCX, or the L2 cache of another core in the same CCX; i.e., the same CCD on the local-HPC); `0x1444` (a cache in another CCX, i.e., another CCD on the local-HPC); and `0x4844` (DRAM or I/O).
+
+`umc_stat` opens event `0x0a` (CAS commands) on each of the 12 memory-controller counters of the local-HPC (`amd_umc_0` to `amd_umc_11`), with `rdwrmask` set to 1 for reads (`config = 0x10a`) and to 2 for writes (`config = 0x20a`).
+Each CAS command transfers one 64-byte cache line; hence, the DRAM traffic (in bytes) is 64 times the number of CAS commands, summed over the 12 memory controllers.
+
+### Building and calibrating the counter programs
+
+The counter and calibration programs were compiled using:
+
+```bash
+gcc -O2 -Wall -o pmc_stat pmc_stat.c                            # laptop: without -Wall
+gcc -O2 -Wall -o umc_stat umc_stat.c                            # local-HPC only
+gcc -O2 -o calibrate_cache_levels calibrate_cache_levels.c
+gcc -O2 -o stream_read stream_read.c                            # local-HPC only
+```
+
+Here, `gcc` is the GNU C compiler, which turns each C source file into a runnable program; `-O2` turns on the compiler's standard optimisations, `-Wall` turns on its warnings, and `-o` gives the name of the resulting program.
+
+Before the profiling, we checked that the counters attribute memory accesses to the expected level of the memory hierarchy.
+More specifically, `calibrate_cache_levels` follows a random chain of pointers through a working set of a given size (so that each access depends on the previous one, and hence cannot be prefetched), and `stream_read` fills a 1 GiB array and then reads it sequentially, five times.
+The working sets were chosen to fit within the L2 cache, fit within the L3 cache, or exceed the L3 cache available to a single core (256 MiB; although the local-HPC has 384 MB of L3 cache in total, a single core only uses the 32 MB L3 cache of its own CCD), and the `sleep` runs measure the background DRAM traffic from other programs.
+On the local-HPC:
+
+```bash
+for kib in 256 8192 262144; do
+    taskset -c 5 ./pmc_stat cal_HPC.csv ws_${kib}KiB -- \
+        ./calibrate_cache_levels $kib 20000000 > /dev/null
+done
+./umc_stat cal_umc.csv chase_256MiB -- ./calibrate_cache_levels 262144 20000000 > /dev/null
+./umc_stat cal_umc.csv idle_3s -- sleep 3
+./umc_stat umc_cal2.csv stream_1GiB_x5 -- ./stream_read > /dev/null
+./umc_stat umc_cal2.csv idle_2s -- sleep 2
+```
+
+and on the laptop:
+
+```bash
+for kib in 128 2048 8192 262144; do
+    ./pmc_stat cal.csv ws_${kib}KiB -- ./calibrate_cache_levels $kib 20000000 > /dev/null
+done
+```
+
+Here, `./` runs a program from the current folder, `taskset -c 5` runs a program on CPU 5 only (i.e., it pins the program to that CPU), `> /dev/null` discards the program's printed output, and `for ... do ... done` repeats the command for each working-set size.
+
+### Running the profiling cases
+
+The cases for designs (i)-(iv) of Experiment 4 were written to one CSV file per machine (128 cases on the local-HPC, and 85 on the laptop) using:
+
+```bash
+python3 make_mechanism_cases.py HPC        # writes cases_HPC.csv
+python3 make_mechanism_cases.py Laptop     # writes cases_Laptop.csv
+```
+
+and the 28 DRAM-traffic cases of design (i) were written to `cases_HPC_E5.csv`.
+Each list was then run using `run_mechanism_experiments.sh`:
+
+```bash
+nohup setsid bash run_mechanism_experiments.sh HPC > /dev/null 2>&1 < /dev/null &
+nohup setsid bash run_mechanism_experiments.sh Laptop > /dev/null 2>&1 < /dev/null &
+## local-HPC: re-run of any incomplete cases, followed by the DRAM-traffic cases of design (i):
+nohup setsid bash -c 'bash run_mechanism_experiments.sh HPC;
+    bash run_mechanism_experiments.sh HPC cases_HPC_E5.csv umc' \
+    > /dev/null 2>&1 < /dev/null &
+```
+
+Here, `python3` and `bash` run a Python script and a shell script, respectively; `nohup` and `setsid` keep the script running after the terminal is closed, `&` runs it in the background, and `> /dev/null 2>&1 < /dev/null` detaches it from the terminal (its progress is written to log files instead).
+This script skips any completed case; hence, failed cases were re-run by calling it again (as in the last command above).
+
+For every case, this script runs the following command, which starts a fresh R session under `pmc_stat` and runs the case via `mechanism_case.R` (with the values in angle brackets taken from the case list):
+
+```bash
+MECH_ALGORITHM=<algorithm> MECH_N=<N> MECH_CHUNKS=<N_chunks> \
+MECH_CHAINS=<N_chains> MECH_THREADS_PER_CHAIN=<N_threads_per_chain> \
+MECH_N_ITER=<n_iter> MECH_N_ITER_SHORT=2 MECH_SEED=1000 MECH_LABEL=<label> \
+MECH_RESULTS_FILE=mechanism_times_<device>.csv OMP_NUM_THREADS=1 \
+    timeout 3600 taskset -c <CPU list> \
+    ./umc_stat mechanism_umc_HPC.csv <label> -- \
+    ./pmc_stat mechanism_counts_<device>.csv <label> -- \
+    Rscript mechanism_case.R
+```
+
+Here, each `NAME=value` at the start sets an environment variable for that one command, `timeout 3600` stops the case if it runs for longer than one hour, and `Rscript` runs an R script from the terminal (i.e., without RStudio).
+`taskset` was only used for the pinned cases (in designs (ii)-(iv)), and `umc_stat` only for the DRAM-traffic cases of design (i).
+The CPU lists used for pinning were (all on the local-HPC, except the last):
+
+- one CCD: `0-7`;
+- eight CCDs (one core each): `0,8,16,24,32,40,48,56`;
+- 8 physical cores of one CCD, including their SMT threads: `0-7,96-103`;
+- 16 physical cores over two CCDs (no SMT): `0-15`;
+- the 8 physical cores of the laptop (one SMT thread each): `0,2,4,6,8,10,12,14`.
+
+Within `mechanism_case.R`, the counters are recorded after the untimed warm-up, short sampling and long sampling calls, by sending `SIGUSR1` to both programs (whose process IDs - i.e., the numbers which identify each running program - are passed to R as environment variables):
+
+```r
+tools::pskill(pid = as.integer(Sys.getenv("PMC_STAT_PID")), signal = tools::SIGUSR1)
+tools::pskill(pid = as.integer(Sys.getenv("UMC_STAT_PID")), signal = tools::SIGUSR1)
+```
+
+Finally, the counters and timings were summarised, and the DRAM bandwidth figure of Experiment 4 was produced, using:
+
+```bash
+Rscript analyse_mechanism_study.R
+Rscript make_paper_figure_exp4.R
+```
+
+
+<!-- ------------------------------------------------------------------------------------------------------------------------------- -->
 ## Related software
 <!-- ------------------------------------------------------------------------------------------------------------------------------- -->
 
