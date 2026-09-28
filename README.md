@@ -60,6 +60,7 @@ The full BayesMVP algorithm and benchmarks, and acceleration of arbitrary Stan m
 | --- | --- |
 | `paper_1_chunking_and_parallel_scalability/` | The R scripts for the benchmarks, figures and tables (see [Reproducing the results](#reproducing-the-results)), the Stan models (`stan_models/`: the unpartitioned model, `LC_MVP_bin_PartialLog_v5.stan`; the chunked model used for the Stan + chunking configurations, `LC_MVP_bin_PartialLog_v5_chunked.stan`; and the model used for the Stan tape-chunking and WCP configurations, `LC_MVP_bin_PartialLog_v5_reduce_sum_static.stan`), and the saved study summaries (`paper_1_computational_outputs/`, `burnin_outputs/`) |
 | `paper_1_chunking_and_parallel_scalability/mechanism_study/` | The counter programs (C), run scripts, case lists, and the measured counts and times for the hardware-counter profiling study (Experiment 4) |
+| `paper_1_chunking_and_parallel_scalability/working_set/` | The working set of one gradient evaluation per individual behind the cache-capacity lines and the automatic chunking rule: the array count for NicoStan+BayesMVP (1,608 bytes) and the probe harness which measured the Stan model's autodiff tape (19,152 bytes), with its raw output |
 | `0_utilities/` | Shared R functions, including the simulation of the COVID-19-based LC-MVP datasets and the Stan compilation settings |
 | `1_appendix_pilot_studies/` | The Mplus and Stan pilot-study results, and the NicoStan+BayesMVP pilot-study functions, used for the absolute efficiency comparison (Experiment 3) |
 | `results/data/` | CSV files with every measured configuration (e.g., `measured_cases.csv`, `configurations.csv`, `scaling.csv`, `wcp_chunk_search.csv`) |
@@ -85,6 +86,7 @@ Note that the Stan models were compiled with the AMD AOCC compiler on Linux; the
 | `alg_paper_1_burnin_report.R` | The burn-in figures and tables, from the saved burn-in results |
 | `alg_paper_1_experiment_3_table.R` | The absolute efficiency table (time to a target ESS for NicoStan+BayesMVP, Stan and Mplus), from the pilot-study results |
 | `mechanism_study/run_mechanism_experiments.sh`, `mechanism_study/analyse_mechanism_study.R`, `mechanism_study/make_paper_figure_exp4.R` | The hardware-counter profiling study (Experiment 4): the counter runs, their summaries, and the DRAM bandwidth figure |
+| `working_set/stan/build_and_run.sh` | The Stan working-set measurement (stanc, the probe patch, the build, the runs and the fit); `working_set/README.md` derives both working sets |
 
 Note that the complete saved run outputs are not included here because of their size (over 200 GB).
 Hence, `alg_paper_1_experiment_3_table.R` also needs the saved outputs of our NicoStan+BayesMVP pilot study (or a re-run of that study) for its NicoStan+BayesMVP rows.

@@ -1,0 +1,21 @@
+n, arena, stacks, heap, data, total, total/n
+500 7983480 1181688 477464 26000 9668632 19337.3
+1000 15951480 2361688 879464 52000 19244632 19244.6
+2500 39855480 5901688 2085512 130000 47972680 19189.1
+5000 79695480 11801688 4095512 260000 95852680 19170.5
+10000 159375480 23601688 8115480 520000 191612648 19161.3
+20000 318735480 47201688 16155480 1040000 383132648 19156.6
+
+arena (tape: forward-pass varis, callbacks, arena copies + slice deep copy): slope=15936.0 B/row intercept=15480 B R2=1.00000000
+AD stacks (var_stack_ + var_nochain_stack_ pointers): slope=2360.0 B/row intercept=1688 B R2=1.00000000
+heap (Eigen locals, chainable_alloc, slice container): slope=804.0 B/row intercept=75485 B R2=1.00000000
+data read (y row 48 B + pop 4 B): slope=52.0 B/row intercept=0 B R2=1.00000000
+TOTAL: slope=19152.0 B/row intercept=92653 B R2=1.00000000
+arena+stacks: slope=18296.0
+multi A_N20000_cs5000 k 0 rows 5000 arena/row 15939.1
+multi A_N20000_cs5000 k 1 rows 5000 arena/row 15939.1
+multi A_N20000_cs5000 k 3 rows 5000 arena/row 15939.1
+multi A_N20000_cs1000 k 0 rows 625 arena/row 15960.8
+multi A_N20000_cs1000 k 1 rows 625 arena/row 15960.8
+multi A_N20000_cs1000 k 3 rows 625 arena/row 15960.8
+ratio to BayesMVP 1608: 11.91
