@@ -1131,7 +1131,7 @@ fn_paper1_presentation_templates <-  function() {
                                            ##
                                            paste0( chunk_search_plot$labels$subtitle,
                                                    "\nNo cache-capacity threshold (L3/L2/L1 per active thread) lies within the tested chunk range",
-                                                   if (all_chunks_fit_L2) " (every tested chunk already fits in the L2 cache per active thread)" else "")
+                                                   if (all_chunks_fit_L2) "\n(every tested chunk already fits in the L2 cache per active thread)" else "")
 
                                        } else {
 
