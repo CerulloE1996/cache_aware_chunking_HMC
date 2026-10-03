@@ -1,0 +1,7 @@
+"label","device","algorithm","N","num_chunks","n_chains","threads_per_chain","n_iter_short","n_iter_long","elapsed_seconds_short_run","elapsed_seconds_long_run"
+"AVX512_chains180_chunks500_rep1","HPC","MD_BayesMVP",50000,500,180,1,2,50,2.415,27.35
+"AVX2_chains180_chunks500_rep1","HPC","MD_BayesMVP",50000,500,180,1,2,50,2.508,28.572
+"Stan_chains180_chunks500_rep1","HPC","MD_BayesMVP",50000,500,180,1,2,50,3.261,46.294
+"AVX512_chains180_chunks500_rep2","HPC","MD_BayesMVP",50000,500,180,1,2,50,2.44,27.035
+"AVX2_chains180_chunks500_rep2","HPC","MD_BayesMVP",50000,500,180,1,2,50,2.526,28.614
+"Stan_chains180_chunks500_rep2","HPC","MD_BayesMVP",50000,500,180,1,2,50,3.273,46.092

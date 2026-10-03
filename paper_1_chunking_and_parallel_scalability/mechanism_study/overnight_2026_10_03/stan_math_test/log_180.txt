@@ -1,0 +1,13 @@
+2026-10-03 13:37:02 START AVX512_chains180_chunks500_rep1
+2026-10-03 13:37:45 END   AVX512_chains180_chunks500_rep1 exit=0
+2026-10-03 13:37:45 START AVX2_chains180_chunks500_rep1
+2026-10-03 13:38:30 END   AVX2_chains180_chunks500_rep1 exit=0
+2026-10-03 13:38:30 START Stan_chains180_chunks500_rep1
+2026-10-03 13:39:33 END   Stan_chains180_chunks500_rep1 exit=0
+2026-10-03 13:39:33 START AVX512_chains180_chunks500_rep2
+2026-10-03 13:40:16 END   AVX512_chains180_chunks500_rep2 exit=0
+2026-10-03 13:40:16 START AVX2_chains180_chunks500_rep2
+2026-10-03 13:41:00 END   AVX2_chains180_chunks500_rep2 exit=0
+2026-10-03 13:41:00 START Stan_chains180_chunks500_rep2
+2026-10-03 13:42:03 END   Stan_chains180_chunks500_rep2 exit=0
+2026-10-03 13:42:03 ALL DONE
