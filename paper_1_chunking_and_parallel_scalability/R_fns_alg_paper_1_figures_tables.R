@@ -124,6 +124,67 @@ fn_paper1_runner_current_settings <-  function( runner_file,
 
 }
 ##
+##
+## ---- 2026-10-03: projection of the many-chain WCP cases to their arm's standard long-run count ----------------
+##
+## The narrow-WCP allocations with many chains (n_chains >= wcp_many_chains_minimum) ran fewer long-run iterations
+## than the other cases of their arm, but the report compares n_chains / time at a fixed iteration budget within
+## each arm. Their reported times are therefore projected to the arm's standard long-run count with the measured
+## per-iteration time, i.e. reported time = n_iter x seconds_per_iteration, which is the two-run model itself
+## (T(n) = S + n t). The measured counts are kept in n_iter_measured and mplus_iterations_per_chain_measured.
+##
+fn_paper1_project_many_chain_WCP_cases <-  function( results,
+                                                     current_settings
+) {
+
+        settings <-  get(x = "paper1_settings", envir = current_settings)
+        results$n_iter_measured <-  results$n_iter
+        if ("mplus_iterations_per_chain" %in% names(x = results)) {
+              results$mplus_iterations_per_chain_measured <-  results$mplus_iterations_per_chain
+        }
+        if (is.null(x = settings$wcp_many_chains_iterations) || is.null(x = settings$wcp_many_chains_minimum)) {
+              return(results)
+        }
+        reference_setting <-  c( MD_BayesMVP_WCP = "bayesmvp_wcp_iterations",
+                                 AD_Stan_WCP     = "stan_wcp_iterations",
+                                 Mplus_WCP       = "mplus_WCP_iterations")
+        projected_rows <-  which(results$algorithm %in% names(x = reference_setting) &
+                                 results$n_chains >= settings$wcp_many_chains_minimum)
+        n_projected <-  0
+        for (row_index in projected_rows) {
+
+              algorithm <-  as.character(x = results$algorithm[row_index])
+              reference_counts <-  settings[[reference_setting[[algorithm]]]]
+              n_reference <-  unname(obj = reference_counts[as.character(x = results$N[row_index])])
+              if (length(x = n_reference) != 1 || is.na(x = n_reference) ||
+                  n_reference == results$n_iter[row_index]) next
+              seconds_per_iteration <-  results$seconds_per_iteration[row_index]
+              if (!is.finite(x = seconds_per_iteration)) {
+                    stop("No per-iteration time to project for row ", row_index, ".")
+              }
+              ##
+              results$elapsed_seconds[row_index] <-  n_reference * seconds_per_iteration
+              if (is.finite(x = results$fixed_cost_seconds[row_index])) {
+                    results$elapsed_seconds_long_run[row_index] <-  results$fixed_cost_seconds[row_index] +
+                                                                     n_reference * seconds_per_iteration
+              }
+              if ("mplus_iterations_per_chain" %in% names(x = results) &&
+                  is.finite(x = results$mplus_iterations_per_chain[row_index])) {
+                    results$mplus_iterations_per_chain[row_index] <-  n_reference
+              }
+              results$n_iter[row_index] <-  n_reference
+              n_projected <-  n_projected + 1
+
+        }
+        if (n_projected > 0) {
+              message(paste0("\033[36m", n_projected, " many-chain WCP runs projected to their arm's standard ",
+                             "long-run count (reported time = n_iter x measured seconds per iteration).\033[0m"))
+        }
+        ##
+        return(results)
+
+}
+##
 fn_paper1_rows_matching_current_settings <-  function( results,
                                                        current_settings
 ) {
@@ -131,15 +192,39 @@ fn_paper1_rows_matching_current_settings <-  function( results,
         settings <-  get(x = "paper1_settings", envir = current_settings)
         iterations_for_case <-  get(x = "fn_paper1_iterations_for_case", envir = current_settings)
         ##
-        expected_iterations <-  function(algorithm, N, which_run) {
+        # expected_iterations <-  function(algorithm, N, which_run) {
+        #
+        #     tryCatch( expr = iterations_for_case(settings = settings, algorithm = algorithm, N = N, which_run = which_run),
+        #               error = function(error) NA_real_)
+        #
+        # }
+        # ##
+        # long_run_matches <-  mapply( FUN = function(algorithm, N, n_iter) isTRUE(expected_iterations(algorithm, N, "long_run") == n_iter),
+        #                              as.character(x = results$algorithm), results$N, results$n_iter)
+        ## 2026-10-03: the expected long-run count can depend on the allocation (many-chain WCP; see
+        ## fn_paper1_iterations_for_case), so the allocation is passed too:
+        expected_iterations <-  function( algorithm,
+                                          N,
+                                          which_run,
+                                          n_chains = NA,
+                                          num_chunks = NA,
+                                          threads_per_chain = NA
+        ) {
 
-            tryCatch( expr = iterations_for_case(settings = settings, algorithm = algorithm, N = N, which_run = which_run),
+            tryCatch( expr = iterations_for_case( settings = settings, algorithm = algorithm, N = N,
+                                                  which_run = which_run, n_chains = n_chains,
+                                                  num_chunks = num_chunks, threads_per_chain = threads_per_chain),
                       error = function(error) NA_real_)
 
         }
         ##
-        long_run_matches <-  mapply( FUN = function(algorithm, N, n_iter) isTRUE(expected_iterations(algorithm, N, "long_run") == n_iter),
-                                     as.character(x = results$algorithm), results$N, results$n_iter)
+        long_run_matches <-  mapply( FUN = function( algorithm, N, n_iter,
+                                                     n_chains, num_chunks, threads_per_chain) {
+                                         isTRUE(expected_iterations( algorithm, N, "long_run", n_chains,
+                                                                     num_chunks, threads_per_chain) == n_iter)
+                                     },
+                                     as.character(x = results$algorithm), results$N, results$n_iter,
+                                     results$n_chains, results$num_chunks, results$threads_per_chain)
         ##
         short_run_matches <-  if ("n_iter_short_run" %in% names(x = results)) {
 
@@ -287,6 +372,14 @@ fn_paper1_read_studies <-  function( study_output_dirs,
                 results$source_case_id <-  results$case_id
                 ##
                 results$source_output_dir <-  path
+                ##
+                ## ---- 2026-10-03: the many-chain WCP cases ran fewer long-run iterations than the rest of their
+                ##      arm (see fn_paper1_iterations_for_case), whereas within-arm selection compares
+                ##      n_chains / time at a fixed iteration budget; their times are projected to the arm's
+                ##      standard long-run count:
+                ##
+                results <-  fn_paper1_project_many_chain_WCP_cases( results          = results,
+                                                                    current_settings = study_current_settings)
                 ##
                 ## ---- Every Mplus long-run mode that matches the current runner settings, kept for the within-Mplus mode comparison:
                 ##

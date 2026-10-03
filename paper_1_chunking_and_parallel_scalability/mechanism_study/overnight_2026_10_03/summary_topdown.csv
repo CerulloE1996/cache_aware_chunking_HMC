@@ -1,0 +1,6 @@
+"workload","ops_per_cycle","backend_bound_percent","memory_bound_percent","core_bound_percent","frontend_bound_percent"
+"Mplus_standard",0.26,83.7,55,28.7,1.9
+"MD_BayesMVP_chunks1",0.036,90.5,88.3,2.2,8.5
+"MD_BayesMVP_chunking_500",1.339,47.3,23.7,23.6,3.8
+"AD_Stan_chunks1",0.21,87.8,75,12.8,4.6
+"AD_Stan_tape_chunked_250",1.062,59.3,37.3,22,8.1

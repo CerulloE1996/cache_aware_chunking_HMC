@@ -1,0 +1,36 @@
+TITLE:
+Paper 1 PS2 LC-MVP parallel scaling;
+DATA:
+FILE = "data.dat"; 
+VARIABLE:
+NAMES = u1 u2 u3 u4 u5 u6; CATEGORICAL = u1-u6; CLASSES = C(2);
+ANALYSIS:
+ESTIMATOR = BAYES;
+CHAINS = 180;
+PROCESSORS = 180;
+TYPE = MIXTURE;
+BITERATIONS = 80 (0);
+BCONVERGENCE = 0;
+THIN = 1;
+STSEED = 1000;
+OPTSEED = 1000;
+MCSEED = 1000;
+BSEED = 1000;
+MODEL:
+%OVERALL%
+[C#1*-1] (p43);
+u1-u6 WITH u1-u6*0 (p1-p15);
+[u1$1-u6$1*-1] (p16-p21);
+%C#2%
+u1-u6 WITH u1-u6*0 (p22-p36);
+[u1$1-u6$1*+1] (p37-p42);
+MODEL PRIORS:
+p1-p15 ~ IW(0.0001, 9);
+p22-p36 ~ IW(0.0001, 24);
+p43 ~ D(5, 10);
+p16 ~ N(0.385, 0.2025);
+p17-p21 ~ N(0, 1);
+p37 ~ N(-2.33, 0.25);
+p38-p42 ~ N(0, 1);
+SAVEDATA:
+bparameters = bparam.dat;

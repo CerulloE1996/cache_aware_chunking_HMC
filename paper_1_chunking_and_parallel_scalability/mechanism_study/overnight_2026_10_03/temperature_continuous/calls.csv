@@ -1,0 +1,2 @@
+"label","device","algorithm","N","num_chunks","n_chains","threads_per_chain","call_index","n_iter","call_start_unix_time","call_end_unix_time","elapsed_seconds_sampler"
+"MD_BayesMVP_chunking_500_continuous","HPC","MD_BayesMVP",50000,500,180,1,1,1200,1791019238.9069,1791019820.28314,581.351

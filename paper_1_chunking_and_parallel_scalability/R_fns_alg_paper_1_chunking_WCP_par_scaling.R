@@ -320,10 +320,18 @@ fn_paper1_iteration_setting_names <-  function() {
 
 }
 ##
+# fn_paper1_iterations_for_case <-  function( settings,
+#                                             algorithm,
+#                                             N,
+#                                             which_run
+# ) {
 fn_paper1_iterations_for_case <-  function( settings,
                                             algorithm,
                                             N,
-                                            which_run
+                                            which_run,
+                                            n_chains = NA,
+                                            num_chunks = NA,
+                                            threads_per_chain = NA
 ) {
 
         algorithm_family <-  fn_paper1_algorithm_family(algorithm = algorithm)
@@ -360,6 +368,31 @@ fn_paper1_iterations_for_case <-  function( settings,
 
         }
         n_iterations <-  unname(obj = settings[[setting_name]][as.character(x = N)])
+        ##
+        ## ---- 2026-10-03: the narrow-WCP allocations with many chains (n_chains >= wcp_many_chains_minimum;
+        ##      up to 90 chains x 2 threads on the HPC) do 2-6x the work per iteration of the 4-16-chain WCP runs
+        ##      that the WCP counts were sized for, so they read their own long-run counts; WCP-only cases
+        ##      (N_chunks = N_threads/chain, the slowest, memory-bound ones) read
+        ##      wcp_many_chains_iterations_WCP_only where set.
+        ##      Callers that do not pass n_chains (e.g. the settings check) get the per-arm counts, as before.
+        ##
+        many_chain_counts <-  settings$wcp_many_chains_iterations[[algorithm]]
+        if (identical(which_run, "long_run") && !is.null(x = many_chain_counts) &&
+            length(x = n_chains) == 1 && !is.na(x = n_chains) && n_chains >= settings$wcp_many_chains_minimum) {
+
+            setting_name <-  "wcp_many_chains_iterations"
+            n_iterations <-  unname(obj = many_chain_counts[as.character(x = N)])
+            WCP_only_counts <-  settings$wcp_many_chains_iterations_WCP_only[[algorithm]]
+            if (!is.null(x = WCP_only_counts) && length(x = num_chunks) == 1 && !is.na(x = num_chunks) &&
+                length(x = threads_per_chain) == 1 && !is.na(x = threads_per_chain) &&
+                num_chunks == threads_per_chain) {
+
+                setting_name <-  "wcp_many_chains_iterations_WCP_only"
+                n_iterations <-  unname(obj = WCP_only_counts[as.character(x = N)])
+
+            }
+
+        }
         mplus_mode <-  if (identical(which_run, "short_run")) settings$mplus_iteration_mode_short_run else settings$mplus_iteration_mode
         ##
         if (length(x = n_iterations) != 1 || is.na(x = n_iterations) || !is.finite(x = n_iterations) ||
@@ -1137,10 +1170,17 @@ fn_paper1_benchmark_grid <-  function( settings ) {
                             ## Mplus reads its explicit iteration setting and selected mode. The old rule FBITERATIONS = 2 x bayesmvp_iterations
                             ## gave 80 / 20 / 4, which Mplus silently ran as 100 iterations per chain.
                             ##
-                            n_iter <-  fn_paper1_iterations_for_case( settings  = settings,
-                                                                      algorithm = algorithm,
-                                                                      N         = N,
-                                                                      which_run = "long_run")
+                            # n_iter <-  fn_paper1_iterations_for_case( settings  = settings,
+                            #                                           algorithm = algorithm,
+                            #                                           N         = N,
+                            #                                           which_run = "long_run")
+                            n_iter <-  fn_paper1_iterations_for_case( settings          = settings,
+                                                                      algorithm         = algorithm,
+                                                                      N                 = N,
+                                                                      which_run         = "long_run",
+                                                                      n_chains          = n_chains,
+                                                                      num_chunks        = num_chunks,
+                                                                      threads_per_chain = threads_per_chain)
                             ##
                             n_iter_short_run <-  if (timing_settings$timing_method == "two_run_difference") {
 
@@ -1194,6 +1234,19 @@ fn_paper1_benchmark_grid <-  function( settings ) {
 
             wcp_only <-  grid[grid$algorithm == "AD_Stan_WCP", , drop = FALSE]
             wcp_only$num_chunks <-  wcp_only$threads_per_chain
+            ## 2026-10-03: the long-run count can depend on the allocation (many-chain WCP-only cases; see
+            ## fn_paper1_iterations_for_case), so it is recomputed for these rows (unchanged for 4-16 chains):
+            wcp_only$n_iter <-  mapply( FUN = function(N, n_chains, num_chunks, threads_per_chain) {
+                                          fn_paper1_iterations_for_case( settings          = settings,
+                                                                         algorithm         = "AD_Stan_WCP",
+                                                                         N                 = N,
+                                                                         which_run         = "long_run",
+                                                                         n_chains          = n_chains,
+                                                                         num_chunks        = num_chunks,
+                                                                         threads_per_chain = threads_per_chain)
+                                      },
+                                      wcp_only$N, wcp_only$n_chains,
+                                      wcp_only$num_chunks, wcp_only$threads_per_chain)
             grid <-  rbind(grid, wcp_only)
             grid <-  grid[order(match(x = grid$algorithm, table = settings$algorithms)), , drop = FALSE]
 
@@ -1210,6 +1263,19 @@ fn_paper1_benchmark_grid <-  function( settings ) {
 
             bayesmvp_wcp_only <-  grid[grid$algorithm == "MD_BayesMVP_WCP", , drop = FALSE]
             bayesmvp_wcp_only$num_chunks <-  bayesmvp_wcp_only$threads_per_chain
+            ## 2026-10-03: the long-run count can depend on the allocation (many-chain WCP-only cases; see
+            ## fn_paper1_iterations_for_case), so it is recomputed for these rows (unchanged for 4-16 chains):
+            bayesmvp_wcp_only$n_iter <-  mapply( FUN = function(N, n_chains, num_chunks, threads_per_chain) {
+                                          fn_paper1_iterations_for_case( settings          = settings,
+                                                                         algorithm         = "MD_BayesMVP_WCP",
+                                                                         N                 = N,
+                                                                         which_run         = "long_run",
+                                                                         n_chains          = n_chains,
+                                                                         num_chunks        = num_chunks,
+                                                                         threads_per_chain = threads_per_chain)
+                                      },
+                                      bayesmvp_wcp_only$N, bayesmvp_wcp_only$n_chains,
+                                      bayesmvp_wcp_only$num_chunks, bayesmvp_wcp_only$threads_per_chain)
             grid <-  rbind(grid, bayesmvp_wcp_only)
             grid <-  grid[order(match(x = grid$algorithm, table = settings$algorithms)), , drop = FALSE]
 
@@ -1566,7 +1632,11 @@ fn_paper1_run_stan_via_NicoStan <-  function( case,
             dir.create(path = dirname(path = json_file), recursive = TRUE, showWarnings = FALSE)
             if (file.exists(file = json_file)) {
 
-                if (!identical(unname(tools::md5sum(initialised_model$json_file_path)), unname(tools::md5sum(json_file)))) {
+                # if (!identical(unname(tools::md5sum(initialised_model$json_file_path)), unname(tools::md5sum(json_file)))) {
+                ## 2026-10-03: compare the data, not the bytes: JSON files written before 29 Sep are compact and newer
+                ## ones are pretty-printed, so identical data gave different md5 sums (and stopped the run).
+                if (!identical(jsonlite::fromJSON(txt = initialised_model$json_file_path, simplifyVector = FALSE),
+                               jsonlite::fromJSON(txt = json_file, simplifyVector = FALSE))) {
 
                     stop("Existing Stan JSON belongs to different data; use a fresh study output directory.")
 

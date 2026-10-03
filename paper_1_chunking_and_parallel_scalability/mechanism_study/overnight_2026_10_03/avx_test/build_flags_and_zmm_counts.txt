@@ -1,0 +1,4 @@
+2026-10-03 09:50:08 flags avx512: override CPU_BASE_FLAGS = -O3  -march=native  -mtune=native|  override AVX_FLAGS += -mavx -mavx2 -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl|  override AVX_FLAGS += -mavx -mavx2|  override AVX_FLAGS += -mavx|
+2026-10-03 09:50:59 build avx512 exit=0 zmm_instructions=68216
+2026-10-03 09:50:59 flags avx2: override CPU_BASE_FLAGS = -O3  -march=native  -mtune=native -mno-avx512f|  override AVX_FLAGS += -mavx -mavx2|  override AVX_FLAGS += -mavx -mavx2|  override AVX_FLAGS += -mavx|
+2026-10-03 09:56:06 build avx2 exit=0 zmm_instructions=0

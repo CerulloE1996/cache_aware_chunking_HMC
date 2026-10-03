@@ -1,0 +1,5 @@
+"label","device","algorithm","N","num_chunks","n_chains","threads_per_chain","n_iter_short","n_iter_long","elapsed_seconds_short_run","elapsed_seconds_long_run"
+"MD_BayesMVP_chunks1","HPC","MD_BayesMVP",50000,1,180,1,2,12,25.915,93.392
+"MD_BayesMVP_chunking_500","HPC","MD_BayesMVP",50000,500,180,1,2,150,2.491,75.762
+"AD_Stan_chunks1","HPC","AD_Stan",50000,1,180,1,2,18,15.692,88.807
+"AD_Stan_tape_chunked_250","HPC","AD_Stan_tape_chunked",50000,250,180,1,2,45,5.779,81.118

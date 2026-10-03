@@ -104,18 +104,31 @@
 ##
 {
       bayesmvp_chunk_candidates <-  list( "500"   = c(1, 2, 4, 10),
+                                          ##
                                           "2500"  = c(1, 2, 4, 10, 25),
+                                          ##
                                           "10000" = c(1, 4, 10, 25, 50, 100),
-                                          "50000" = c(1, 4, 10, 25, 50, 100, 250, 500))
+                                          ##
+                                          ## "50000" = c(1, 4, 10, 25, 50, 100, 250, 500))
+                                          "50000"    = c(1, 4, 10, 25, 50, 100, 250, 500, 1000))
       ##
       paper1_settings$chunks_by_algorithm$MD_BayesMVP     <- bayesmvp_chunk_candidates
       paper1_settings$chunks_by_algorithm$MD_BayesMVP_WCP <- bayesmvp_chunk_candidates
       paper1_settings$chunks_by_algorithm$MD_BayesMVP_multi_process <- bayesmvp_chunk_candidates
       ##
+      ## ---- 2026-09-28: Stan chunk counts extended past the L2 line per active thread (the searches at N = 10,000 and 50,000
+      ##      selected the largest tested count on both machines); the previous grids are kept above each line.
+      ##
       stan_chunk_candidates <-  list( "500"   = c(2, 4, 10),
-                                      "2500"  = c(4, 10, 25, 50),
-                                      "10000" = c(4, 10, 25, 50, 100),
-                                      "50000" = c(10, 25, 50, 100, 250, 500))
+                                      ##
+                                      ## "2500"  = c(4, 10, 25, 50),
+                                      "2500"     = c(4, 10, 25, 50, 100, 250),
+                                      ##
+                                      ## "10000" = c(4, 10, 25, 50, 100),
+                                      "10000"    = c(4, 10, 25, 50, 100, 250, 500, 1000),
+                                      ##
+                                      ## "50000" = c(10, 25, 50, 100, 250, 500))
+                                      "50000"    = c(10, 25, 50, 100, 250, 500, 1000, 2000, 5000))
       ##
       paper1_settings$chunks_by_algorithm$AD_Stan_chunked      <- stan_chunk_candidates
       paper1_settings$chunks_by_algorithm$AD_Stan_tape_chunked <- stan_chunk_candidates
@@ -140,7 +153,9 @@ if (device == "HPC") {
                                                             "2500" = c(2, 6, 8))
     ##
     sampling_chain_counts <-  c(1, 2, 4, 8, 16, 32, 64, 96, 180)
-    WCP_chain_counts      <-  c(4, 8, 16)
+    # WCP_chain_counts      <-  c(4, 8, 16)
+    ## 2026-10-03: narrow WCP up to 90 x 2 (see below):
+    WCP_chain_counts      <-  c(4, 8, 16, 24, 32, 45, 48, 64, 90)
     ##
     ## n_WCP candidates, keyed by N and then sampling chain count:
     ##
@@ -172,6 +187,22 @@ if (device == "HPC") {
                         "8" = WCP_candidates_for_8_chains_big_N,
                        "16" = WCP_candidates_for_16_chains_big_N))
                        # "24" = WCP_candidates_for_24_chains))
+    ##
+    ## ---- 2026-10-03: narrow WCP with more chains (up to 90 chains x 2 threads), so that WCP + chunking can fill
+    ##      64-180 threads with N_threads/chain = 2 or 4, as on the laptop (where 8 x 2 fills all 16 threads);
+    ##      the grid above stops at 16 chains, which forced 6-11 threads per chain at 96-176 threads.
+    ##      Added for every N; Stan and Mplus copy these candidates below.
+    ##
+    narrow_WCP_candidates <-  list( "24" = c(4),       ## 24 x 4 =  96 threads
+                                    "32" = c(2, 4),    ## 32 x 2 =  64, 32 x 4 = 128
+                                    "45" = c(4),       ## 45 x 4 = 180
+                                    "48" = c(2),       ## 48 x 2 =  96
+                                    "64" = c(2),       ## 64 x 2 = 128
+                                    "90" = c(2))       ## 90 x 2 = 180
+    ##
+    for (N_key in names(bayesmvp_WCP_candidates)) {
+          bayesmvp_WCP_candidates[[N_key]] <-  c(bayesmvp_WCP_candidates[[N_key]], narrow_WCP_candidates)
+    }
     ##
     stan_WCP_candidates <- bayesmvp_WCP_candidates
     ##
@@ -239,6 +270,14 @@ if (device == "HPC") {
 ##
 mplus_WCP_candidates <-  stan_WCP_candidates
 ##
+## 2026-10-03: Mplus gets only the two-thread narrow allocations (32, 48, 64 and 90 chains x 2 threads;
+## HPC only):
+##
+for (N_key in names(mplus_WCP_candidates)) {
+      mplus_WCP_candidates[[N_key]][c("24", "45")] <-  NULL
+      if (!is.null(mplus_WCP_candidates[[N_key]][["32"]])) mplus_WCP_candidates[[N_key]][["32"]] <-  c(2)
+}
+##
 ## Chain counts come from PS2 sampling, independently of the selected WCP candidates.
 ##
 {
@@ -252,7 +291,9 @@ mplus_WCP_candidates <-  stan_WCP_candidates
       paper1_settings$n_chains_by_algorithm$AD_Stan_WCP          <- WCP_chain_counts
       ## 
       paper1_settings$n_chains_by_algorithm$Mplus_standard <- sampling_chain_counts
-      paper1_settings$n_chains_by_algorithm$Mplus_WCP      <- WCP_chain_counts
+      # paper1_settings$n_chains_by_algorithm$Mplus_WCP      <- WCP_chain_counts
+      ## 2026-10-03: no 24 or 45 chains for Mplus (two-thread narrow allocations only; see above):
+      paper1_settings$n_chains_by_algorithm$Mplus_WCP      <- setdiff(WCP_chain_counts, c(24, 45))
       ##
       paper1_settings$threads_per_chain_by_algorithm$MD_BayesMVP_WCP <- bayesmvp_WCP_candidates
       paper1_settings$threads_per_chain_by_algorithm$AD_Stan_WCP     <- stan_WCP_candidates
@@ -352,6 +393,23 @@ mplus_WCP_candidates <-  stan_WCP_candidates
       ##      Changed-count Mplus_standard cases receive new cache keys (n_iter is part of the key); Mplus_WCP keys are unchanged.
       ##
       paper1_settings$mplus_standard_iterations  <-  c("500" = 2000,  "2500" = 400,  "10000" = 200, "50000" = 100)
+      ##
+      ## ---- 2026-10-03: long-run counts for the narrow-WCP allocations with many chains (24-90 chains; see the
+      ##      HPC grid above). They do 2-6x the work per iteration of the 4-16-chain WCP runs that the WCP counts
+      ##      above were sized for, so fewer iterations still give long runs of ~2 s or more (more with more
+      ##      chains);
+      ##      at N <= 2,500 BayesMVP keeps its WCP counts, because shorter long runs there would last < 1 s.
+      ##      WCP-only cases (N_chunks = N_threads/chain: the slowest, memory-bound ones) use half at N >= 10,000.
+      ##      The 4-16-chain cases keep the counts above, so their saved runs are reused.
+      ##
+      paper1_settings$wcp_many_chains_minimum <-  24
+      paper1_settings$wcp_many_chains_iterations <-
+            list( MD_BayesMVP_WCP = c("500" = 2000, "2500" = 400, "10000" = 100, "50000" = 25),
+                  AD_Stan_WCP     = c("500" = 400,  "2500" = 100, "10000" = 20,  "50000" = 5),
+                  Mplus_WCP       = c("500" = 1000, "2500" = 200, "10000" = 100, "50000" = 100))
+      paper1_settings$wcp_many_chains_iterations_WCP_only <-
+            list( MD_BayesMVP_WCP = c("500" = 2000, "2500" = 400, "10000" = 50,  "50000" = 12),
+                  AD_Stan_WCP     = c("500" = 400,  "2500" = 100, "10000" = 10,  "50000" = 3))
       ##
       ## Flag (never drop) pairs whose fixed cost is below -10% of the long-run time (repeat noise is ~2-8%).
       ##

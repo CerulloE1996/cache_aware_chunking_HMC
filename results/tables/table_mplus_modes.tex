@@ -3,20 +3,57 @@
 \small
 % \caption{Within-Mplus adjusted-time ratio, FBITERATIONS/BITERATIONS, at matched processor allocations and requested iteration budgets. Each ratio compares the median of three repeats in each mode. Entries give the median ratio across allocations, with the range in parentheses; a ratio above one means that FBITERATIONS took longer. Times are normalised to the requested long-run count using the verified saved-draw count, as described in section \ref{section:paper1_mplus_timing_design}.}
 % \caption{Within-Mplus adjusted-time ratio, FBITERATIONS/BITERATIONS, at matched processor allocations and requested iteration budgets. Each ratio compares the mean of three repeats in each mode. Entries give the median ratio across allocations, with the range in parentheses; a ratio above one means that FBITERATIONS took longer. Times are normalised to the requested long-run count using the verified saved-draw count, as described in section \ref{section:paper1_mplus_timing_design}.}
-\caption{Within-Mplus adjusted-time ratio, FBITERATIONS/BITERATIONS, at matched processor allocations and requested iteration budgets. Each ratio compares the mean of three repeats in each mode. Entries give the median ratio across allocations, with the range in parentheses; a ratio above one means that FBITERATIONS took longer. Times are normalised to the requested long-run count using the number of iterations which Mplus actually ran in the long run ($n_l^{\mathrm{obs}}$; equation \ref{eq:paper1_mplus_timing}), as described in section \ref{section:paper1_mplus_timing_design}.}
+%%%% ---- to check ---- %%%%
+% \caption{Within-Mplus adjusted-time ratio, FBITERATIONS/BITERATIONS, at matched processor allocations and requested iteration budgets. Each ratio compares the mean of three repeats in each mode. Entries give the median ratio across allocations, with the range in parentheses; a ratio above one means that FBITERATIONS took longer. Times are normalised to the requested long-run count using the number of iterations which Mplus actually ran in the long run ($n_l^{\mathrm{obs}}$; equation \ref{eq:paper1_mplus_timing}), as described in section \ref{section:paper1_mplus_timing_design}.}
+\caption{Within-Mplus adjusted-time ratio, FBITERATIONS/BITERATIONS,
+at matched processor allocations and requested iteration budgets.
+Each ratio compares the mean of three repeats in each mode.
+Entries give the median ratio across allocations, with the range in parentheses;
+a ratio above one means that FBITERATIONS took longer.
+Standard is Mplus with $N_{\text{threads/chain}} = 1$,
+and WCP is Mplus + WCP ($N_{\text{threads/chain}} \ge 2$).
+%%%% ---- to check ---- %%%%
+In E2, Mplus + WCP used the fastest allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$)
+at each $N_{\text{threads}}$ (see section \ref{section:paper1_chunk_wcp_selection_design}):
+%%%% ---- to check ---- %%%%
+% on the local-HPC, $4 \times 2$, $8 \times 2$, $16 \times 2$, $16 \times 4$, $16 \times 6$ and $16 \times 8$
+% for $N_{\text{threads}} = 8$, $16$, $32$, $64$, $96$ and $128$ at $N \le 2500$,
+% and $4 \times 2$, $4 \times 4$, $16 \times 2$, $16 \times 4$, $4 \times 24$, $4 \times 32$ and $8 \times 22$
+% (or $4 \times 44$ at $N{=}50,000$) for $N_{\text{threads}} = 8$ to $176$ at $N \ge 10,000$;
+on the local-HPC, $N_{\text{threads/chain}} = 2$ (i.e., $N_{\text{threads}}/2$ chains)
+for $N_{\text{threads}} = 8$ to $180$, except $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$;
+on the laptop, $2 \times 2$, $4 \times 2$ and $8 \times 2$ for $N_{\text{threads}} = 4$, $8$ and $16$
+(except for $2 \times 4$ at $N_{\text{threads}} = 8$ and $N{=}10,000$).
+Times are normalised to the requested long-run count
+using the number of iterations which Mplus actually ran in the long run
+($n_l^{\mathrm{obs}}$; equation \ref{eq:paper1_mplus_timing}),
+as described in section \ref{section:paper1_mplus_timing_design}.}
 \label{table:paper1_mplus_modes}
 \begin{tabular}{llcc}
 \toprule
 Device & $N$ & Standard & WCP \\
 \midrule
 % HPC & 500 & 1.045 (0.920 - 1.376) & 1.075 (0.983 - 1.110) \\
-HPC & 500 & 1.027 (0.946 - 1.346) & 1.053 (1.017 - 1.095) \\
+%%%% ---- to check ---- %%%%
+% HPC & 500 & 1.027 (0.946 - 1.346) & 1.053 (1.017 - 1.095) \\
+%%%% ---- to check ---- %%%%
+% local-HPC & 500 & 1.027 (0.946 - 1.346) & 1.053 (1.017 - 1.095) \\
 % HPC & 2,500 & 1.037 (0.969 - 1.313) & 1.034 (0.966 - 1.145) \\
-HPC & 2,500 & 1.026 (0.991 - 1.306) & 1.068 (0.957 - 1.114) \\
+%%%% ---- to check ---- %%%%
+% HPC & 2,500 & 1.026 (0.991 - 1.306) & 1.068 (0.957 - 1.114) \\
+% local-HPC & 2,500 & 1.026 (0.991 - 1.306) & 1.068 (0.957 - 1.114) \\
 % HPC & 10,000 & 1.000 (0.960 - 1.193) & 1.025 (0.910 - 1.256) \\
-HPC & 10,000 & 0.995 (0.957 - 1.191) & 1.053 (0.891 - 1.176) \\
+%%%% ---- to check ---- %%%%
+% HPC & 10,000 & 0.995 (0.957 - 1.191) & 1.053 (0.891 - 1.176) \\
+% local-HPC & 10,000 & 0.995 (0.957 - 1.191) & 1.053 (0.891 - 1.176) \\
 % HPC & 50,000 & 1.011 (0.963 - 1.177) & 1.027 (0.737 - 1.117) \\
-HPC & 50,000 & 1.014 (0.957 - 1.128) & 1.030 (0.761 - 1.157) \\
+%%%% ---- to check ---- %%%%
+% HPC & 50,000 & 1.014 (0.957 - 1.128) & 1.030 (0.761 - 1.157) \\
+% local-HPC & 50,000 & 1.014 (0.957 - 1.128) & 1.030 (0.761 - 1.157) \\
+local-HPC & 500 & 1.027 (0.946 - 1.346) & 1.090 (1.017 - 1.358) \\
+local-HPC & 2,500 & 1.026 (0.991 - 1.306) & 1.080 (0.957 - 1.480) \\
+local-HPC & 10,000 & 0.995 (0.957 - 1.191) & 1.051 (0.891 - 1.180) \\
+local-HPC & 50,000 & 1.014 (0.957 - 1.128) & 1.025 (0.761 - 1.157) \\
 \midrule
 % Laptop & 500 & 0.994 (0.991 - 1.022) & 1.004 (0.962 - 1.011) \\
 Laptop & 500 & 1.004 (0.977 - 1.021) & 1.004 (0.947 - 1.015) \\
@@ -29,3 +66,4 @@ Laptop & 50,000 & 1.000 (0.984 - 1.007) & 1.002 (0.988 - 1.059) \\
 \bottomrule
 \end{tabular}
 \end{table}
+%%%%

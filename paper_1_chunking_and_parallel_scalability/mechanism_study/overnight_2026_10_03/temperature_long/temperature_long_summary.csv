@@ -1,0 +1,6 @@
+"workload","run_seconds","idle_Tctl","plateau_Tctl","peak_Tctl","rise_Tctl","plateau_slope_C_per_minute","plateau_Tccd_mean","rise_Tccd_mean","peak_Tccd","idle_power_watts","plateau_power_watts","sampling_power_watts","sampling_Tctl","pages_swapped_in","pages_swapped_out","instructions_per_cycle","DRAM_GB_per_second","seconds_per_iteration","E4_seconds_per_iteration"
+"Mplus_standard",606,57.2,63.6,66.9,6.3,-0.2,58.3,11.3,67.2,119,251,258,63.5,139,0,0.218,50.3,NA,NA
+"MD_BayesMVP_chunking_500",619,57.2,74.5,78.1,17.3,0.65,67.9,20.9,81.2,119,326,369,74.3,251,0,1.317,169.1,0.5,0.527
+"AD_Stan_tape_chunked_250",632,57.2,70.4,73.2,13.2,1.66,63.6,16.7,74.2,119,287,369,70.5,66,0,1.019,267.2,1.825,1.818
+"MD_BayesMVP_chunks1",642,57.2,70.4,73.6,13.2,-0.3,63.4,16.5,74.9,119,307,322,70.3,525,0,0.034,346.1,6.936,6.73
+"AD_Stan_chunks1",637,57.2,69.2,72.1,11.9,0.78,61.3,14.3,72.5,119,284,308,68.8,591,0,0.212,299.6,4.995,4.474

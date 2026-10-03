@@ -1,0 +1,6 @@
+"workload","instructions_per_cycle","fp_ops_per_thread_cycle","fp_ops_per_core_cycle","fp_share_of_ops_percent","fp_ops_per_second_billions","smt_contention_percent"
+"Mplus_standard",0.232,0.03,0.056,12.4,16.6,8.6
+"MD_BayesMVP_chunks1",0.034,0.01,0.019,28.3,5.5,0.4
+"MD_BayesMVP_chunking_500",1.319,0.234,0.439,17.6,90.1,26.3
+"AD_Stan_chunks1",0.2,0.019,0.036,9.3,9.9,4.1
+"AD_Stan_tape_chunked_250",1.024,0.072,0.136,6.7,28,14.9

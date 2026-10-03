@@ -1,0 +1,6 @@
+"workload","scalar_percent","bits_128_percent","bits_256_percent","bits_512_percent","fp_uops_per_core_cycle"
+"Mplus_standard",49.8,50.2,0,0,0.105
+"MD_BayesMVP_chunks1",1.6,4.3,6.8,87.2,0.048
+"MD_BayesMVP_chunking_500",1.6,11,0.9,86.5,1.163
+"AD_Stan_chunks1",41.9,55.1,1,2,0.082
+"AD_Stan_tape_chunked_250",39.8,57.8,0.7,1.7,0.32

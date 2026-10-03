@@ -1,0 +1,3 @@
+"n_chains","num_chunks","chain_iterations_per_second.avx2","chain_iterations_per_second.avx512","AVX512_over_AVX2"
+1,100,5.64749729756205,6.08974358974359,1.078
+180,500,327.59489894538,353.034031479319,1.078

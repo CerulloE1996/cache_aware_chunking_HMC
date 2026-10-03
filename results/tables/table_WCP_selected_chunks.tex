@@ -1,5 +1,3 @@
-%%%%
-%%%%
 \begin{table}[H]
 %%%%
 \centering
@@ -7,47 +5,98 @@
 %%%%
 \caption{
 \footnotesize{
-Selected $N_{\text{chunks}}$ for the chunking + WCP configurations of BayesMVP (\texttt{MD\_BayesMVP\_WCP\_chunking}) and the Stan model (\texttt{AD\_Stan\_WCP\_chunking}), for each device, allocation ($N_{\text{chains}} \times N_{\text{threads\_per\_chain}}$) and $N$ (i.e., the $N_{\text{chunks}}$ with the lowest mean run time for that allocation; see section \ref{section:paper1_chunk_wcp_selection_design}). Hyphens mark allocations which were not tested at that $N$.
+        Selected $N_{\text{chunks}}$ for \texttt{MD\_BayesMVP\_WCP\_chunking},
+        for each device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$),
+        and $N$ (i.e., the $N_{\text{chunks}}$, with the lowest mean run time for that allocation;
+        see section \ref{section:paper1_chunk_wcp_selection_design}).
+        %%
+        The number in brackets is the throughput of this configuration relative to \texttt{MD\_BayesMVP\_WCP}
+        (i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$) at the same allocation;
+        (1) means that WCP-only itself was selected.
+        %%
+        Bold marks the fastest \texttt{MD\_BayesMVP\_WCP\_chunking} allocation at each $N$
+        %%%% ---- to check ---- %%%%
+        % (i.e., the configuration which we used in E2;
+        (in E2, we used the fastest allocation at each $N_{\text{threads}}$;
+        see section \ref{section:methods:experiment_2_cross_algorithm_software}),
+        and \dag{} marks the fastest \texttt{MD\_BayesMVP\_WCP} allocation.
+        %%%% ---- to check ---- %%%%
+%%%% ---- to check ---- %%%%
+        % In E2, the fastest allocation at each $N_{\text{threads}}$ was always the one with the largest
+        % $N_{\text{chains}}$ (e.g., $16 \times 6$ for $N_{\text{threads}} = 96$ on the local-HPC).
+        In E2, the fastest allocation at each $N_{\text{threads}}$ was always the one with the largest
+        $N_{\text{chains}}$ (e.g., $48 \times 2$ for $N_{\text{threads}} = 96$ on the local-HPC).
+        For $N_{\text{chains}} \ge 24$, the long runs used fewer iterations, and their times were scaled
+        to the same $N_{\text{iter}}$
+        (see section \ref{section:methods:experiment_1_plan:part_II_NicoStan_BayesMVP_WCP}).
+        %%
+        Hyphens mark allocations which were not tested at that $N$.
 }}
 %%%%
 \label{S:table:WCP_selected_chunks}
 %%%%
 \PaperOneFitTable{
-\begin{tabular}{llrrrrrrrr}
+\begin{tabular}{llrrrr}
 %%%%
 \toprule
 %%%%
- & & \multicolumn{4}{c}{BayesMVP ($N$)} & \multicolumn{4}{c}{Stan model ($N$)} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10}
-Device & $N_{\text{chains}} \times N_{\text{threads\_per\_chain}}$ & $500$ & $2500$ & $10,000$ & $50,000$ & $500$ & $2500$ & $10,000$ & $50,000$ \\
+ & & \multicolumn{4}{c}{BayesMVP ($N$)} \\
+\cmidrule(lr){3-6}
+Device & $N_{\text{chains}} \times N_{\text{threads/chain}}$ & $500$ & $2500$ & $10,000$ & $50,000$ \\
 %%%%
 \midrule
 %%%%
-local-HPC & $4 \times 2$ & 4 & 4 & 10 & 50 & 4 & 4 & 10 & 50 \\
- & $4 \times 4$ & 4 & 4 & 50 & 100 & 10 & 10 & 25 & 100 \\
- & $4 \times 8$ & 8 & 8 & 8 & 250 & 10 & 10 & 50 & 250 \\
- & $4 \times 16$ & - & - & 50 & 50 & - & - & 100 & 250 \\
- & $4 \times 24$ & - & - & 24 & 24 & - & - & 100 & 250 \\
- & $4 \times 32$ & - & - & 50 & 500 & - & - & 100 & 250 \\
- & $4 \times 44$ & - & - & 44 & 44 & - & - & 44 & 500 \\
- & $8 \times 2$ & 2 & 10 & 10 & 50 & 4 & 4 & 10 & 50 \\
- & $8 \times 4$ & 4 & 4 & 50 & 100 & 10 & 10 & 25 & 250 \\
- & $8 \times 8$ & 8 & 8 & 8 & 50 & 8 & 25 & 100 & 250 \\
- & $8 \times 12$ & - & - & 50 & 100 & - & - & 50 & 250 \\
- & $8 \times 16$ & - & - & 16 & 100 & - & - & 50 & 500 \\
- & $8 \times 22$ & - & - & 25 & 100 & - & - & 100 & 500 \\
- & $16 \times 2$ & 2 & 4 & 10 & 100 & 4 & 10 & 25 & 250 \\
- & $16 \times 4$ & 4 & 4 & 25 & 100 & 10 & 10 & 50 & 250 \\
- & $16 \times 6$ & 6 & 6 & 50 & 100 & 6 & 25 & 50 & 250 \\
- & $16 \times 8$ & 8 & 8 & 25 & 100 & 8 & 25 & 100 & 500 \\
- & $16 \times 11$ & - & - & 25 & 100 & - & - & 100 & 500 \\
+%%%% ---- to check ---- %%%%
+% local-HPC & $4 \times 2$ & 4 (1.02) & 4 (1.05) & 10 (1.13) & 50 (1.33) \\
+ % & $4 \times 4$ & 4 (1) & 4 (1) & 50 (1.04) & 100 (1.30) \\
+ % & $4 \times 8$ & 8 (1) & 8 (1) & 8 (1) & 250 (1.16) \\
+ % & $4 \times 16$ & - & - & 50 (1.00) & 50 (1.13) \\
+ % & $4 \times 24$ & - & - & 24 (1) & 24 (1) \\
+ % & $4 \times 32$ & - & - & 50 (1.04) & 500 (1.07) \\
+ % & $4 \times 44$ & - & - & 44 (1) & 44 (1) \\
+ % & $8 \times 2$ & 2 (1) & 10 (1.03) & 10 (1.18) & 50 (1.52) \\
+ % & $8 \times 4$ & 4 (1) & 4 (1) & 50 (1.03) & 100 (1.48) \\
+ % & $8 \times 8$ & 8 (1) & 8 (1) & 8 (1) & 50 (1.56) \\
+ % & $8 \times 12$ & - & - & 50 (1.05) & 100 (1.37) \\
+ % & $8 \times 16$ & - & - & 16 (1) & 100 (1.25)\dag \\
+ % & $8 \times 22$ & - & - & 25 (1.00) & 100 (1.31) \\
+ % & $16 \times 2$ & 2 (1) & 4 (1.01) & 10 (1.21) & 100 (2.09) \\
+ % & $16 \times 4$ & \textbf{4 (1)}\dag & \textbf{4 (1)}\dag & \textbf{25 (1.10)}\dag & \textbf{100 (2.58)} \\
+ % & $16 \times 6$ & 6 (1) & 6 (1) & 50 (1.06) & 100 (2.19) \\
+ % & $16 \times 8$ & 8 (1) & 8 (1) & 25 (1.06) & 100 (2.11) \\
+ % & $16 \times 11$ & - & - & 25 (1.04) & 100 (2.04) \\
+local-HPC & $4 \times 2$ & 4 (1.02) & 4 (1.05) & 10 (1.13) & 50 (1.33) \\
+ & $4 \times 4$ & 4 (1) & 4 (1) & 50 (1.04) & 100 (1.30) \\
+ & $4 \times 8$ & 8 (1) & 8 (1) & 8 (1) & 250 (1.16) \\
+ & $4 \times 16$ & - & - & 50 (1.00) & 50 (1.13) \\
+ & $4 \times 24$ & - & - & 24 (1) & 24 (1) \\
+ & $4 \times 32$ & - & - & 50 (1.04) & 500 (1.07) \\
+ & $4 \times 44$ & - & - & 44 (1) & 44 (1) \\
+ & $8 \times 2$ & 2 (1) & 10 (1.03) & 10 (1.18) & 50 (1.52) \\
+ & $8 \times 4$ & 4 (1) & 4 (1) & 50 (1.03) & 100 (1.48) \\
+ & $8 \times 8$ & 8 (1) & 8 (1) & 8 (1) & 50 (1.56) \\
+ & $8 \times 12$ & - & - & 50 (1.05) & 100 (1.37) \\
+ & $8 \times 16$ & - & - & 16 (1) & 100 (1.25)\dag \\
+ & $8 \times 22$ & - & - & 25 (1.00) & 100 (1.31) \\
+ & $16 \times 2$ & 2 (1) & 4 (1.01) & 10 (1.21) & 100 (2.09) \\
+ & $16 \times 4$ & 4 (1) & 4 (1) & 25 (1.10)\dag & 100 (2.58) \\
+ & $16 \times 6$ & 6 (1) & 6 (1) & 50 (1.06) & 100 (2.19) \\
+ & $16 \times 8$ & 8 (1) & 8 (1) & 25 (1.06) & 100 (2.11) \\
+ & $16 \times 11$ & - & - & 25 (1.04) & 100 (2.04) \\
+ & $24 \times 4$ & 4 (1) & 4 (1) & 25 (1.37) & 250 (3.59) \\
+ & $32 \times 2$ & 2 (1) & 4 (1.06) & 25 (1.93) & 100 (4.65) \\
+ & $32 \times 4$ & 4 (1) & 4 (1) & 25 (1.74) & 100 (3.72) \\
+ & $45 \times 4$ & 4 (1) & 4 (1) & 25 (2.17) & 500 (5.06) \\
+ & $48 \times 2$ & 2 (1) & 10 (1.06) & 25 (2.27) & 100 (5.20) \\
+ & $64 \times 2$ & 4 (1.00) & 4 (1.10) & 25 (2.69) & 100 (5.59) \\
+ & $90 \times 2$ & \textbf{2 (1)}\dag & \textbf{10 (1.16)}\dag & \textbf{50 (3.60)} & \textbf{100 (7.67)} \\
 \midrule
-Laptop & $2 \times 2$ & 2 & 4 & 10 & 50 & 4 & 10 & 50 & 500 \\
- & $2 \times 4$ & 4 & 4 & 50 & 100 & 10 & 25 & 100 & 500 \\
- & $2 \times 8$ & 8 & 8 & 50 & 250 & 10 & 50 & 100 & 500 \\
- & $4 \times 2$ & 2 & 10 & 50 & 100 & 10 & 25 & 100 & 500 \\
- & $4 \times 4$ & 4 & 25 & 50 & 100 & 10 & 50 & 100 & 500 \\
- & $8 \times 2$ & 2 & 10 & 50 & 250 & 10 & 50 & 100 & 500 \\
+Laptop & $2 \times 2$ & 2 (1) & 4 (1.06) & 10 (1.50) & 50 (2.54) \\
+ & $2 \times 4$ & 4 (1) & 4 (1) & 50 (1.68)\dag & 100 (3.62) \\
+ & $2 \times 8$ & 8 (1) & 8 (1) & 50 (1.45) & 250 (2.67)\dag \\
+ & $4 \times 2$ & 2 (1) & 10 (1.20)\dag & 50 (2.50) & 100 (6.32) \\
+ & $4 \times 4$ & 4 (1) & 25 (1.00) & 50 (1.99) & 100 (4.75) \\
+ & $8 \times 2$ & \textbf{2 (1)}\dag & \textbf{10 (1.65)} & \textbf{50 (3.33)} & \textbf{250 (8.28)} \\
 %%%%
 \bottomrule
 %%%%
@@ -56,4 +105,124 @@ Laptop & $2 \times 2$ & 2 & 4 & 10 & 50 & 4 & 10 & 50 & 500 \\
 %%%%
 \end{table}
 %%%%
+\begin{table}[H]
+%%%%
+\centering
+\small
+%%%%
+\caption{
+\scriptfootnotesize{
+        Selected $N_{\text{chunks}}$ for \texttt{AD\_Stan\_WCP\_chunking},
+        for each device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$),
+        and $N$ (i.e., the $N_{\text{chunks}}$, with the lowest mean run time for that allocation;
+        see section \ref{section:paper1_chunk_wcp_selection_design}).
+        %%
+        The number in brackets is the throughput of this configuration relative to \texttt{AD\_Stan\_WCP}
+        (i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$) at the same allocation;
+        (1) means that WCP-only itself was selected.
+        %%
+        %%%% ---- to check ---- %%%%
+        % Bold marks the fastest \texttt{AD\_Stan\_WCP\_chunking} allocation at each $N$
+        % (i.e., the configuration which we used in E2;
+        % see section \ref{section:methods:experiment_2_cross_algorithm_software}),
+        % and \dag{} marks the fastest \texttt{AD\_Stan\_WCP} allocation.
+        Bold marks the fastest \texttt{AD\_Stan\_WCP\_chunking} allocation at each $N$,
+        and \dag{} marks the fastest \texttt{AD\_Stan\_WCP} allocation;
+        in E2 (see section \ref{section:methods:experiment_2_cross_algorithm_software}),
+        we used the fastest allocation at each $N_{\text{threads}}$
+        (see section \ref{section:paper1_chunk_wcp_selection_design}),
+        %%%% ---- to check ---- %%%%
+        % with the $N_{\text{chunks}}$ given here.
+        i.e., the one with the largest $N_{\text{chains}}$
+%%%% ---- to check ---- %%%%
+        % (e.g., $16 \times 6$ and $16 \times 11$ for $N_{\text{threads}} = 96$ and $176$ on the local-HPC,
+        % and $8 \times 2$ for $N_{\text{threads}} = 16$ on the laptop),
+        % except for $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$ on the local-HPC,
+        % and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop,
+        (e.g., $48 \times 2$ and $90 \times 2$ for $N_{\text{threads}} = 96$ and $180$ on the local-HPC,
+        and $8 \times 2$ for $N_{\text{threads}} = 16$ on the laptop),
+        except for $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$,
+        $16 \times 4$ at $N_{\text{threads}} = 64$ for $N = 2500$ and $10,000$,
+        and $24 \times 4$ at $N_{\text{threads}} = 96$ for $N = 50,000$ on the local-HPC,
+        and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop,
+        with the $N_{\text{chunks}}$ given here.
+        %%
+        Hyphens mark allocations which were not tested at that $N$.
+%%%% ---- to check ---- %%%%
+        For $N_{\text{chains}} \ge 24$, the long runs used fewer iterations, and their times were scaled
+        to the same $N_{\text{iter}}$
+        (see section \ref{section:methods:experiment_1_plan:part_II_NicoStan_BayesMVP_WCP}).
+}}
+%%%%
+\label{S:table:WCP_selected_chunks_Stan}
+%%%%
+\PaperOneFitTable{
+\begin{tabular}{llrrrr}
+%%%%
+\toprule
+%%%%
+ & & \multicolumn{4}{c}{Stan model ($N$)} \\
+\cmidrule(lr){3-6}
+Device & $N_{\text{chains}} \times N_{\text{threads/chain}}$ & $500$ & $2500$ & $10,000$ & $50,000$ \\
+%%%%
+\midrule
+%%%%
+%%%% ---- to check ---- %%%%
+% local-HPC & $4 \times 2$ & 4 (1.13) & 4 (1.02) & 10 (1.16) & 50 (1.17) \\
+ % & $4 \times 4$ & 10 (1.05) & 10 (1.30) & 25 (1.42) & 100 (1.37) \\
+ % & $4 \times 8$ & 10 (1.08) & 10 (1.27) & 50 (1.50) & 250 (1.78) \\
+ % & $4 \times 16$ & - & - & 100 (1.65) & 250 (2.15) \\
+ % & $4 \times 24$ & - & - & 100 (1.21) & 250 (1.88) \\
+ % & $4 \times 32$ & - & - & 100 (1.29) & 250 (1.96) \\
+ % & $4 \times 44$ & - & - & 44 (1)\dag & 500 (1.61) \\
+ % & $8 \times 2$ & 4 (1.04) & 4 (1.06) & 10 (1.24) & 50 (1.30) \\
+ % & $8 \times 4$ & 10 (1.09) & 10 (1.36) & 25 (1.62) & 250 (1.70) \\
+ % & $8 \times 8$ & 8 (1) & 25 (1.40) & 100 (1.90) & 250 (2.33) \\
+ % & $8 \times 12$ & - & - & 50 (1.85) & 250 (2.31) \\
+ % & $8 \times 16$ & - & - & 50 (1.79) & 500 (2.22) \\
+ % & $8 \times 22$ & - & - & 100 (1.62) & 500 (2.14)\dag \\
+ % & $16 \times 2$ & 4 (1.05) & 10 (1.26) & 25 (1.53) & 250 (1.79) \\
+ % & $16 \times 4$ & 10 (1.03) & 10 (1.59) & 50 (2.20) & 250 (2.60) \\
+ % & $16 \times 6$ & \textbf{6 (1)}\dag & 25 (1.37)\dag & 50 (2.20) & 250 (2.66) \\
+ % & $16 \times 8$ & 8 (1) & \textbf{25 (1.60)} & 100 (2.30) & 500 (2.70) \\
+ % & $16 \times 11$ & - & - & \textbf{100 (2.28)} & \textbf{500 (2.64)} \\
+local-HPC & $4 \times 2$ & 4 (1.13) & 4 (1.02) & 10 (1.16) & 50 (1.17) \\
+ & $4 \times 4$ & 10 (1.05) & 10 (1.30) & 25 (1.42) & 100 (1.37) \\
+ & $4 \times 8$ & 10 (1.08) & 10 (1.27) & 50 (1.50) & 250 (1.78) \\
+ & $4 \times 16$ & - & - & 100 (1.65) & 250 (2.15) \\
+ & $4 \times 24$ & - & - & 100 (1.21) & 250 (1.88) \\
+ & $4 \times 32$ & - & - & 100 (1.29) & 250 (1.96) \\
+ & $4 \times 44$ & - & - & 44 (1)\dag & 500 (1.61) \\
+ & $8 \times 2$ & 4 (1.04) & 4 (1.06) & 10 (1.24) & 50 (1.30) \\
+ & $8 \times 4$ & 10 (1.09) & 10 (1.36) & 25 (1.62) & 250 (1.70) \\
+ & $8 \times 8$ & 8 (1) & 25 (1.40) & 100 (1.90) & 250 (2.33) \\
+ & $8 \times 12$ & - & - & 50 (1.85) & 250 (2.31) \\
+ & $8 \times 16$ & - & - & 50 (1.79) & 500 (2.22) \\
+ & $8 \times 22$ & - & - & 100 (1.62) & 500 (2.14)\dag \\
+ & $16 \times 2$ & 4 (1.05) & 10 (1.26) & 25 (1.53) & 250 (1.79) \\
+ & $16 \times 4$ & 10 (1.03) & 10 (1.59) & 50 (2.20) & 250 (2.60) \\
+ & $16 \times 6$ & 6 (1) & 25 (1.37)\dag & 50 (2.20) & 250 (2.66) \\
+ & $16 \times 8$ & 8 (1) & 25 (1.60) & 100 (2.30) & 500 (2.70) \\
+ & $16 \times 11$ & - & - & 100 (2.28) & 500 (2.64) \\
+ & $24 \times 4$ & 10 (1.08) & 25 (1.95) & 100 (2.48) & 500 (3.72) \\
+ & $32 \times 2$ & 4 (1.21) & 10 (2.10) & 50 (2.30) & 250 (3.42) \\
+ & $32 \times 4$ & 10 (1.06) & 25 (1.98) & 100 (2.37) & 1000 (3.23) \\
+ & $45 \times 4$ & 10 (1.12)\dag & 25 (2.26) & 100 (2.62) & 1000 (3.42) \\
+ & $48 \times 2$ & 4 (1.20) & 25 (2.27) & 50 (2.68) & 500 (3.52) \\
+ & $64 \times 2$ & 4 (1.30) & 25 (2.28) & 100 (2.76) & 1000 (3.33) \\
+ & $90 \times 2$ & \textbf{10 (1.53)} & \textbf{25 (2.49)} & \textbf{100 (2.90)} & \textbf{1000 (3.68)} \\
+\midrule
+Laptop & $2 \times 2$ & 4 (1.09) & 10 (1.15) & 50 (1.25) & 500 (1.40) \\
+ & $2 \times 4$ & 10 (1.33) & 25 (1.68) & 250 (1.92) & 1000 (2.45) \\
+ & $2 \times 8$ & 10 (1.11)\dag & 100 (1.84) & 250 (2.23)\dag & \textbf{1000 (2.84)}\dag \\
+ & $4 \times 2$ & 10 (1.47) & 25 (1.75)\dag & 100 (2.06) & 1000 (2.58) \\
+ & $4 \times 4$ & 10 (1.49) & 50 (2.02) & 250 (2.41) & 1000 (3.05) \\
+ & $8 \times 2$ & \textbf{10 (1.86)} & \textbf{50 (2.17)} & \textbf{250 (2.70)} & 1000 (3.32) \\
+%%%%
+\bottomrule
+%%%%
+\end{tabular}
+}
+%%%%
+\end{table}
 %%%%
