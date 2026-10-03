@@ -1,0 +1,37 @@
+2026-10-03 13:48:39 START AVX512_chains1_chunks100_rep1
+2026-10-03 13:48:54 END   AVX512_chains1_chunks100_rep1 exit=0
+2026-10-03 13:48:54 START AVX512_chains96_chunks500_rep1
+2026-10-03 13:49:22 END   AVX512_chains96_chunks500_rep1 exit=0
+2026-10-03 13:49:22 START AVX512_chains180_chunks500_rep1
+2026-10-03 13:50:04 END   AVX512_chains180_chunks500_rep1 exit=0
+2026-10-03 13:50:04 START AVX2_chains1_chunks100_rep1
+2026-10-03 13:50:19 END   AVX2_chains1_chunks100_rep1 exit=0
+2026-10-03 13:50:19 START AVX2_chains96_chunks500_rep1
+2026-10-03 13:50:49 END   AVX2_chains96_chunks500_rep1 exit=0
+2026-10-03 13:50:49 START AVX2_chains180_chunks500_rep1
+2026-10-03 13:51:31 END   AVX2_chains180_chunks500_rep1 exit=0
+2026-10-03 13:51:31 START Stan_chains1_chunks100_rep1
+2026-10-03 13:51:52 END   Stan_chains1_chunks100_rep1 exit=0
+2026-10-03 13:51:52 START Stan_chains96_chunks500_rep1
+2026-10-03 13:52:34 END   Stan_chains96_chunks500_rep1 exit=0
+2026-10-03 13:52:34 START Stan_chains180_chunks500_rep1
+2026-10-03 13:53:34 END   Stan_chains180_chunks500_rep1 exit=0
+2026-10-03 13:53:34 START AVX512_chains1_chunks100_rep2
+2026-10-03 13:53:49 END   AVX512_chains1_chunks100_rep2 exit=0
+2026-10-03 13:53:49 START AVX512_chains96_chunks500_rep2
+2026-10-03 13:54:17 END   AVX512_chains96_chunks500_rep2 exit=0
+2026-10-03 13:54:17 START AVX512_chains180_chunks500_rep2
+2026-10-03 13:54:59 END   AVX512_chains180_chunks500_rep2 exit=0
+2026-10-03 13:54:59 START AVX2_chains1_chunks100_rep2
+2026-10-03 13:55:14 END   AVX2_chains1_chunks100_rep2 exit=0
+2026-10-03 13:55:14 START AVX2_chains96_chunks500_rep2
+2026-10-03 13:55:44 END   AVX2_chains96_chunks500_rep2 exit=0
+2026-10-03 13:55:44 START AVX2_chains180_chunks500_rep2
+2026-10-03 13:56:26 END   AVX2_chains180_chunks500_rep2 exit=0
+2026-10-03 13:56:26 START Stan_chains1_chunks100_rep2
+2026-10-03 13:56:47 END   Stan_chains1_chunks100_rep2 exit=0
+2026-10-03 13:56:47 START Stan_chains96_chunks500_rep2
+2026-10-03 13:57:30 END   Stan_chains96_chunks500_rep2 exit=0
+2026-10-03 13:57:30 START Stan_chains180_chunks500_rep2
+2026-10-03 13:58:31 END   Stan_chains180_chunks500_rep2 exit=0
+2026-10-03 13:58:36 ALL DONE

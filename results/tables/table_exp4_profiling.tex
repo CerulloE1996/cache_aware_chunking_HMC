@@ -58,12 +58,20 @@
         in one continuous sampling call (${\sim}{500}$\,s, i.e., without the short pauses between
         the calls of these runs), \texttt{MD\_BayesMVP\_chunking} reached $78^{\circ}$C,
         and up to $84^{\circ}$C as the first chains finished.
+        The logs and scripts of design (v) are in the paper's GitHub repository
+        (\url{https://github.com/CerulloE1996/cache_aware_chunking_HMC}).
         Floating-point uops were mostly 512-bit for NicoStan+BayesMVP ($87\%$),
         and scalar or 128-bit for the Stan model and Mplus ($96\%$ or more).
         Built without AVX-512 (i.e., AVX2 only, from the same source),
         \texttt{MD\_BayesMVP\_chunking} was $7.2\%$ slower with $N_{\text{chains}} = 180$
         ($N_{\text{chunks}} = 500$) and with $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$;
         mean of two runs each).
+        With the same build, BayesMVP's AVX-512 maths functions (exp, log, tanh, $\Phi$ and related functions)
+        replaced by stan::math's scalar functions made it $2.12\times$, $1.98\times$ and $1.73\times$ slower with
+        $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$), $80$ (one chain per physical core) and $180$
+        ($N_{\text{chunks}} = 500$), and replaced by its AVX2 functions, $1.11\times$, $1.15\times$ and
+        $1.05\times$ slower
+        (mean of two runs each).
         %%
         Design (i) used $N_{\text{chunks}} \in \{1, 4, 25, 100, 500\}$ (NicoStan+BayesMVP)
         and $\{1, 10, 50, 250, 500\}$ (Stan model) at $N{=}50,000$,

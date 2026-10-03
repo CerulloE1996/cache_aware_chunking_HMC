@@ -97,6 +97,8 @@ Hence, `alg_paper_1_experiment_3_table.R` also needs the saved outputs of our Ni
 <!-- ------------------------------------------------------------------------------------------------------------------------------- -->
 
 This section lists the commands which we ran from a Linux terminal (i.e., the Bash command line) for the hardware-counter profiling in Experiment 4 (see the paper for the design and the results), on both the local-HPC and the laptop.
+
+The full details of design (v) of Experiment 4 (CPU temperature, package power, top-down and floating-point counters, and BayesMVP's vectorised maths functions vs. stan::math, at 360 W and 400 W) are on a [separate page](https://cerulloe1996.github.io/cache_aware_chunking_HMC/e4_temperature_power_vectorisation.html).
 In the listings, text after a `#` is a comment (i.e., it is not run), and a `\` at the end of a line means that the command continues on the next line.
 A file's extension shows its type: `.c` is C source code, `.R` an R script, `.py` a Python script, `.sh` a shell script, and `.csv` a plain-text table.
 The programs and scripts named below are in `paper_1_chunking_and_parallel_scalability/mechanism_study/`.
