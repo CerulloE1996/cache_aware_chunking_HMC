@@ -169,7 +169,8 @@ if (run_burnin_benchmark) {
       burnin_benchmark_settings$num_chunks_burnin_vec_given_N <- list( "500"   = c(1, 2, 4, 10),
                                                                        "2500"  = c(1, 2, 4, 10, 25),
                                                                        "10000" = c(1, 4, 10, 25, 50, 100),
-                                                                       "50000" = c(1, 4, 10, 25, 50, 100, 250, 500))
+                                                                       ## "50000" = c(1, 4, 10, 25, 50, 100, 250, 500))
+                                                                       "50000" = c(1, 4, 10, 25, 50, 100, 250, 500, 1000))  ## 1000 added 2026-09-30: matches the sampling runner's BayesMVP grid
       ##
       ## ---- burn-in iterations timed per configuration (ONLY burn-in is run - no sampling), and repeats.
       ##      n_untimed_burnin_iter_before_timing = extra burn-in iterations run BEFORE the timer starts (0 = time every one):
@@ -188,7 +189,8 @@ if (run_burnin_benchmark) {
       ##
       # N_vec_to_benchmark <- c(500, 2500, 10000, 50000)
       # # N_vec_to_benchmark <- N_vec
-      N_vec_to_benchmark <- c(500, 2500, 10000)
+      # N_vec_to_benchmark <- c(500, 2500, 10000)
+      N_vec_to_benchmark <- 50000
 }
 ##
 ## ------- Preview the thread grid (settings only; no model initialization or MCMC):  -------------------------------------------------

@@ -88,6 +88,11 @@ fn_paper1_presentation_templates <-  function() {
         ## ---- Cache capacity per active thread, for a total number of active threads (chains x WCP threads per chain):
         ##      L3 per active thread = S_L3 / max(C_L3, A_L3), A_L3 = min(s C_L3, ceiling(N_threads / N_L3)) (equation eq:paper1_auto_n_chunks);
         ##      SMT is in use when the active threads exceed the physical cores, and then L1d and L2 per thread are divided by s.
+        ## ---- 2026-10-04: L3 per active thread = S_L3 / A_L3 (no max with C_L3), as in equations
+        ##      eq:paper1_auto_n_chunks_active_threads and eq:paper1_auto_n_chunks_target: with fewer active
+        ##      threads than cores on one L3 cache, each active thread has more than the per-core share (e.g.
+        ##      32 MB with one thread per local-HPC CCD). Unchanged at 96-180 threads (local-HPC) and 8-16
+        ##      threads (laptop).
         ##
         fn_paper1_cache_per_thread <-  function( device,
                                                  n_threads_total,
@@ -105,7 +110,9 @@ fn_paper1_presentation_templates <-  function() {
                 data.frame( device           = device,
                             n_threads_total  = n_threads_total,
                             SMT              = SMT,
-                            L3               = spec$S_L3 / pmax(spec$C_L3, A_L3),
+                            # L3               = spec$S_L3 / pmax(spec$C_L3, A_L3),
+                            ## (2026-10-04: no cap at the per-core share; see the note above this function)
+                            L3               = spec$S_L3 / A_L3,
                             L2               = spec$L2_per_core  / ifelse(SMT, spec$s, 1),
                             L1               = spec$L1d_per_core / ifelse(SMT, spec$s, 1),
                             stringsAsFactors = FALSE)
@@ -1206,11 +1213,52 @@ fn_paper1_presentation_templates <-  function() {
                     ##
                     levels_drawn <-  intersect(c("L3", "L2", "L1"), cache_thresholds$level)
                     ##
+                    ## ---- 2026-10-04: head room for the line labels in EACH N_chains panel, in proportion to
+                    ##      that panel's own rows of labels (an invisible point above its data), instead of one
+                    ##      expansion for every panel: with one L3 line per N_threads/chain below full load, a
+                    ##      panel can have nine rows of labels. Label row r ends (1.3 + 1.35 r) label heights
+                    ##      (~0.21 inches) below the panel top; the panel height is estimated from the figure
+                    ##      height used in ggsave below.
+                    headroom_layer <-  NULL
+                    ##
+                    if (n_label_rows > 0) {
+
+                        n_panel_rows    <-  ceiling(length(unique(chunk_search$n_chains)) / 3)
+                        figure_height   <-  4 + 4 * n_panel_rows + min(2, 0.5 * n_label_rows)
+                        panel_height_in <-  (figure_height - 5.15 - 0.45 * n_panel_rows) / n_panel_rows
+                        ##
+                        panel_ids   <-  as.character(sort(unique(chunk_search$n_chains)))
+                        panel_rows  <-  tapply(cache_thresholds$label_row, cache_thresholds$n_chains, max) + 1
+                        rows_p      <-  ifelse(panel_ids %in% names(panel_rows), panel_rows[panel_ids], 0)
+                        label_share <-  ifelse( rows_p > 0,
+                                                (1.3 + 1.35 * (rows_p - 1)) * 0.21 / panel_height_in + 0.05,
+                                                0)
+                        label_share <-  pmin(0.8, label_share)
+                        ##
+                        y_max <-  tapply(chunk_search$chain_rate, chunk_search$n_chains, max)[panel_ids]
+                        y_min <-  tapply(chunk_search$chain_rate, chunk_search$n_chains, min)[panel_ids]
+                        ##
+                        headroom <-  data.frame( n_chains   = as.numeric(panel_ids),
+                                                 num_chunks = min(chunk_search$num_chunks),
+                                                 chain_rate = as.numeric(y_max + (y_max - y_min) *
+                                                                         1.05 * label_share / (1 - label_share)))
+                        ##
+                        headroom_layer <-  ggplot2::geom_blank( data = headroom,
+                                                                mapping = ggplot2::aes(x = num_chunks,
+                                                                                       y = chain_rate),
+                                                                inherit.aes = FALSE)
+
+                    }
+                    ##
                     chunk_search_plot <-  chunk_search_plot +
+                        headroom_layer +
                         ggplot2::aes(x = num_chunks) +
                         ggplot2::scale_x_log10( breaks = chunk_breaks[nzchar(chunk_labels)],
                                                 labels = chunk_labels[nzchar(chunk_labels)]) +
-                        ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.05 + 0.08 * n_label_rows))) +
+## (the shared head room for the line labels before 2026-10-04:)
+# ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.05 + 0.08 * n_label_rows))) +
+                        ## (2026-10-04: the per-panel head room above replaces the shared expansion)
+                        ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.05))) +
                         ggplot2::theme( axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
                                         panel.grid.minor.x = ggplot2::element_blank()) +
                         ## ggplot2::labs( x = "Chunks (log scale)",
@@ -1866,10 +1914,13 @@ fn_paper1_presentation_templates <-  function() {
                     ## ---- 2026-10-03: a 176-thread WCP point was the stand-in for a missing 180-thread WCP cell
                     ##      (the WCP grid stopped at 16 chains); it is dropped wherever the same configuration
                     ##      also has a 180-thread point (the data are unchanged):
-                    configuration_keys <-  paste(df_dev$N_num, df_dev$Algorithm_label)
-                    has_180 <-  configuration_keys[df_dev$n_threads == 180]
-                    drop_176 <-  df_dev$n_threads == 176 & configuration_keys %in% has_180
-                    df_dev <-  df_dev[!drop_176, , drop = FALSE]
+                    ## ---- 2026-10-04: the 176-thread WCP points are measured allocations in their own right
+                    ##      (16 x 11, 8 x 22 and 4 x 44 at N >= 10,000), i.e. the fastest configuration at
+                    ##      N_threads = 176, so they are plotted again (the drop below is kept, commented out):
+                    # configuration_keys <-  paste(df_dev$N_num, df_dev$Algorithm_label)
+                    # has_180 <-  configuration_keys[df_dev$n_threads == 180]
+                    # drop_176 <-  df_dev$n_threads == 176 & configuration_keys %in% has_180
+                    # df_dev <-  df_dev[!drop_176, , drop = FALSE]
                     ##
                     ## Show useful budget labels and endpoints; retain all measured points.
                     tick_candidates <-  if (dev == "HPC") c(1, 2, 4, 8, 16, 32, 64, 96, 128, 180) else c(1, 2, 4, 8, 16)
@@ -1979,14 +2030,40 @@ fn_paper1_presentation_templates <-  function() {
 
                     }
                     ##
+                    ## ---- 2026-10-04: at N_threads = 176, only the WCP allocations with
+                    ##      N_threads/chain = 11, 22 or 44 were run (16 x 11, 8 x 22 and 4 x 44,
+                    ##      which cannot use 180 threads), so each 176-thread point is the fastest
+                    ##      of these few allocations only. Joined to the 90 x 2 point at 180 threads,
+                    ##      it drew a spurious dip at the shared "176/180" tick; the 176-thread points
+                    ##      are therefore drawn as open points, not joined to the lines
+                    ##      (no point is dropped, and the plotted values CSV is unchanged):
+                    is_176_point <-  df_dev$n_threads == 176
+                    df_line      <-  df_dev[!is_176_point, , drop = FALSE]
+                    df_176       <-  df_dev[is_176_point, , drop = FALSE]
+                    ##
+                    open_176_layer <-  NULL
+                    if (nrow(df_176)) {
+
+                        open_176_layer <-  ggplot2::geom_point( data        = df_176,
+                                                                size        = 5,
+                                                                shape       = 21,
+                                                                fill        = "white",
+                                                                stroke      = 2,
+                                                                show.legend = FALSE)
+
+                    }
+                    ##
                     p <-  ggplot( df_dev,
                                   aes( x = n_threads,
                                        y = y_val,
                                        colour = Algorithm_label,
                                        group  = Algorithm_label)) +
                         marker_layers +
-                        geom_point(size = 5) +
-                        geom_line(linewidth = 2) +
+                        # geom_point(size = 5) +
+                        # geom_line(linewidth = 2) +
+                        ggplot2::geom_point(data = df_line, size = 5) +
+                        ggplot2::geom_line(data = df_line, linewidth = 2) +
+                        open_176_layer +
                         reference_layer +
                         theme_bw(base_size = 28) +
                         theme( legend.position = ifelse(dev == "Laptop", "bottom", "none"),

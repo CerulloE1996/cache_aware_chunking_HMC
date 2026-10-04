@@ -47,6 +47,145 @@ fn_paper1_write_csv <-  function( x,
 
 }
 ##
+## ---- Mplus iteration modes: the FBITERATIONS / BITERATIONS time ratio of every matched allocation (rows)
+##      at each N (columns), laid out like the BayesMVP and Stan WCP chunk tables, with the median of each
+##      block of allocations (standard Mplus: N_threads/chain = 1; Mplus + WCP: N_threads/chain >= 2).
+##      This is table paper1_mplus_modes.
+##
+fn_paper1_mplus_modes_table_lines <-  function( matched_modes ) {
+
+        matched_modes$threads_per_chain <-  round(matched_modes$n_threads / matched_modes$n_chains)
+        ##
+        N_values  <-  sort(unique(matched_modes$N))
+        N_labels  <-  paste0('$', fn_paper1_format_number_commas_from_10000(N_values), '$')
+        n_columns <-  2 + length(N_values)
+        ##
+        fn_cell <-  function( ratio ) {
+
+                if (length(ratio) == 0 || is.na(ratio[1])) '-' else formatC(ratio[1], format = 'f', digits = 3)
+
+        }
+        ##
+        lines <-  c( '\\begin{table}[H]',
+                     '\\centering',
+                     '\\small',
+                     '\\caption{',
+                     '\\scriptfootnotesize{',
+                     'Within-Mplus adjusted-time ratio, \\texttt{FBITERATIONS}/\\texttt{BITERATIONS}',
+                     '(i.e., the time per iteration with \\texttt{FBITERATIONS}',
+                     'divided by that with \\texttt{BITERATIONS}),',
+                     'for each device, allocation',
+                     '($N_{\\text{chains}} \\times N_{\\text{threads/chain}}$) and $N$',
+                     '(each the mean of three repeats per mode;',
+                     'see section \\ref{section:paper1_mplus_timing_design});',
+                     'a ratio $> 1$ means that \\texttt{FBITERATIONS} was slower,',
+                     'and a ratio $< 1$ that it was faster. \\\\',
+                     'Allocations with $N_{\\text{threads/chain}} = 1$ are standard Mplus,',
+                     'and those with $N_{\\text{threads/chain}} \\ge 2$ are Mplus + WCP;',
+                     'each median is across the allocations of its block,',
+                     'and hyphens mark allocations which were not run at that $N$.',
+                     'Bold marks the Mplus + WCP allocation which we used in E2',
+                     'at each $N_{\\text{threads}}$ (i.e., the fastest;',
+                     'see section \\ref{section:paper1_chunk_wcp_selection_design}).',
+                     '}}',
+                     '\\label{table:paper1_mplus_modes}',
+                     '\\footnotesize',
+                     paste0('\\begin{tabular}{ll', strrep('r', length(N_values)), '}'),
+                     '\\toprule',
+                     paste0(' & & \\multicolumn{', length(N_values), '}{c}{$N$} \\\\'),
+                     paste0('\\cmidrule(lr){3-', n_columns, '}'),
+                     paste0( 'Device & $N_{\\text{chains}} \\times N_{\\text{threads/chain}}$ & ',
+                             paste(N_labels, collapse = ' & '), ' \\\\'),
+                     '\\midrule')
+        ##
+        devices <-  c( HPC = 'local-HPC', Laptop = 'Laptop')
+        blocks  <-  c( Mplus_standard = 'standard', Mplus_WCP = 'WCP')
+        ##
+        for (device in names(devices)) {
+
+                first_row <-  TRUE
+                ##
+                for (algorithm in names(blocks)) {
+
+                        in_block <-  matched_modes$device == device & matched_modes$algorithm == algorithm
+                        block    <-  matched_modes[in_block, , drop = FALSE]
+                        ##
+                        if (!nrow(block)) next
+                        ##
+                        block_ratios <-  block$ratio_FBITERATIONS_over_BITERATIONS
+                        ##
+                        ## Mplus + WCP: the allocation used in E2 at each N_threads and N
+                        ## (i.e., the fastest with BITERATIONS):
+                        is_E2_choice <-  rep(FALSE, nrow(block))
+                        ##
+                        if (algorithm == 'Mplus_WCP') {
+
+                                throughput <-  block$n_chains / block$seconds_per_iteration_mean_BITERATIONS
+                                ##
+                                groups <-  split( seq_len(nrow(block)),
+                                                  list(block$N, block$n_threads), drop = TRUE)
+                                ##
+                                for (group in groups) {
+
+                                        is_E2_choice[group[which.max(throughput[group])]] <-  TRUE
+
+                                }
+
+                        }
+                        ##
+                        if (algorithm == 'Mplus_WCP') {
+
+                                lines <-  c(lines, paste0('\\cmidrule(lr){2-', n_columns, '}'))
+
+                        }
+                        ##
+                        allocations <-  unique(block[ order(block$n_chains, block$threads_per_chain),
+                                                      c('n_chains', 'threads_per_chain')])
+                        ##
+                        for (i in seq_len(nrow(allocations))) {
+
+                                in_allocation <-  block$n_chains == allocations$n_chains[i] &
+                                                  block$threads_per_chain == allocations$threads_per_chain[i]
+                                ##
+                                fn_cell_in <-  function( N ) {
+
+                                        in_cell <-  in_allocation & block$N == N
+                                        cell    <-  fn_cell(block_ratios[in_cell])
+                                        ##
+                                        if (any(is_E2_choice[in_cell])) paste0('\\textbf{', cell, '}') else cell
+
+                                }
+                                ##
+                                cells <-  vapply(N_values, fn_cell_in, character(1))
+                                ##
+                                allocation <-  paste0( '$', allocations$n_chains[i], ' \\times ',
+                                                       allocations$threads_per_chain[i], '$')
+                                row_label  <-  if (first_row) devices[[device]] else ''
+                                ##
+                                lines <-  c(lines, paste0( row_label, ' & ', allocation, ' & ',
+                                                           paste(cells, collapse = ' & '), ' \\\\'))
+                                ##
+                                first_row <-  FALSE
+
+                        }
+                        ##
+                        medians <-  vapply( N_values,
+                                            function(N) fn_cell(stats::median(block_ratios[block$N == N])),
+                                            character(1))
+                        ##
+                        lines <-  c(lines, paste0( ' & Median (', blocks[[algorithm]], ') & ',
+                                                   paste(medians, collapse = ' & '), ' \\\\'))
+
+                }
+                ##
+                lines <-  c(lines, if (device == utils::tail(names(devices), 1)) '\\bottomrule' else '\\midrule')
+
+        }
+        ##
+        c(lines, '\\end{tabular}', '\\end{table}')
+
+}
+##
 ## ---- Timing columns for results saved before the two-run timing existed:
 ##
 ## Those studies timed one run per configuration, so they are labelled "single_run"; their two-run fields are NA.
@@ -1724,29 +1863,36 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
             ##
             fn_paper1_write_csv(mode_summary, file.path(csvdir, 'mplus_iteration_modes_summary.csv'))
             ##
-            lines <-  c( '\\begin{table}[H]',
-                         '\\centering',
-                         paste0('\\caption{', fn_caption_with_timing('Mplus FBITERATIONS versus BITERATIONS, at identical requested iterations, chains, threads, N and data. The ratio is FBITERATIONS / BITERATIONS seconds per iteration for each matched configuration (the median and range across configurations are shown), so values above one mean FBITERATIONS was slower.'), '}'),
-                         '\\label{table:mplus_iteration_modes}',
-                         '\\begin{tabular}{llrrrrr}',
-                         '\\toprule',
-                         'Device & Arm & $N$ & Iterations & Configurations & Median ratio & Range \\\\',
-                         '\\midrule')
+#             lines <-  c( '\\begin{table}[H]',
+#                          '\\centering',
+#                          paste0('\\caption{', fn_caption_with_timing('Mplus FBITERATIONS versus BITERATIONS, at identical requested iterations, chains, threads, N and data. The ratio is FBITERATIONS / BITERATIONS seconds per iteration for each matched configuration (the median and range across configurations are shown), so values above one mean FBITERATIONS was slower.'), '}'),
+#                          '\\label{table:mplus_iteration_modes}',
+#                          '\\begin{tabular}{llrrrrr}',
+#                          '\\toprule',
+#                          'Device & Arm & $N$ & Iterations & Configurations & Median ratio & Range \\\\',
+#                          '\\midrule')
+#             ##
+#             for (i in seq_len(nrow(mode_summary))) lines <-  c(lines, paste0( paste( c( mode_summary$device[i],
+#                                                                                         gsub('_', '\\_', mode_summary$algorithm[i], fixed = TRUE),
+#                                                                                         fn_paper1_format_number_commas_from_10000(mode_summary$N[i]),
+#                                                                                         mode_summary$n_iter[i],
+#                                                                                         mode_summary$n_configurations[i],
+#                                                                                         formatC(mode_summary$median_ratio[i], format = 'f', digits = 2),
+#                                                                                         paste0(formatC(mode_summary$min_ratio[i], format = 'f', digits = 2), '-',
+#                                                                                                formatC(mode_summary$max_ratio[i], format = 'f', digits = 2))),
+#                                                                                      collapse = ' & '),
+#                                                                               ' \\\\'))
+#             ##
+#             writeLines(c(lines, '\\bottomrule', '\\end{tabular}', '\\end{table}'), file.path(tabledir, 'table_Mplus_iteration_modes.tex'))
+#             ##
+#             add_asset('table', 'tables/table_Mplus_iteration_modes.tex', '', 'table:mplus_iteration_modes')
             ##
-            for (i in seq_len(nrow(mode_summary))) lines <-  c(lines, paste0( paste( c( mode_summary$device[i],
-                                                                                        gsub('_', '\\_', mode_summary$algorithm[i], fixed = TRUE),
-                                                                                        fn_paper1_format_number_commas_from_10000(mode_summary$N[i]),
-                                                                                        mode_summary$n_iter[i],
-                                                                                        mode_summary$n_configurations[i],
-                                                                                        formatC(mode_summary$median_ratio[i], format = 'f', digits = 2),
-                                                                                        paste0(formatC(mode_summary$min_ratio[i], format = 'f', digits = 2), '-',
-                                                                                               formatC(mode_summary$max_ratio[i], format = 'f', digits = 2))),
-                                                                                     collapse = ' & '),
-                                                                              ' \\\\'))
+            ## 2026-10-04: the table as in the paper (every allocation by N, with the median of each block;
+            ## label table:paper1_mplus_modes), replacing the median-and-range summary above:
+            writeLines(fn_paper1_mplus_modes_table_lines(matched_modes = matched_modes),
+                       file.path(tabledir, 'table_Mplus_iteration_modes.tex'))
             ##
-            writeLines(c(lines, '\\bottomrule', '\\end{tabular}', '\\end{table}'), file.path(tabledir, 'table_Mplus_iteration_modes.tex'))
-            ##
-            add_asset('table', 'tables/table_Mplus_iteration_modes.tex', '', 'table:mplus_iteration_modes')
+            add_asset('table', 'tables/table_Mplus_iteration_modes.tex', '', 'table:paper1_mplus_modes')
 
         }
         # Optional MP/MT comparisons retain every chunk setting and use per-repeat throughput SD.

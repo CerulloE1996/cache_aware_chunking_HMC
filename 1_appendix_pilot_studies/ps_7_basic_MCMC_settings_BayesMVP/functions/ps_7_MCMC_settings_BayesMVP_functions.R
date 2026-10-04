@@ -139,6 +139,37 @@ R_fn_enc_opt <-  function(x, off_is_null = TRUE) {
         return(R_fn_enc_num(x))
 }
 ##
+## ---- tau_initial levels: a number (pi, 2*pi, ...) or "adaptive" (NicoStan sets tau at the handover to (pi/2) * sqrt(lambda_max),
+##      lambda_max from the burn-in draws' covariance in metric coordinates; "_tiA" in the file name).
+##      c(pi, 2*pi, "adaptive") is a CHARACTER vector, and as.character(pi) keeps 15 significant digits ("3.14159265358979",
+##      which is not pi). A numeric level given as text is therefore read back as a number and, when it lies within 1e-12
+##      (relative) of a multiple of pi/8, replaced by that exact multiple, so the sampler and the file-name builder receive
+##      exactly the pi and 2*pi that the numeric vector c(pi, 2*pi) gives them. A numeric level is returned unchanged.
+##
+fn_ps7_tau_initial_value <-  function(tau_initial) {
+
+        if (is.null(tau_initial)) return(NULL)
+        if (length(tau_initial) != 1) {
+            stop("fn_ps7_tau_initial_value: one tau_initial level at a time; got ", length(tau_initial), ": ",
+                 paste(as.character(tau_initial), collapse = ", "), ".")
+        }
+        if (is.factor(tau_initial)) tau_initial <-  as.character(tau_initial)
+        if (is.numeric(tau_initial)) return(tau_initial)
+        if (is.na(tau_initial)) return(NA_real_)
+        if (identical(tau_initial, "adaptive")) return("adaptive")
+        ##
+        tau_initial_number <-  suppressWarnings(as.numeric(tau_initial))
+        if (!is.finite(tau_initial_number) || tau_initial_number <= 0) {
+            stop("tau_initial must be a positive finite number or \"adaptive\"; got '", tau_initial, "'.")
+        }
+        pi_eighths <-  round(tau_initial_number / (pi / 8))
+        if (pi_eighths >= 1 && abs(tau_initial_number - pi_eighths * (pi / 8)) <= 1e-12 * tau_initial_number) {
+            return((pi_eighths / 8) * pi)
+        }
+        return(tau_initial_number)
+
+}
+##
 ## ---- Encoders for the fields added AFTER the original naming scheme.
 ##
 ## The basename budget is 247 bytes and the existing scheme already uses most of it, so these
@@ -172,21 +203,418 @@ R_fn_enc_tau_obj <-  function(x) {
 ##
 ## New development runs record the sole algorithm selector explicitly.
 fn_ps7_normalise_burnin_algorithm <-  function(burnin_algorithm) {
+        ## aliases <-  c(ke = "KE", chees = "ChEES", chessr = "CHESSR", cheesr = "CHESSR",
+                      ## chessr_log = "CHESSR_log", cheesr_log = "CHESSR_log", chees_per_tau = "CHESSR_log", snaper = "SNAPER")
+        ## aliases <-  c(ke = "KE", chees = "ChEES", chessr = "CHESSR", cheesr = "CHESSR",
+                      ## chessr_log = "CHESSR_log", cheesr_log = "CHESSR_log", chees_per_tau = "CHESSR_log", snaper = "SNAPER",
+                      ## chessr_time = "CHESSR_time", cheesr_time = "CHESSR_time", snaper_time = "SNAPER_time")
         aliases <-  c(ke = "KE", chees = "ChEES", chessr = "CHESSR", cheesr = "CHESSR",
-                      chessr_log = "CHESSR_log", cheesr_log = "CHESSR_log", chees_per_tau = "CHESSR_log", snaper = "SNAPER")
+                      chessr_log = "CHESSR_log", cheesr_log = "CHESSR_log", chees_per_tau = "CHESSR_log", snaper = "SNAPER",
+                      chessr_time = "CHESSR_time", cheesr_time = "CHESSR_time", snaper_time = "SNAPER_time",
+                      esjd = "ESJD", esjd_chessr = "ESJD_CHESSR", esjd_cheesr = "ESJD_CHESSR",
+                      esjd_snaper = "ESJD_SNAPER",
+                      lq_essr = "LQ_ESSR", lqessr = "LQ_ESSR")
         keys <-  tolower(trimws(as.character(burnin_algorithm)))
         if (anyNA(keys) || any(!keys %in% names(aliases))) {
-                stop("burnin_algorithm must contain KE, ChEES, CHESSR, CHESSR_log or SNAPER.")
+                ## stop("burnin_algorithm must contain KE, ChEES, CHESSR, CHESSR_log or SNAPER.")
+                ## stop("burnin_algorithm must contain KE, ChEES, CHESSR, CHESSR_log, SNAPER, CHESSR_time or SNAPER_time.")
+                ## stop("burnin_algorithm must contain KE, ChEES, CHESSR, CHESSR_log, SNAPER, CHESSR_time, SNAPER_time, ESJD, ESJD_CHESSR or ESJD_SNAPER.")
+                stop(paste0("burnin_algorithm must contain KE, ChEES, CHESSR, CHESSR_log, SNAPER, CHESSR_time, SNAPER_time, ESJD, ESJD_CHESSR, ",
+                            "ESJD_SNAPER or LQ_ESSR."))
         }
         return(unname(aliases[keys]))
 }
 ##
-fn_ps7_encode_burnin_algorithm <-  function(burnin_algorithm) {
+## "_bact" = CHESSR_time and "_bast" = SNAPER_time (the wall-clock time-to-target-ESS variants of CHESSR and SNAPER; same byte
+## count as "_bacr" / "_basn"). With non-default time-criterion settings the final "t" becomes 4 hexadecimal digits,
+## "_bac<4 hex>" / "_bas<4 hex>" (see fn_ps7_time_criterion_settings_hash below):
+##
+## "_baej" = ESJD (expected squared jumped distance per unit trajectory length) and "_baex" = ESJD_CHESSR (the geometric mean of the
+## ESJD and CHESSR criteria); the same byte count again, since many names are at the 249-byte limit. Neither can collide with the
+## hashed "_bac<4 hex>" / "_bas<4 hex>" tokens (third letter "e", not "c" or "s"):
+## "_baen" = ESJD_SNAPER (the geometric mean of the ESJD and SNAPER criteria); this token is distinct from the existing tokens and
+## from the hashed time-criterion tokens:
+## "_balq" = LQ_ESSR (the soft minimum of the linear and quadratic lag-one ESS bounds per unit trajectory length); third letter "l",
+## so it cannot collide with "_bacl" (CHESSR_log) or the hashed "_bac<4 hex>" / "_bas<4 hex>" tokens:
+##
+## fn_ps7_encode_burnin_algorithm <-  function(burnin_algorithm) {
+fn_ps7_encode_burnin_algorithm <-  function(burnin_algorithm,
+                                           time_criterion_settings_hash = "") {
         algorithm <-  fn_ps7_normalise_burnin_algorithm(burnin_algorithm = burnin_algorithm)
         if (length(algorithm) != 1L) stop("A filename requires one burnin_algorithm.")
-        tokens <-  c(KE = "ke", ChEES = "ce", CHESSR = "cr", CHESSR_log = "cl", SNAPER = "sn")
+        ## non-default time-criterion settings: "_bac<4 hex>" / "_bas<4 hex>" in place of "_bact" / "_bast":
+        if (nzchar(time_criterion_settings_hash) && algorithm %in% c("CHESSR_time", "SNAPER_time")) {
+                return(paste0("_ba", if (identical(algorithm, "CHESSR_time")) "c" else "s", time_criterion_settings_hash))
+        }
+        ## tokens <-  c(KE = "ke", ChEES = "ce", CHESSR = "cr", CHESSR_log = "cl", SNAPER = "sn")
+        ## tokens <-  c(KE = "ke", ChEES = "ce", CHESSR = "cr", CHESSR_log = "cl", SNAPER = "sn",
+                     ## CHESSR_time = "ct", SNAPER_time = "st")
+        ## tokens <-  c(KE = "ke", ChEES = "ce", CHESSR = "cr", CHESSR_log = "cl", SNAPER = "sn",
+                     ## CHESSR_time = "ct", SNAPER_time = "st",
+                     ## ESJD = "ej", ESJD_CHESSR = "ex", ESJD_SNAPER = "en")
+        tokens <-  c(KE = "ke", ChEES = "ce", CHESSR = "cr", CHESSR_log = "cl", SNAPER = "sn",
+                     CHESSR_time = "ct", SNAPER_time = "st",
+                     ESJD = "ej", ESJD_CHESSR = "ex", ESJD_SNAPER = "en", LQ_ESSR = "lq")
         return(paste0("_ba", unname(tokens[algorithm])))
 }
+##
+##
+## ---- Wall-clock time-to-target-ESS burn-in criteria ("CHESSR_time" / "SNAPER_time"; "_bact" / "_bast") ------------------------------
+##
+## Objective. The wall-clock time to reach ESS_target_for_time_criterion (the target ESS over all sampling chains) is
+##
+##   time_to_target_ESS(tau) = n_iter_burnin * (time_per_iter_overhead_burnin + n_leapfrog_steps_per_iter * time_per_leapfrog_step_burnin)
+##                           + (ESS_target_for_time_criterion / ESS_per_iter_sampling(tau))
+##                             * (time_per_iter_overhead_sampling + time_per_iter_summaries_sampling
+##                                + n_leapfrog_steps_per_iter * time_per_leapfrog_step_sampling),
+##
+## with n_leapfrog_steps_per_iter = tau / eps. Every time_* quantity is a wall-clock time in seconds:
+##   time_per_leapfrog_step_burnin     one leapfrog step (one gradient evaluation for all burn-in chains, run in parallel) in the
+##                                     burn-in configuration (n_chains_burnin, n_threads_WCP_burnin, num_chunks_burnin); measured
+##                                     online by NicoStan during burn-in, from the wall time of each burn-in iteration after the clip
+##                                     phase (a running least-squares fit on the leapfrog steps; its status is saved with the run);
+##   time_per_leapfrog_step_sampling   the same in the sampling configuration (n_chains_sampling, n_threads_WCP_sampling,
+##                                     num_chunks_sampling); the slope of the sampling timing probe fit;
+##   time_per_iter_overhead_sampling   the fixed non-leapfrog time of one sampling iteration; the intercept of the probe fit;
+##   time_per_iter_summaries_sampling  the summaries routine per sampling iteration (one draw from every sampling chain);
+##   time_per_iter_overhead_burnin     the fixed non-leapfrog time of one burn-in iteration. It does not depend on tau, so it
+##                                     drops out of the derivative below and is not measured.
+## n_iter_burnin is the number of burn-in iterations run at the adapted tau: iterations clip_iter_tau + 1 to n_burnin, i.e.
+## settings$n_burnin (the "_b" token) - clip_iter_tau (clip_iter + int). The earlier burn-in iterations (one leapfrog step before
+## clip_iter, then the ramp to tau_initial up to the handover) and the pre-burnin (pre_burnin_L steps) take the same time whatever
+## tau is chosen, so they drop out of the derivative below; NicoStan saves the count with its definition in the run. ESS_per_iter_sampling(tau)
+## is the ESS per sampling iteration over all sampling chains.
+##
+## Setting d time_to_target_ESS / d log(tau) = 0 gives the target
+##
+##   ESS_elasticity_wrt_log_tau = time_to_target_ESS_tau_penalty
+##                              = (1 + burnin_to_sampling_leapfrog_time_ratio) * tau / (tau + tau_offset_from_sampling_overhead),
+##
+##   ESS_elasticity_wrt_log_tau             = d log(ESS_per_iter_sampling) / d log(tau), the quantity the ChEES / SNAPER criterion
+##                                            estimates (Sountsov and Hoffman 2022, eq. 2 and 5; Hoffman, Radul and Sountsov 2021);
+##   sampling_overhead_in_leapfrog_steps    = (time_per_iter_overhead_sampling + time_per_iter_summaries_sampling)
+##                                            / time_per_leapfrog_step_sampling;
+##   tau_offset_from_sampling_overhead      = eps * sampling_overhead_in_leapfrog_steps;
+##   burnin_to_sampling_leapfrog_time_ratio = (n_iter_burnin * time_per_leapfrog_step_burnin)
+##                                            / (n_iter_sampling_for_time_criterion * time_per_leapfrog_step_sampling).
+##
+## CHESSR / SNAPER ascend ESS_elasticity_wrt_log_tau - 1 with ADAM on log(tau); CHESSR_time / SNAPER_time ascend
+## ESS_elasticity_wrt_log_tau - time_to_target_ESS_tau_penalty. With burnin_to_sampling_leapfrog_time_ratio = 0 and
+## sampling_overhead_in_leapfrog_steps = 0 they are CHESSR / SNAPER exactly; sampling_overhead_in_leapfrog_steps -> infinity
+## gives ChEES.
+##
+## n_iter_sampling_for_time_criterion (the sampling iterations the criterion assumes) comes from
+## n_iter_sampling_for_time_criterion_source:
+##   "planned_n_iter"                 the run's planned n_iter (settings$n_iter, the "_it" token; the default);
+##   "ESS_target_for_time_criterion"  ESS_target_for_time_criterion / ESS_per_iter_sampling_expected.
+##                                    ESS_target_for_time_criterion = NULL takes the ps3 target min ESS for this N and model
+##                                    (R_fn_ps7_get_target_min_ESS); ESS_per_iter_sampling_expected is user-supplied, or taken
+##                                    from time_criterion_previous_run_path (min_ESS / n_iter of the saved run(s)).
+## Which min ESS: time_criterion_ess_parameter_set chooses the parameters whose minimum ESS the target and
+## ESS_per_iter_sampling_expected refer to: "diagnostic" (the default; the model's diagnostic parameters, i.e. the generated
+## quantities of its Stan skeleton file: for LC_MVP the accuracy parameters p, Se_baseline, Sp_baseline and Fp_baseline, the
+## parameters of the ps3 target min ESS and of the saved min_ESS), "main" (the parameters block), or parameter names / base names
+## (e.g. c("p", "Se_baseline", "Sp_baseline")). It is used only when ESS_per_iter_sampling_expected is read from
+## time_criterion_previous_run_path (the "ESS_target_for_time_criterion" source without a user value), and is inert (absent from
+## the file name, the sampler call and the saved settings) otherwise; NicoStan records the set it applied in every
+## CHESSR_time / SNAPER_time run.
+##
+## time_per_leapfrog_step_sampling, time_per_iter_overhead_sampling and time_per_iter_summaries_sampling, in order of precedence:
+##   1. user-supplied numbers (the runner settings of the same names);
+##   2. time_criterion_previous_run_path, one or more saved PS7 runs, read by NicoStan's fn_time_criterion_quantities_from_saved_run()
+##      (one run: time_per_iter_overhead_sampling = 0, so time_per_leapfrog_step_sampling is an upper bound; runs with at least
+##      two leapfrog step counts: least squares across the runs);
+##   3. the sampling timing probe (run_sampling_timing_probe = TRUE, the default): NicoStan runs sampling_timing_probe_n_iter_per_L
+##      iterations at each of sampling_timing_probe_L_values (default 10 at each of 2 and 8 leapfrog steps; plus a 3-iteration call
+##      at each number of leapfrog steps, which removes the per-call set-up) in the sampling configuration, after the pre-burn-in
+##      and before the burn-in, fits time_per_iter_sampling = time_per_iter_overhead_sampling + n_leapfrog_steps_per_iter *
+##      time_per_leapfrog_step_sampling, times the summaries routine
+##      on the probe draws, and discards the probe draws. Its wall time (sampling_timing_probe_wall_time) is included in time_burnin.
+## The probe is skipped when all three are known from 1 or 2. Without any of them (probe off and nothing supplied) NicoStan falls
+## back to burnin_to_sampling_leapfrog_time_ratio = 0 and sampling_overhead_in_leapfrog_steps = 0, i.e. plain CHESSR / SNAPER,
+## with a warning.
+##
+## File names. Every setting at its default writes NOTHING beyond "_bact" / "_bast", and every setting is inert (absent from the
+## name, the sampler call and the saved settings) for the other algorithms and whenever tau is pinned (manual_L, manual_tau_value
+## or partitioned_HMC). Any EFFECTIVE non-default value replaces the final "t" of the algorithm token by 4 hexadecimal digits,
+## "_bac<4 hex>" (CHESSR_time) or "_bas<4 hex>" (SNAPER_time), e.g. "_bac3f9a": the first 4 digits of the md5 of the
+## time-criterion settings text (fn_ps7_time_criterion_settings_text), which lists every effective non-default setting as
+## "name=value" (run_sampling_timing_probe = FALSE, sampling_timing_probe_L_values / sampling_timing_probe_n_iter_per_L, the
+## ESS-target source and its resolved
+## target, a non-default time_criterion_ess_parameter_set, user-supplied numbers at 15 significant digits, and the sorted BASENAMES of time_criterion_previous_run_path).
+## The hash sits inside the algorithm token because many names are already within a few bytes of the 249-byte limit: its 3 extra
+## bytes fit every saved CHESSR / SNAPER configuration after the "_LiLR" shortening, whereas readable tokens appended at the end
+## (8 bytes for an ESS target alone) would not.
+## Collisions: the text is saved in the run (time_criterion_inputs$time_criterion_settings_text), and run_ps7_models() stops
+## before resuming a saved run whose text differs from the current one, so two settings can never share a saved run.
+## fn_ps7_parse_run_name() reads the algorithm and the hash back (time_criterion_settings_hash); fn_ps7_extract_tau_sweep() adds
+## the settings themselves from the saved run.
+##
+ps7_time_criterion_algorithms <-  c("CHESSR_time", "SNAPER_time")
+##
+ps7_time_criterion_default_settings <-  list(run_sampling_timing_probe = TRUE,
+                                             sampling_timing_probe_L_values = c(2, 8),
+                                             sampling_timing_probe_n_iter_per_L = 10,
+                                             n_iter_sampling_for_time_criterion_source = "planned_n_iter",
+                                             time_criterion_ess_parameter_set = "diagnostic")
+##
+## Every settings field of the time criteria (fn_ps7_effective_time_criterion_settings() removes all of them where they are inert):
+ps7_time_criterion_setting_names <-  c("run_sampling_timing_probe",
+                                       "sampling_timing_probe_L_values",
+                                       "sampling_timing_probe_n_iter_per_L",
+                                       "n_iter_sampling_for_time_criterion_source",
+                                       "ESS_target_for_time_criterion",
+                                       "ESS_per_iter_sampling_expected",
+                                       "time_criterion_previous_run_path",
+                                       "time_per_leapfrog_step_sampling",
+                                       "time_per_iter_overhead_sampling",
+                                       "time_per_iter_summaries_sampling",
+                                       "time_criterion_ess_parameter_set")
+##
+## The three sampling times that make the probe unnecessary once all of them are supplied:
+ps7_sampling_timing_quantity_names <-  c("time_per_leapfrog_step_sampling",
+                                         "time_per_iter_overhead_sampling",
+                                         "time_per_iter_summaries_sampling")
+##
+fn_ps7_is_time_criterion_algorithm <-  function(burnin_algorithm) {
+        !is.null(burnin_algorithm) && length(burnin_algorithm) == 1 && !is.na(burnin_algorithm) &&
+            burnin_algorithm %in% ps7_time_criterion_algorithms
+}
+##
+## ---- Validation: NULL (or NA) = not supplied / the default; anything else must be one valid value (sampling_timing_probe_L_values:
+##      at least two distinct whole numbers of leapfrog steps >= 1):
+##
+fn_ps7_validate_time_criterion_settings <-  function(settings) {
+
+        fn_supplied_number <-  function(supplied_value, setting_name, must_be_positive) {
+            if (is.null(supplied_value)) return(NULL)
+            if (length(supplied_value) != 1) stop(paste0("settings$", setting_name, " must be NULL or ONE number per run."))
+            if (is.na(supplied_value)) return(NULL)
+            if (!is.numeric(supplied_value) || !is.finite(supplied_value) || supplied_value < 0 || (must_be_positive && supplied_value == 0)) {
+                stop(paste0("settings$", setting_name, " must be NULL or one finite number ", if (must_be_positive) "> 0" else ">= 0", "."))
+            }
+            return(as.numeric(supplied_value))
+        }
+        ##
+        run_sampling_timing_probe_requested <-  BayesMVP::if_null_then_set_to(settings$run_sampling_timing_probe,
+                                                                              ps7_time_criterion_default_settings$run_sampling_timing_probe)
+        sampling_timing_probe_L_values_requested <-  BayesMVP::if_null_then_set_to(settings$sampling_timing_probe_L_values,
+                                                                                   ps7_time_criterion_default_settings$sampling_timing_probe_L_values)
+        sampling_timing_probe_n_iter_per_L_requested <-  BayesMVP::if_null_then_set_to(settings$sampling_timing_probe_n_iter_per_L,
+                                                                                       ps7_time_criterion_default_settings$sampling_timing_probe_n_iter_per_L)
+        n_iter_sampling_for_time_criterion_source_requested <-  BayesMVP::if_null_then_set_to(settings$n_iter_sampling_for_time_criterion_source,
+                                                                                              ps7_time_criterion_default_settings$n_iter_sampling_for_time_criterion_source)
+        ##
+        if (!is.logical(run_sampling_timing_probe_requested) || length(run_sampling_timing_probe_requested) != 1 ||
+            is.na(run_sampling_timing_probe_requested)) {
+            stop("settings$run_sampling_timing_probe must be one TRUE or FALSE.")
+        }
+        if (!is.numeric(sampling_timing_probe_L_values_requested) || anyNA(sampling_timing_probe_L_values_requested) ||
+            any(!is.finite(sampling_timing_probe_L_values_requested)) || any(sampling_timing_probe_L_values_requested < 1) ||
+            any(sampling_timing_probe_L_values_requested != floor(sampling_timing_probe_L_values_requested)) ||
+            length(unique(sampling_timing_probe_L_values_requested)) < 2) {
+            stop("settings$sampling_timing_probe_L_values must hold at least two different whole numbers of leapfrog steps >= 1, e.g. c(2, 8).")
+        }
+        ## (NicoStan times a short call of 3 iterations at each number of leapfrog steps as well, to remove the per-call set-up, so the long call needs more:)
+        if (!is.numeric(sampling_timing_probe_n_iter_per_L_requested) || length(sampling_timing_probe_n_iter_per_L_requested) != 1 ||
+            !is.finite(sampling_timing_probe_n_iter_per_L_requested) || sampling_timing_probe_n_iter_per_L_requested < 4 ||
+            sampling_timing_probe_n_iter_per_L_requested != floor(sampling_timing_probe_n_iter_per_L_requested)) {
+            stop("settings$sampling_timing_probe_n_iter_per_L must be one whole number >= 4.")
+        }
+        if (!is.character(n_iter_sampling_for_time_criterion_source_requested) ||
+            length(n_iter_sampling_for_time_criterion_source_requested) != 1 ||
+            !n_iter_sampling_for_time_criterion_source_requested %in% c("planned_n_iter", "ESS_target_for_time_criterion")) {
+            stop("settings$n_iter_sampling_for_time_criterion_source must be 'planned_n_iter' or 'ESS_target_for_time_criterion'.")
+        }
+        time_criterion_previous_run_path_requested <-  settings$time_criterion_previous_run_path
+        if (!is.null(time_criterion_previous_run_path_requested) && length(time_criterion_previous_run_path_requested) == 1 &&
+            is.na(time_criterion_previous_run_path_requested)) {
+            time_criterion_previous_run_path_requested <-  NULL
+        }
+        if (!is.null(time_criterion_previous_run_path_requested) &&
+            (!is.character(time_criterion_previous_run_path_requested) || length(time_criterion_previous_run_path_requested) < 1 ||
+             anyNA(time_criterion_previous_run_path_requested) || any(!nzchar(time_criterion_previous_run_path_requested)))) {
+            stop("settings$time_criterion_previous_run_path must be NULL or one or more paths of saved PS7 runs.")
+        }
+        ## "diagnostic" (default), "main", or one or more parameter names / base names (NULL or NA = the default):
+        time_criterion_ess_parameter_set_requested <-  settings$time_criterion_ess_parameter_set
+        if (is.null(time_criterion_ess_parameter_set_requested) ||
+            (length(time_criterion_ess_parameter_set_requested) == 1 && is.na(time_criterion_ess_parameter_set_requested))) {
+            time_criterion_ess_parameter_set_requested <-  ps7_time_criterion_default_settings$time_criterion_ess_parameter_set
+        }
+        if (!is.character(time_criterion_ess_parameter_set_requested) || length(time_criterion_ess_parameter_set_requested) < 1 ||
+            anyNA(time_criterion_ess_parameter_set_requested) || any(!nzchar(trimws(time_criterion_ess_parameter_set_requested))) ||
+            (length(time_criterion_ess_parameter_set_requested) > 1 && any(time_criterion_ess_parameter_set_requested %in% c("diagnostic", "main")))) {
+            stop("settings$time_criterion_ess_parameter_set must be 'diagnostic', 'main' or one or more parameter names / base names, e.g. c('p', 'Se_baseline', 'Sp_baseline').")
+        }
+        ##
+        return(list(run_sampling_timing_probe = run_sampling_timing_probe_requested,
+                    ## sorted and without repeats, as NicoStan runs them, so that one probe always gives one file name:
+                    sampling_timing_probe_L_values = sort(unique(as.numeric(sampling_timing_probe_L_values_requested))),
+                    sampling_timing_probe_n_iter_per_L = as.numeric(sampling_timing_probe_n_iter_per_L_requested),
+                    n_iter_sampling_for_time_criterion_source = n_iter_sampling_for_time_criterion_source_requested,
+                    ESS_target_for_time_criterion = fn_supplied_number(settings$ESS_target_for_time_criterion, "ESS_target_for_time_criterion", TRUE),
+                    ESS_per_iter_sampling_expected = fn_supplied_number(settings$ESS_per_iter_sampling_expected, "ESS_per_iter_sampling_expected", TRUE),
+                    time_criterion_previous_run_path = time_criterion_previous_run_path_requested,
+                    time_per_leapfrog_step_sampling = fn_supplied_number(settings$time_per_leapfrog_step_sampling, "time_per_leapfrog_step_sampling", TRUE),
+                    time_per_iter_overhead_sampling = fn_supplied_number(settings$time_per_iter_overhead_sampling, "time_per_iter_overhead_sampling", FALSE),
+                    time_per_iter_summaries_sampling = fn_supplied_number(settings$time_per_iter_summaries_sampling, "time_per_iter_summaries_sampling", FALSE),
+                    time_criterion_ess_parameter_set = trimws(time_criterion_ess_parameter_set_requested)))
+
+}
+##
+## ---- The time-criterion settings that actually reach the sampler: NULL when they are inert (any other algorithm, or tau
+##      pinned), otherwise the validated values with every inert element removed (NULL):
+##        - the previous run is kept only while it supplies something (a sampling time the user did not give, or
+##          ESS_per_iter_sampling_expected under the "ESS_target_for_time_criterion" source);
+##        - the probe runs only while a sampling time is still unknown; sampling_timing_probe_L_values and
+##          sampling_timing_probe_n_iter_per_L are kept only while it runs;
+##        - ESS_target_for_time_criterion and ESS_per_iter_sampling_expected only under the "ESS_target_for_time_criterion"
+##          source, where a NULL ESS_target_for_time_criterion becomes the ps3 target min ESS (R_fn_ps7_get_target_min_ESS);
+##        - time_criterion_ess_parameter_set only while ESS_per_iter_sampling_expected is read from the previous run(s) (the
+##          "ESS_target_for_time_criterion" source with no user-supplied ESS_per_iter_sampling_expected).
+##      BOTH the file-name builder and run_ps7_models() use this, so the name, the sampler arguments and the saved settings
+##      agree (same design as fn_ps7_effective_tau_adaptation_block):
+##
+fn_ps7_effective_time_criterion_settings <-  function(settings,
+                                                     N,
+                                                     Model_type) {
+
+        ## (compared as lower-case text, so a legacy tau_objective such as "ChEES_per_tau" never reaches the normaliser here):
+        burnin_algorithm_key <-  if (is.null(settings$burnin_algorithm) || length(settings$burnin_algorithm) != 1) "" else
+                                    tolower(trimws(as.character(settings$burnin_algorithm)))
+        tau_is_pinned <-  (!is.null(settings$manual_L) && length(settings$manual_L) == 1 && !is.na(settings$manual_L)) ||
+                         (!is.null(settings$manual_tau_value) && length(settings$manual_tau_value) == 1 && !is.na(settings$manual_tau_value))
+        ## partitioned_HMC = TRUE: run_ps7_models() pins tau (manual_tau = TRUE), so the criterion is never computed there either:
+        if (tau_is_pinned || isTRUE(settings$partitioned_HMC) ||
+            !isTRUE(burnin_algorithm_key %in% c("chessr_time", "cheesr_time", "snaper_time"))) return(NULL)
+        ##
+        validated_time_criterion_settings <-  fn_ps7_validate_time_criterion_settings(settings = settings)
+        effective_time_criterion_settings <-  validated_time_criterion_settings
+        n_iter_sampling_uses_ESS_target <-  identical(validated_time_criterion_settings$n_iter_sampling_for_time_criterion_source, "ESS_target_for_time_criterion")
+        ##
+        if (!n_iter_sampling_uses_ESS_target) {
+            effective_time_criterion_settings["ESS_target_for_time_criterion"] <-  list(NULL)
+            effective_time_criterion_settings["ESS_per_iter_sampling_expected"] <-  list(NULL)
+        } else if (is.null(validated_time_criterion_settings$ESS_target_for_time_criterion)) {
+            ESS_target_for_this_N <-  R_fn_ps7_get_target_min_ESS(N = N, Model_type = Model_type)
+            if (!is.finite(ESS_target_for_this_N) || ESS_target_for_this_N <= 0) {
+                stop(paste0("n_iter_sampling_for_time_criterion_source = 'ESS_target_for_time_criterion' but there is no ps3 target min ESS for ",
+                            Model_type, " at N = ", N, "; set ESS_target_for_time_criterion."))
+            }
+            effective_time_criterion_settings$ESS_target_for_time_criterion <-  ESS_target_for_this_N
+        }
+        ##
+        sampling_times_user_supplied <-  !vapply(X = effective_time_criterion_settings[ps7_sampling_timing_quantity_names],
+                                                FUN = is.null, FUN.VALUE = TRUE)
+        previous_run_supplies_something <-  !is.null(validated_time_criterion_settings$time_criterion_previous_run_path) &&
+                                           (!all(sampling_times_user_supplied) ||
+                                            (n_iter_sampling_uses_ESS_target && is.null(effective_time_criterion_settings$ESS_per_iter_sampling_expected)))
+        if (!previous_run_supplies_something) effective_time_criterion_settings["time_criterion_previous_run_path"] <-  list(NULL)
+        ## the ESS parameter set matters only for ESS_per_iter_sampling_expected read from the previous run(s):
+        ESS_per_iter_sampling_expected_from_previous_run <-  n_iter_sampling_uses_ESS_target &&
+                                                            is.null(effective_time_criterion_settings$ESS_per_iter_sampling_expected) &&
+                                                            !is.null(effective_time_criterion_settings$time_criterion_previous_run_path)
+        if (!ESS_per_iter_sampling_expected_from_previous_run) effective_time_criterion_settings["time_criterion_ess_parameter_set"] <-  list(NULL)
+        ##
+        all_sampling_times_known_without_probe <-  all(sampling_times_user_supplied) ||
+                                                  !is.null(effective_time_criterion_settings$time_criterion_previous_run_path)
+        if (all_sampling_times_known_without_probe) effective_time_criterion_settings$run_sampling_timing_probe <-  FALSE
+        if (!isTRUE(effective_time_criterion_settings$run_sampling_timing_probe)) {
+            effective_time_criterion_settings["sampling_timing_probe_L_values"] <-  list(NULL)
+            effective_time_criterion_settings["sampling_timing_probe_n_iter_per_L"] <-  list(NULL)
+        }
+        ##
+        return(effective_time_criterion_settings)
+
+}
+##
+## ---- The time-criterion settings text behind the "_bac<4 hex>" / "_bas<4 hex>" token: every EFFECTIVE non-default setting as
+##      "name=value", in a fixed order, joined by ";" (NULL at the defaults and for every other algorithm). Numbers are written at
+##      15 significant digits; the previous run by its BASENAME (the saved run's own name, which encodes its settings and seed):
+##
+fn_ps7_time_criterion_settings_text <-  function(effective_time_criterion_settings) {
+
+        if (is.null(effective_time_criterion_settings)) return(NULL)
+        fn_number_as_text_15_significant_digits <-  function(number_value) {
+            paste(sub(pattern = "^ +", replacement = "", x = formatC(number_value, digits = 15, format = "g")), collapse = ",")
+        }
+        time_criterion_settings_text_parts <-  character(0)
+        if (!isTRUE(effective_time_criterion_settings$run_sampling_timing_probe)) {
+            time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts, "run_sampling_timing_probe=FALSE")
+        } else {
+            if (!identical(effective_time_criterion_settings$sampling_timing_probe_L_values,
+                           ps7_time_criterion_default_settings$sampling_timing_probe_L_values)) {
+                time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts,
+                                                         paste0("sampling_timing_probe_L_values=",
+                                                                fn_number_as_text_15_significant_digits(effective_time_criterion_settings$sampling_timing_probe_L_values)))
+            }
+            if (!identical(effective_time_criterion_settings$sampling_timing_probe_n_iter_per_L,
+                           ps7_time_criterion_default_settings$sampling_timing_probe_n_iter_per_L)) {
+                time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts,
+                                                         paste0("sampling_timing_probe_n_iter_per_L=",
+                                                                fn_number_as_text_15_significant_digits(effective_time_criterion_settings$sampling_timing_probe_n_iter_per_L)))
+            }
+        }
+        if (identical(effective_time_criterion_settings$n_iter_sampling_for_time_criterion_source, "ESS_target_for_time_criterion")) {
+            time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts,
+                                                     "n_iter_sampling_for_time_criterion_source=ESS_target_for_time_criterion",
+                                                     paste0("ESS_target_for_time_criterion=",
+                                                            fn_number_as_text_15_significant_digits(effective_time_criterion_settings$ESS_target_for_time_criterion)))
+        }
+        if (!is.null(effective_time_criterion_settings$time_criterion_ess_parameter_set) &&
+            !identical(effective_time_criterion_settings$time_criterion_ess_parameter_set,
+                       ps7_time_criterion_default_settings$time_criterion_ess_parameter_set)) {
+            time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts,
+                                                     paste0("time_criterion_ess_parameter_set=",
+                                                            paste(effective_time_criterion_settings$time_criterion_ess_parameter_set, collapse = ",")))
+        }
+        for (supplied_number_name in c("ESS_per_iter_sampling_expected", ps7_sampling_timing_quantity_names)) {
+            supplied_value <-  effective_time_criterion_settings[[supplied_number_name]]
+            if (!is.null(supplied_value)) {
+                time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts,
+                                                         paste0(supplied_number_name, "=", fn_number_as_text_15_significant_digits(supplied_value)))
+            }
+        }
+        if (!is.null(effective_time_criterion_settings$time_criterion_previous_run_path)) {
+            time_criterion_settings_text_parts <-  c(time_criterion_settings_text_parts,
+                                                     paste0("time_criterion_previous_run=",
+                                                            paste(sort(basename(effective_time_criterion_settings$time_criterion_previous_run_path)), collapse = ",")))
+        }
+        if (length(time_criterion_settings_text_parts) == 0) return(NULL)
+        return(paste(time_criterion_settings_text_parts, collapse = ";"))
+
+}
+##
+## ---- "" at the defaults (and for every other algorithm), otherwise the 4 hexadecimal digits that replace the final "t":
+##
+fn_ps7_time_criterion_settings_hash <-  function(effective_time_criterion_settings) {
+
+        time_criterion_settings_text <-  fn_ps7_time_criterion_settings_text(effective_time_criterion_settings = effective_time_criterion_settings)
+        if (is.null(time_criterion_settings_text)) return("")
+        return(substr(digest::digest(object = time_criterion_settings_text, algo = "md5", serialize = FALSE), 1, 4))
+
+}
+##
+##
+## ---- The time-criterion record NicoStan returns for a CHESSR_time / SNAPER_time run: model_results$time_criterion (the settings
+##      as validated, the resolved sampling quantities and their sources, the previous-run quantities, the sampling timing probe
+##      result and wall time, and the burn-in record with the at_handover / at_last_update / at_end snapshots); else
+##      burnin_object$time_criterion (the burn-in record alone); else a list called time_criterion_record. NULL for every other
+##      algorithm.
+##
+fn_ps7_time_criterion_record_from_results <-  function(model_results) {
+
+        for (candidate_record in list(model_results$time_criterion, model_results$burnin_object$time_criterion,
+                                      model_results$time_criterion_record)) {
+            if (is.list(candidate_record)) return(candidate_record)
+        }
+        return(NULL)
+
+}
+##
+## ---- fn_ps7_time_criterion_values() (defined in fn_ps7_extract_tau_sweep.R, its main user) flattens this record into one value
+##      per quantity of the naming list.
 ##
 R_fn_enc_tau_wt <-  function(x) {
         if (!isTRUE(as.logical(x))) return("")   ## the original median-of-chains aggregation
@@ -279,9 +707,40 @@ R_fn_map_tau_obj <-  c(KE = "ke",       ## original: change in kinetic energy (n
 #'                               tau_weight_by_p_jump = TRUE is kept; NULL = keep it for all.
 #' @return the same data frame with inert axes collapsed on pinned-L rows, de-duplicated.
 #' @export
+##
+## ---- ADAM axes of the grid (eps / tau ADAM settings, the tau learning-rate restart and the tau adaptation scheme): each row is set to its
+##      EFFECTIVE values (fn_ps7_effective_adam_settings: the tau settings are inert when tau is pinned, the restart with
+##      "probe_then_average"), then the rows are de-duplicated, so the same run is never fitted twice under one name:
+##
+fn_ps7_collapse_inert_adam_axes <-  function(sampler_combinations) {
+
+        adam_axis_names <-  intersect(x = c("eps_adam_beta1", "eps_adam_beta2", "eps_adam_epsilon", "tau_adam_beta1", "tau_adam_beta2", "tau_adam_epsilon",
+                                            "tau_learning_rate_restart_at_metric_end", "tau_adaptation_scheme"),
+                                      y = names(x = sampler_combinations))
+        if (!length(x = adam_axis_names)) return(sampler_combinations)
+        number_of_rows_before <-  nrow(x = sampler_combinations)
+        for (row_index in seq_len(length.out = number_of_rows_before)) {
+            effective_adam_settings <-  fn_ps7_effective_adam_settings(settings = as.list(sampler_combinations[row_index, , drop = FALSE]))
+            for (adam_axis_name in adam_axis_names) sampler_combinations[[adam_axis_name]][row_index] <-  effective_adam_settings[[adam_axis_name]]
+        }
+        sampler_combinations <-  unique(x = sampler_combinations)
+        rownames(x = sampler_combinations) <-  NULL
+        number_of_rows_dropped <-  number_of_rows_before - nrow(x = sampler_combinations)
+        if (number_of_rows_dropped > 0) {
+            message(paste0("collapsed ", number_of_rows_dropped, " sampler combination(s): tau ADAM settings do nothing when tau is pinned, ",
+                           "and the tau learning-rate restart does nothing with tau_adaptation_scheme = 'probe_then_average'."))
+        }
+        return(sampler_combinations)
+
+}
+##
 fn_ps7_collapse_inert_tau_axes <-  function(sampler_combinations,
                                            weight_p_jump_only_for = NULL) {
 
+        ##
+        ## ---- ADAM axes (see fn_ps7_collapse_inert_adam_axes):
+        ##
+        sampler_combinations <-  fn_ps7_collapse_inert_adam_axes(sampler_combinations = sampler_combinations)
         ##
         ## ---- tau_sampling_scale is inert under jittered burn-in or a pinned tau (see fn_ps7_collapse_inert_tau_sampling_scale):
         ##
@@ -300,9 +759,15 @@ fn_ps7_collapse_inert_tau_axes <-  function(sampler_combinations,
         if (!is.null(weight_p_jump_only_for) &&
             all(c("burnin_algorithm", "tau_weight_by_p_jump") %in% names(x = sampler_combinations))) {
             ##
-            unknown <-  setdiff(x = weight_p_jump_only_for, y = c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER"))
+            ## unknown <-  setdiff(x = weight_p_jump_only_for, y = c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER"))
+            ## unknown <-  setdiff(x = weight_p_jump_only_for, y = c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time"))
+            unknown <-  setdiff(x = weight_p_jump_only_for, y = c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time",
+                                                                  "ESJD", "ESJD_CHESSR", "ESJD_SNAPER", "LQ_ESSR"))
             if (length(x = unknown) > 0) {
-                stop("weight_p_jump_only_for must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log' or 'SNAPER'; got: ",
+                ## stop("weight_p_jump_only_for must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log' or 'SNAPER'; got: ",
+                ## stop("weight_p_jump_only_for must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time' or 'SNAPER_time'; got: ",
+                stop("weight_p_jump_only_for must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time', 'SNAPER_time', ",
+                     "'ESJD', 'ESJD_CHESSR' or 'ESJD_SNAPER'; got: ",
                      paste(unknown, collapse = ", "))
             }
             not_weighted <-  !(sampler_combinations$burnin_algorithm %in% weight_p_jump_only_for)
@@ -438,6 +903,10 @@ fn_ps7_effective_tau_sampling_scale <-  function(settings) {
 ## Unit-Gaussian "gaussian_matched" factor, recomputed HERE independently of NicoStan (base R only), so the factor the
 ## sampler reports is checked against the derivation rather than against itself. Same formulas as NicoStan's
 ## fn_tau_sampling_scale_gaussian_factor(): KE / ChEES 0.7151, CHESSR / SNAPER 0.7678, CHESSR_log 0.6738.
+## CHESSR_time / SNAPER_time use the CHESSR / SNAPER factor 0.7678. It is the exact unit-Gaussian factor when
+## burnin_to_sampling_leapfrog_time_ratio = 0 and sampling_overhead_in_leapfrog_steps = 0 (where they ARE CHESSR / SNAPER). With a
+## positive tau_offset_from_sampling_overhead their optimum lies between the rate optimum and the ChEES optimum (whose factor is
+## 0.7151), and a positive burnin_to_sampling_leapfrog_time_ratio moves it towards shorter tau, so 0.7678 is an approximation there.
 ##
 fn_ps7_expected_gaussian_tau_sampling_factor <-  function(burnin_algorithm) {
 
@@ -459,12 +928,49 @@ fn_ps7_expected_gaussian_tau_sampling_factor <-  function(burnin_algorithm) {
         if (burnin_algorithm %in% c("KE", "ChEES")) {
                 return(fn_first_maximiser(fn_expected_chees_jittered) / (pi / 2))
         }
-        if (burnin_algorithm %in% c("CHESSR", "SNAPER")) {
+        ## if (burnin_algorithm %in% c("CHESSR", "SNAPER")) {
+        if (burnin_algorithm %in% c("CHESSR", "SNAPER", "CHESSR_time", "SNAPER_time")) {
                 return(fn_first_maximiser(fn_expected_per_chain_rate_jittered) / fn_first_maximiser(fn_chees_rate_fixed))
         }
         if (burnin_algorithm == "CHESSR_log") {
                 return(fn_first_maximiser(function(tau_bar) fn_expected_chees_jittered(tau_bar) / tau_bar) /
                        fn_first_maximiser(fn_chees_rate_fixed))
+        }
+        ##
+        ## ---- ESJD (squared jump 2 (1 - cos(t))) 0.7678 and ESJD_CHESSR (geometric mean of the ESJD and CHESSR rates) 0.8083, both
+        ##      per-chain means of C_i / tau_i; the fixed-length ESJD optimum (2.3311) lies beyond 2.0, so ESJD takes (0.3, 4.0), which
+        ##      holds its first local maximum (fixed and jittered) and no other:
+        ##      ESJD_SNAPER has the same unit-Gaussian factor as ESJD_CHESSR because the unit-Gaussian SNAPER rate is the per-chain rate above:
+        ##
+        fn_squared_jump_rate_fixed <-  function(tau_fixed) 2 * (1 - cos(tau_fixed)) / tau_fixed
+        fn_expected_per_chain_squared_jump_rate_jittered <-  function(tau_bar) {
+                stats::integrate(f = function(tau_value) ifelse(tau_value == 0, 0, 2 * (1 - cos(tau_value)) / tau_value),
+                                 lower = 0,
+                                 upper = 2 * tau_bar,
+                                 rel.tol = 1e-10)$value / (2 * tau_bar)
+        }
+        fn_first_maximiser_up_to_four <-  function(criterion_function) {
+                stats::optimize(f = criterion_function,
+                                interval = c(0.3, 4.0),
+                                maximum = TRUE,
+                                tol = 1e-10)$maximum
+        }
+        if (burnin_algorithm == "ESJD") {
+                return(fn_first_maximiser_up_to_four(fn_expected_per_chain_squared_jump_rate_jittered) /
+                       fn_first_maximiser_up_to_four(fn_squared_jump_rate_fixed))
+        }
+        if (burnin_algorithm %in% c("ESJD_CHESSR", "ESJD_SNAPER")) {
+                return(fn_first_maximiser(function(tau_bar) sqrt(fn_expected_per_chain_squared_jump_rate_jittered(tau_bar) * fn_expected_per_chain_rate_jittered(tau_bar))) /
+                       fn_first_maximiser(function(tau_fixed) sqrt(fn_squared_jump_rate_fixed(tau_fixed) * fn_chees_rate_fixed(tau_fixed))))
+        }
+        ## LQ_ESSR: min(g(a), g(b)) / tau on a unit Gaussian, a = E[cos(t)], b = E[cos(t)^2], g(r) = (1 - r) / (1 + r)
+        ## (the same factor as NicoStan's fn_tau_sampling_scale_gaussian_factor):
+        if (burnin_algorithm == "LQ_ESSR") {
+                fn_ESS_fraction <- function(lag_one_autocorrelation) (1 - lag_one_autocorrelation) / (1 + lag_one_autocorrelation)
+                return(fn_first_maximiser(function(tau_bar) min(fn_ESS_fraction(sin(2 * tau_bar) / (2 * tau_bar)),
+                                                                fn_ESS_fraction(0.5 + sin(4 * tau_bar) / (8 * tau_bar))) / tau_bar) /
+                       fn_first_maximiser(function(tau_fixed) min(fn_ESS_fraction(cos(tau_fixed)),
+                                                                  fn_ESS_fraction(cos(tau_fixed)^2)) / tau_fixed))
         }
         stop(paste0("No gaussian_matched factor for burnin_algorithm = '", burnin_algorithm, "'."))
 
@@ -535,6 +1041,334 @@ fn_ps7_collapse_inert_tau_adaptation_block <-  function(sampler_combinations) {
 
 }
 ##
+##
+## ---- ADAM settings of the burn-in adaptation: validation, effective values and the "_A" file-name code ---------------------------------
+##
+## The step-size (eps) update and the trajectory-length (tau) update each have their own ADAM settings (runner settings block, ps7_settings):
+##   eps_adam_beta1, eps_adam_beta2, eps_adam_epsilon   first-moment decay, second-moment decay and denominator constant of the eps update
+##                                                      (NicoStan options NicoStan_eps_adam_beta1 / _beta2 / _epsilon);
+##   tau_adam_beta1, tau_adam_beta2, tau_adam_epsilon   the same for the tau update (NicoStan_tau_adam_beta1 / _beta2 / _epsilon);
+##   tau_learning_rate_restart_at_metric_end            TRUE = the tau learning rate restarts at the full LR at the tau update of iteration
+##                                                      metric_adaptation_end_iter and decays to LR^2 again by the last tau update
+##                                                      (NicoStan_tau_learning_rate_restart_at_metric_end).
+## The four tau settings are inert when tau is pinned (manual_L, manual_tau_value, or partitioned_HMC = TRUE, where ps7 fixes tau), so
+## they collapse to their defaults there. A NULL setting (e.g. a settings list saved before these settings existed) means the value of
+## every earlier run: beta1 0, beta2 0.95, denominator constant 1e-8, no restart.
+##
+## File names. At those defaults nothing changes ("_ab1" as before). Otherwise the token "_A<codes>" is written INSTEAD of "_ab1", in
+## its place (after "_rb1" / "_ts..", before "_tbJ"): many names are already at the 249-byte limit, and "_A.." replaces the 4 bytes of
+## "_ab1". Codes, in this order, each only when its value is not the default:
+##   "i"         tau ADAM bias correction by iteration index (tau_adam_bias_correction = "iteration_index"); without "i" the "_A"
+##               token means the performed-update counter, exactly as "_ab1";
+##   "h<value>"  eps_adam_beta1;   "g<value>"  eps_adam_beta2;   "k<value>"  eps_adam_epsilon;
+##   "t<value>"  tau_adam_beta1;   "u<value>"  tau_adam_beta2;   "w<value>"  tau_adam_epsilon;   "r"  the tau learning-rate restart;
+##   "p"         tau_adaptation_scheme = "probe_then_average" (NicoStan_tau_adaptation_scheme; default "adam_decay", no code): the probe from
+##               tau_handover / 8, then ADAM with constant LR and the averaged tau for sampling. The restart has no effect with it, so it
+##               collapses to FALSE there. Inert (collapses to "adam_decay") when tau is pinned.
+##   "q"         tau_adaptation_scheme = "fixed_length_probe_then_decay_and_average": as "p", with fixed-length trajectories during the
+##               probe (also in the jittered arm), the top rung at tau_handover (not x 4) and the LR decaying from LR to LR^2 after the
+##               probe. The restart collapses to FALSE and the scheme to "adam_decay" as for "p".
+## Values are written as R_fn_enc_num() writes them (0.9 -> ".9", 1e-06 -> "1e-06"); no code letter is "e" or "E", so none can occur in
+## a value. e.g. "_At.95" = tau beta1 0.95; "_Ah.9t.95" = eps beta1 0.9 and tau beta1 0.95; "_At.9u.99r" = tau beta1 0.9, tau beta2
+## 0.99 and the restart. fn_ps7_parse_run_name() reads the codes back (and the codes "b" / "v" / "s", which set both updates, of names
+## written before the two updates had separate settings) and translates "_A.." to "_ab1" (or nothing, with "i") before its other patterns.
+##
+fn_ps7_effective_adam_settings <-  function(settings) {
+
+        fn_value_or_default <-  function(value, default_value) {
+                if (is.null(value) || (length(value) == 1 && is.na(value))) return(default_value)
+                return(value)
+        }
+        fn_check_decay <-  function(value, setting_name) {
+                if (!is.numeric(value) || length(value) != 1 || !is.finite(value) || value < 0 || value >= 1) {
+                    stop(paste0("settings$", setting_name, " must be one number in [0, 1); got: ", paste(as.character(value), collapse = ", ")))
+                }
+                return(as.numeric(value))
+        }
+        fn_check_constant <-  function(value, setting_name) {
+                if (!is.numeric(value) || length(value) != 1 || !is.finite(value) || value <= 0) {
+                    stop(paste0("settings$", setting_name, " must be one positive number; got: ", paste(as.character(value), collapse = ", ")))
+                }
+                return(as.numeric(value))
+        }
+        ##
+        eps_adam_beta1   <-  fn_check_decay(fn_value_or_default(settings$eps_adam_beta1, 0),         "eps_adam_beta1")
+        eps_adam_beta2   <-  fn_check_decay(fn_value_or_default(settings$eps_adam_beta2, 0.95),      "eps_adam_beta2")
+        eps_adam_epsilon <-  fn_check_constant(fn_value_or_default(settings$eps_adam_epsilon, 1e-8), "eps_adam_epsilon")
+        tau_adam_beta1   <-  fn_check_decay(fn_value_or_default(settings$tau_adam_beta1, 0),         "tau_adam_beta1")
+        tau_adam_beta2   <-  fn_check_decay(fn_value_or_default(settings$tau_adam_beta2, 0.95),      "tau_adam_beta2")
+        tau_adam_epsilon <-  fn_check_constant(fn_value_or_default(settings$tau_adam_epsilon, 1e-8), "tau_adam_epsilon")
+        tau_learning_rate_restart_at_metric_end <-  fn_value_or_default(settings$tau_learning_rate_restart_at_metric_end, FALSE)
+        if (!is.logical(tau_learning_rate_restart_at_metric_end) || length(tau_learning_rate_restart_at_metric_end) != 1 ||
+            is.na(tau_learning_rate_restart_at_metric_end)) {
+            stop("settings$tau_learning_rate_restart_at_metric_end must be one TRUE or FALSE.")
+        }
+        ##
+        tau_adaptation_scheme <-  fn_value_or_default(settings$tau_adaptation_scheme, "adam_decay")
+        # if (!is.character(tau_adaptation_scheme) || length(tau_adaptation_scheme) != 1 || !tau_adaptation_scheme %in% c("adam_decay", "probe_then_average")) {
+        #     stop("settings$tau_adaptation_scheme must be 'adam_decay' or 'probe_then_average'.")
+        if (!is.character(tau_adaptation_scheme) || length(tau_adaptation_scheme) != 1 ||
+            !tau_adaptation_scheme %in% c("adam_decay", "probe_then_average", "fixed_length_probe_then_decay_and_average")) {
+            stop("settings$tau_adaptation_scheme must be 'adam_decay', 'probe_then_average' or 'fixed_length_probe_then_decay_and_average'.")
+        }
+        ## the learning-rate restart has no effect with the constant learning rate of "probe_then_average":
+        ## (nor with "fixed_length_probe_then_decay_and_average", whose post-probe LR schedule replaces it)
+        # if (identical(tau_adaptation_scheme, "probe_then_average")) tau_learning_rate_restart_at_metric_end <-  FALSE
+        if (tau_adaptation_scheme %in% c("probe_then_average", "fixed_length_probe_then_decay_and_average")) tau_learning_rate_restart_at_metric_end <-  FALSE
+        ##
+        tau_is_pinned <-  (!is.null(settings$manual_L) && length(settings$manual_L) == 1 && !is.na(settings$manual_L)) ||
+                         (!is.null(settings$manual_tau_value) && length(settings$manual_tau_value) == 1 && !is.na(settings$manual_tau_value)) ||
+                         isTRUE(settings$partitioned_HMC)
+        if (tau_is_pinned) {
+            tau_adam_beta1 <-  0
+            tau_adam_beta2 <-  0.95
+            tau_adam_epsilon <-  1e-8
+            tau_learning_rate_restart_at_metric_end <-  FALSE
+            tau_adaptation_scheme <-  "adam_decay"
+        }
+        ##
+        return(list(eps_adam_beta1 = eps_adam_beta1,
+                    eps_adam_beta2 = eps_adam_beta2,
+                    eps_adam_epsilon = eps_adam_epsilon,
+                    tau_adam_beta1 = tau_adam_beta1,
+                    tau_adam_beta2 = tau_adam_beta2,
+                    tau_adam_epsilon = tau_adam_epsilon,
+                    tau_learning_rate_restart_at_metric_end = tau_learning_rate_restart_at_metric_end,
+                    tau_adaptation_scheme = tau_adaptation_scheme))
+
+}
+##
+## The codes of the "_A" token (see above), without the "_A" and the "i"; "" at the defaults of every earlier run:
+##
+fn_ps7_adam_file_name_code <-  function(settings) {
+
+        effective_adam_settings <-  fn_ps7_effective_adam_settings(settings = settings)
+        return(paste0(if (effective_adam_settings$eps_adam_beta1 != 0)      paste0("h", R_fn_enc_num(effective_adam_settings$eps_adam_beta1)) else "",
+                      if (effective_adam_settings$eps_adam_beta2 != 0.95)   paste0("g", R_fn_enc_num(effective_adam_settings$eps_adam_beta2)) else "",
+                      if (effective_adam_settings$eps_adam_epsilon != 1e-8) paste0("k", R_fn_enc_num(effective_adam_settings$eps_adam_epsilon)) else "",
+                      if (effective_adam_settings$tau_adam_beta1 != 0)      paste0("t", R_fn_enc_num(effective_adam_settings$tau_adam_beta1)) else "",
+                      if (effective_adam_settings$tau_adam_beta2 != 0.95)   paste0("u", R_fn_enc_num(effective_adam_settings$tau_adam_beta2)) else "",
+                      if (effective_adam_settings$tau_adam_epsilon != 1e-8) paste0("w", R_fn_enc_num(effective_adam_settings$tau_adam_epsilon)) else "",
+                      if (isTRUE(effective_adam_settings$tau_learning_rate_restart_at_metric_end)) "r" else "",
+                      # if (identical(effective_adam_settings$tau_adaptation_scheme, "probe_then_average")) "p" else ""))
+                      if (identical(effective_adam_settings$tau_adaptation_scheme, "probe_then_average")) "p" else "",
+                      if (identical(effective_adam_settings$tau_adaptation_scheme, "fixed_length_probe_then_decay_and_average")) "q" else ""))
+
+}
+##
+##
+## ---- eps_acceptance_mean / tau_shrink_on_divergence: validation and the file-name version token -------------------------------------
+##
+## eps_acceptance_mean (NicoStan burn-in): how the per-chain Metropolis acceptance probabilities of one burn-in iteration are
+## averaged before the ADAM step-size update (gradient p_jump - adapt_delta on log eps):
+##   "harmonic"   (default) K / sum_k (1 / p_jump_k), the harmonic mean of Hoffman, Radul and Sountsov (2021, Algorithm 1)
+##                and Sountsov and Hoffman (2022, Appendix, eq. 15), so that every chain sharing the step size can make progress;
+##   "arithmetic" mean(p_jump_k), the rule every earlier ps7 run used;
+##   "geometric"  exp(mean(log(p_jump_k))), each p_jump_k clamped to [1e-8, 1] first; between the harmonic and the arithmetic mean.
+## tau_shrink_on_divergence (NicoStan burn-in): whether tau_main and tau_us are multiplied by 0.95 at an adapting iteration
+## (clip_iter < ii < n_adapt, tau not pinned) with sum(div_main) > 1 over the burn-in chains, i.e. at least two divergent chains:
+##   FALSE (default) no divergence-triggered shrink (the trajectory length follows the adaptation criterion only);
+##   TRUE            the shrink every earlier ps7 run had (NicoStan's own factor and chain threshold are left at their defaults).
+## Both ARE sampler arguments (passed next to tau_adaptation_block), and NicoStan reports the values it applied in
+## model_results (NULL for builds older than these options, treated as "arithmetic" / TRUE), which is checked after every fit.
+##
+## File names. The pair is written as the "_ta" version digit, so it costs NO bytes (many names are already at the 249-byte
+## limit, and any extra token would push the N = 10,000 names with "_tsG" / "_tbJ" over it even after the "_LiLR" shortening).
+## Every earlier development ("_ta4") run used "arithmetic" with the shrink on, so that pair keeps "_ta4" and exactly the name
+## it has on disk today (those runs still resume under the old behaviour). Any other pair gets its own digit, so a run of the
+## new default can never be resumed from, or saved over, an earlier "_ta4" file:
+##   arithmetic + shrink on  -> "_ta4"   (every earlier run)
+##   harmonic   + shrink off -> "_ta5"   (the new default)
+##   arithmetic + shrink off -> "_ta6"
+##   harmonic   + shrink on  -> "_ta7"
+##   geometric  + shrink off -> "_ta8"
+##   geometric  + shrink on  -> "_ta9"
+## fn_ps7_parse_run_name() reads the pair back from the digit ("_ta4" and every earlier version = arithmetic / shrink on).
+## A legacy settings list (no burnin_algorithm, "_ta2" names) has no version to carry the pair, so there a missing value
+## means the earlier behaviour ("arithmetic" / TRUE) and any other pair stops in R_fn_file_name_string().
+##
+fn_ps7_validate_eps_tau_shrink_settings <-  function(settings) {
+
+        legacy_settings <-  is.null(settings$burnin_algorithm)
+        eps_acceptance_mean_requested <-  BayesMVP::if_null_then_set_to(settings$eps_acceptance_mean, if (legacy_settings) "arithmetic" else "harmonic")
+        tau_shrink_on_divergence_requested <-  BayesMVP::if_null_then_set_to(settings$tau_shrink_on_divergence, legacy_settings)
+        ##
+        # if (!is.character(eps_acceptance_mean_requested) || length(eps_acceptance_mean_requested) != 1 ||
+        #     is.na(eps_acceptance_mean_requested) || !eps_acceptance_mean_requested %in% c("harmonic", "arithmetic")) {
+        #     stop("settings$eps_acceptance_mean must be 'harmonic' or 'arithmetic'.")
+        # }
+        if (!is.character(eps_acceptance_mean_requested) || length(eps_acceptance_mean_requested) != 1 ||
+            is.na(eps_acceptance_mean_requested) || !eps_acceptance_mean_requested %in% c("harmonic", "arithmetic", "geometric")) {
+            stop("settings$eps_acceptance_mean must be 'harmonic', 'arithmetic' or 'geometric'.")
+        }
+        if (!is.logical(tau_shrink_on_divergence_requested) || length(tau_shrink_on_divergence_requested) != 1 ||
+            is.na(tau_shrink_on_divergence_requested)) {
+            stop("settings$tau_shrink_on_divergence must be one TRUE or FALSE.")
+        }
+        ##
+        return(list(eps_acceptance_mean = eps_acceptance_mean_requested,
+                    tau_shrink_on_divergence = tau_shrink_on_divergence_requested))
+
+}
+##
+## "_ta4" / "_ta5" / "_ta6" / "_ta7" / "_ta8" / "_ta9" for the six pairs (see above):
+##
+fn_ps7_tau_adaptation_version_token <-  function(settings) {
+
+        validated_eps_tau_shrink_settings <-  fn_ps7_validate_eps_tau_shrink_settings(settings = settings)
+        eps_is_harmonic <-  identical(validated_eps_tau_shrink_settings$eps_acceptance_mean, "harmonic")
+        eps_is_geometric <-  identical(validated_eps_tau_shrink_settings$eps_acceptance_mean, "geometric")
+        tau_shrink_is_on <-  isTRUE(validated_eps_tau_shrink_settings$tau_shrink_on_divergence)
+        if ( eps_is_geometric && !tau_shrink_is_on) return("_ta8")
+        if ( eps_is_geometric &&  tau_shrink_is_on) return("_ta9")
+        if (!eps_is_harmonic &&  tau_shrink_is_on) return("_ta4")
+        if ( eps_is_harmonic && !tau_shrink_is_on) return("_ta5")
+        if (!eps_is_harmonic && !tau_shrink_is_on) return("_ta6")
+        return("_ta7")
+
+}
+##
+##
+## ---- metric_pooled_window_resets / metric_pooled_offdiagonal_shrinkage: validation and the file-name code ---------------------------
+##
+## Both are NicoStan burn-in settings of the POOLED metric estimator (metric_estimator = "pooled") only; "chain_mean" and
+## "chain_mean_scaled" never read them (their covariance is shrunk every iteration by Rcpp_shrink_matrix(shrinkage_factor)).
+## "per_iteration" reads metric_pooled_offdiagonal_shrinkage (its dense main covariance proposal is shrunk in the same way) but not
+## metric_pooled_window_resets (nothing is accumulated across iterations); its file-name code is fn_ps7_metric_per_iteration_file_name_code.
+##
+## metric_pooled_window_resets: iterations at which the pooled Welford accumulators are reset. These accumulators hold the
+## pooled covariance of the dense main metric AND the pooled variances of the nuisance diagonal metric (metric_type_nuisance
+## "Empirical" or "uniform_diag"), so the resets change both:
+##   "stan_style"  (default) round(c(0.30, 0.60) * n_adapt), the resets every earlier "_Mp" run had (the final metric then uses
+##                 only the last window, e.g. iterations 136 to 180 of a 250-iteration burn-in);
+##   "none"        no reset: ONE window from the metric start to metric_adaptation_end_iter, so the final metric uses every
+##                 pooled draw in that range;
+##   c(r1, r2, ..) whole numbers >= 0; the accumulators are reset at the start of iteration r + 1 for each value r.
+## metric_pooled_offdiagonal_shrinkage: s in [0, 1], applied ONCE to the pooled main covariance proposal, after the Stan-style
+## regularisation and before the symmetrisation, as (1 - s) * cov + s * diag(diag(cov)) (the nuisance metric is diagonal):
+##   0 (default) = every off-diagonal unshrunk, as in every earlier "_Mp" run; 1 = diagonal.
+## Both ARE sampler arguments (passed next to metric_estimator), and NicoStan reports the values it applied in model_results
+## (NULL for builds older than these options, treated as "stan_style" / 0), which is checked after every fit.
+##
+## A missing value means the earlier behaviour ("stan_style" / 0), the same as NicoStan's own defaults, for every settings
+## list; other values are set explicitly in the runner. A numeric vector of reset iterations is returned sorted and without
+## duplicates (the same resets), so that one set of resets always has one file name.
+##
+fn_ps7_validate_metric_pooled_settings <-  function(settings) {
+
+        metric_pooled_window_resets_requested <-  if (is.null(settings$metric_pooled_window_resets)) {
+            "stan_style"
+        } else settings$metric_pooled_window_resets
+        ##
+        metric_pooled_offdiagonal_shrinkage_requested <-  if (is.null(settings$metric_pooled_offdiagonal_shrinkage)) {
+            0
+        } else settings$metric_pooled_offdiagonal_shrinkage
+        ##
+        ## ---- window resets: "none", "stan_style" or whole numbers >= 0 (a zero-length vector = "none"):
+        ##
+        if (is.character(metric_pooled_window_resets_requested)) {
+            if (length(metric_pooled_window_resets_requested) != 1 || is.na(metric_pooled_window_resets_requested) ||
+                !metric_pooled_window_resets_requested %in% c("none", "stan_style")) {
+                stop(paste0("settings$metric_pooled_window_resets must be 'none', 'stan_style' or a numeric vector of whole numbers >= 0; got: ",
+                            paste(as.character(metric_pooled_window_resets_requested), collapse = ", ")))
+            }
+        } else if (is.numeric(metric_pooled_window_resets_requested) && !is.factor(metric_pooled_window_resets_requested)) {
+            if (length(metric_pooled_window_resets_requested) == 0) {
+                metric_pooled_window_resets_requested <-  "none"
+            } else {
+                if (any(!is.finite(metric_pooled_window_resets_requested)) || any(metric_pooled_window_resets_requested < 0) ||
+                    any(metric_pooled_window_resets_requested != round(metric_pooled_window_resets_requested))) {
+                    stop(paste0("settings$metric_pooled_window_resets: a numeric value must hold whole numbers >= 0 (iterations); got: ",
+                                paste(as.character(metric_pooled_window_resets_requested), collapse = ", ")))
+                }
+                metric_pooled_window_resets_requested <-  sort(unique(as.numeric(metric_pooled_window_resets_requested)))
+            }
+        } else {
+            stop("settings$metric_pooled_window_resets must be 'none', 'stan_style' or a numeric vector of whole numbers >= 0.")
+        }
+        ##
+        ## ---- off-diagonal shrinkage: one number in [0, 1]:
+        ##
+        adaptive_shrinkage_requested <-  identical(metric_pooled_offdiagonal_shrinkage_requested, "adaptive")
+        if (is.character(metric_pooled_offdiagonal_shrinkage_requested) && !adaptive_shrinkage_requested &&
+            length(metric_pooled_offdiagonal_shrinkage_requested) == 1 && !is.na(metric_pooled_offdiagonal_shrinkage_requested)) {
+            metric_pooled_offdiagonal_shrinkage_requested <-  suppressWarnings(as.numeric(metric_pooled_offdiagonal_shrinkage_requested))
+        }
+        if (!adaptive_shrinkage_requested &&
+            (!is.numeric(metric_pooled_offdiagonal_shrinkage_requested) || is.factor(metric_pooled_offdiagonal_shrinkage_requested) ||
+            length(metric_pooled_offdiagonal_shrinkage_requested) != 1 || !is.finite(metric_pooled_offdiagonal_shrinkage_requested) ||
+            metric_pooled_offdiagonal_shrinkage_requested < 0 || metric_pooled_offdiagonal_shrinkage_requested > 1)) {
+            stop(paste0("settings$metric_pooled_offdiagonal_shrinkage must be one number in [0, 1] or 'adaptive'; got: ",
+                        paste(as.character(metric_pooled_offdiagonal_shrinkage_requested), collapse = ", ")))
+        }
+        ##
+        return(list(metric_pooled_window_resets = metric_pooled_window_resets_requested,
+                    metric_pooled_offdiagonal_shrinkage = if (adaptive_shrinkage_requested) "adaptive" else
+                                                        as.numeric(metric_pooled_offdiagonal_shrinkage_requested)))
+
+}
+##
+## One printable label per set of window resets: "none", "stan_style", or the reset iterations joined by "-" (e.g. "68-135").
+## The same label is the metric_pooled_window_resets column of fn_ps7_parse_run_name(). A zero-length vector is "none":
+##
+fn_ps7_metric_pooled_window_resets_label <-  function(metric_pooled_window_resets) {
+
+        if (is.character(metric_pooled_window_resets)) return(paste(metric_pooled_window_resets, collapse = "-"))
+        if (length(metric_pooled_window_resets) == 0) return("none")
+        return(paste(sub(pattern = "^ +", replacement = "", x = formatC(sort(unique(as.numeric(metric_pooled_window_resets))), format = "f", digits = 0)),
+                     collapse = "-"))
+
+}
+##
+## File-name code appended to "_Mp" (pooled estimator only). "" for "stan_style" resets with off-diagonal shrinkage 0, the pair
+## of every earlier "_Mp" run, which therefore keeps exactly the name it has on disk (and still resumes under that behaviour).
+## Any other pair is written as <shrinkage><window code>, with no separator and no extra underscore:
+##   shrinkage   R_fn_enc_num(s), e.g. ".5", "0", ".25", "1";
+##   window code "w" = "none" (one whole window), "s" = "stan_style", "r" + the reset iterations joined by "-" (e.g. "r68-135").
+## e.g. "_Mp.5w" = "none" / 0.5, "_Mp0w" = no resets and no shrinkage, "_Mp.5s" = Stan-style resets with 0.5.
+## "_Mp.5w" costs 3 bytes: many names are within a few bytes of the 249-byte limit, so a separate token for each
+## setting (at least 9 bytes) would push the longest saved "_Mp" configurations over it.
+## fn_ps7_parse_run_name() reads both settings back ("_Mp" alone, and every non-pooled name, = "stan_style" / 0).
+##
+fn_ps7_metric_pooled_file_name_code <-  function(settings) {
+
+        if (!identical(settings$metric_estimator, "pooled")) return("")
+        ##
+        validated_metric_pooled_settings <-  fn_ps7_validate_metric_pooled_settings(settings = settings)
+        metric_pooled_window_resets_validated <-  validated_metric_pooled_settings$metric_pooled_window_resets
+        metric_pooled_offdiagonal_shrinkage_validated <-  validated_metric_pooled_settings$metric_pooled_offdiagonal_shrinkage
+        ##
+        if (identical(metric_pooled_window_resets_validated, "stan_style") &&
+            is.numeric(metric_pooled_offdiagonal_shrinkage_validated) && metric_pooled_offdiagonal_shrinkage_validated == 0) return("")
+        ##
+        metric_pooled_window_code <-  if (identical(metric_pooled_window_resets_validated, "none")) "w" else
+                                     if (identical(metric_pooled_window_resets_validated, "stan_style")) "s" else
+                                     paste0("r", fn_ps7_metric_pooled_window_resets_label(metric_pooled_window_resets = metric_pooled_window_resets_validated))
+        ##
+        shrinkage_file_name_code <-  if (identical(metric_pooled_offdiagonal_shrinkage_validated, "adaptive")) "A" else
+                                       R_fn_enc_num(metric_pooled_offdiagonal_shrinkage_validated)
+        return(paste0(shrinkage_file_name_code, metric_pooled_window_code))
+
+}
+##
+## File-name code appended to "_Mi" (per-iteration estimator only): the off-diagonal shrinkage, which the per-iteration estimator
+## applies to its dense main covariance proposal as the pooled estimator does. "" for 0, otherwise R_fn_enc_num(s), e.g. "_Mi1" = 1
+## (diagonal), "_Mi.5" = 0.5. The window resets are inert for it and are not written. fn_ps7_parse_run_name() reads the shrinkage back.
+##
+fn_ps7_metric_per_iteration_file_name_code <-  function(settings) {
+
+        if (!identical(settings$metric_estimator, "per_iteration")) return("")
+        ##
+        validated_metric_pooled_settings <-  fn_ps7_validate_metric_pooled_settings(settings = settings)
+        metric_pooled_offdiagonal_shrinkage_validated <-  validated_metric_pooled_settings$metric_pooled_offdiagonal_shrinkage
+        ##
+        if (is.numeric(metric_pooled_offdiagonal_shrinkage_validated) && metric_pooled_offdiagonal_shrinkage_validated == 0) return("")
+        ##
+        return(if (identical(metric_pooled_offdiagonal_shrinkage_validated, "adaptive")) "A" else
+                   R_fn_enc_num(metric_pooled_offdiagonal_shrinkage_validated))
+
+}
+##
 R_fn_map_M_dcy <-  c(inverse = "inv",
                     exponential = "exp",
                     constant = "con",
@@ -567,6 +1401,104 @@ fn_ps7_resolve_burnin_schedule <-  function(settings) {
         settings
 }
 ##
+
+##
+## ---- Recorded trajectory-criterion options and non-default filename tokens -----------------------------------------------------------
+##
+fn_ps7_recorded_trajectory_options <-  function(settings) {
+
+        recorded_legacy_values <-  list(tau_gradient_estimator = "forward",
+                                       tau_cost_exponent = 1,
+                                       esjd_jump_power = 2,
+                                       tau_jitter_burnin = "uniform",
+                                       ## LQ_ESSR only: parameter families the criterion monitors (NULL = all rows; "_io" file token):
+                                       interest_only = NULL)
+        options <-  lapply(names(recorded_legacy_values), function(option_name) {
+                if (is.null(settings[[option_name]])) recorded_legacy_values[[option_name]] else settings[[option_name]]
+        })
+        names(options) <-  names(recorded_legacy_values)
+        if (!is.character(options$tau_gradient_estimator) || length(options$tau_gradient_estimator) != 1 ||
+            is.na(options$tau_gradient_estimator) || !options$tau_gradient_estimator %in% c("forward", "two_ended")) {
+                stop("tau_gradient_estimator must be 'forward' or 'two_ended'.")
+        }
+        if (!is.numeric(options$tau_cost_exponent) || length(options$tau_cost_exponent) != 1 ||
+            !is.finite(options$tau_cost_exponent) || options$tau_cost_exponent < 0 || options$tau_cost_exponent > 1.5) {
+                stop("tau_cost_exponent must be a finite number in [0, 1.5].")
+        }
+        if (!is.numeric(options$esjd_jump_power) || length(options$esjd_jump_power) != 1 ||
+            !is.finite(options$esjd_jump_power) || !options$esjd_jump_power %in% c(2, 3, 4)) {
+                stop("esjd_jump_power must be 2, 3 or 4.")
+        }
+        if (!is.character(options$tau_jitter_burnin) || length(options$tau_jitter_burnin) != 1 ||
+            is.na(options$tau_jitter_burnin) || !options$tau_jitter_burnin %in% c("uniform", "halton")) {
+                stop("tau_jitter_burnin must be 'uniform' or 'halton'.")
+        }
+        algorithm <-  if (is.null(settings$burnin_algorithm)) "KE" else fn_ps7_normalise_burnin_algorithm(settings$burnin_algorithm)
+        if (options$tau_cost_exponent != 1 && algorithm %in% c("KE", "ChEES", "CHESSR_log", "CHESSR_time", "SNAPER_time")) {
+                stop("This criterion requires the legacy tau_cost_exponent value 1.")
+        }
+        if (options$esjd_jump_power != 2 && !algorithm %in% c("ESJD", "ESJD_CHESSR", "ESJD_SNAPER")) {
+                stop("esjd_jump_power is applied only by the ESJD family; other criteria require 2.")
+        }
+        if (algorithm == "KE" && options$tau_gradient_estimator != "forward") stop("KE requires the forward trajectory-criterion estimator.")
+        if (!is.null(options$interest_only)) {
+                if (!is.character(options$interest_only) || length(options$interest_only) < 1 || anyNA(options$interest_only)) {
+                        stop("interest_only must be NULL or a character vector of parameter family names, e.g. c(\"beta\", \"p_raw\").")
+                }
+                if (algorithm != "LQ_ESSR") stop("interest_only is used only by burnin_algorithm = 'LQ_ESSR'.")
+                ## the third choice of the criterion's parameters (main = the 44 main parameters, joint = every parameter):
+                if (identical(settings$tau_adaptation_block, "joint")) stop("interest_only is its own choice of parameters; run it with tau_adaptation_block = 'main'.")
+        }
+        if (options$tau_jitter_burnin == "halton" && !isTRUE(settings$randomize_tau_burnin)) {
+                stop("Halton burn-in jitter requires randomize_tau_burnin = TRUE.")
+        }
+        options$tau_cost_exponent <-  as.numeric(options$tau_cost_exponent)
+        options$esjd_jump_power <-  as.numeric(options$esjd_jump_power)
+        return(options)
+
+}
+
+
+
+
+fn_ps7_trajectory_option_arguments <-  function(settings) {
+
+        options <-  fn_ps7_recorded_trajectory_options(settings)
+        # changed <-  c(options$tau_gradient_estimator != "forward",
+        #               options$tau_cost_exponent != 1,
+        #               options$esjd_jump_power != 2,
+        #               options$tau_jitter_burnin != "uniform")
+        # return(options[changed])
+        ##
+        ## ---- all four options are passed every time: R_fn_sample_model is internal and has no defaults, so a run with the
+        ##      default values must still pass them (the file name carries only the non-default ones):
+        return(options)
+
+}
+
+
+
+
+fn_ps7_trajectory_option_file_name_code <-  function(settings) {
+
+        options <-  fn_ps7_recorded_trajectory_options(settings)
+        for (precision in seq_len(17)) {
+              cost_exponent_code <-  trimws(formatC(options$tau_cost_exponent, format = "g", digits = precision))
+              if (identical(as.numeric(cost_exponent_code), as.numeric(options$tau_cost_exponent))) break
+        }
+        cost_exponent_code <-  sub(pattern = "^0\\.", replacement = ".", x = cost_exponent_code)
+        cost_exponent_code <-  sub(pattern = "e([-+])0+([0-9]+)$", replacement = "e\\1\\2", x = cost_exponent_code)
+        return(paste0(if (options$tau_gradient_estimator != "forward") "_tg2" else "",
+                      if (options$tau_cost_exponent != 1) paste0("_tc", cost_exponent_code) else "",
+                      if (options$esjd_jump_power != 2) paste0("_jb", options$esjd_jump_power) else "",
+                      if (options$tau_jitter_burnin != "uniform") "_tjH" else "",
+                      ## interest_only: "_io" + the first letter of each family, sorted (c("beta", "p_raw") -> "_iobp"):
+                      if (!is.null(options$interest_only)) paste0("_io", paste(substr(sort(options$interest_only), 1, 1), collapse = "")) else ""))
+
+}
+
+
+
 R_fn_file_name_string <-  function(Model_type,
                                   N,
                                   settings,
@@ -624,7 +1556,23 @@ R_fn_file_name_string <-  function(Model_type,
                              "pre_burnin_L", "share_tau_ii_across_chains_in_burnin", "burnin_TBB_pool_equals_n_chains",
                              "J_grad_option", "autodiff_fallback", "theta_hat_us_freeze_iter", "store_log_lik_trace",
                              "burnin_schedule", "metric_adaptation_end_iter", "n_adapt",
-                             "tau_sampling_scale", "randomize_tau_burnin", "tau_adam_bias_correction", "tau_adaptation_block")
+                             ## "tau_sampling_scale", "randomize_tau_burnin", "tau_adam_bias_correction", "tau_adaptation_block")
+                             "tau_sampling_scale", "randomize_tau_burnin", "tau_adam_bias_correction", "tau_adaptation_block",
+                             ## (metric_pooled_window_resets is not here: one run may reset at several iterations; it is checked
+                             ##  by fn_ps7_validate_metric_pooled_settings below)
+                             ## "eps_acceptance_mean", "tau_shrink_on_divergence")
+                             ## "eps_acceptance_mean", "tau_shrink_on_divergence", "metric_pooled_offdiagonal_shrinkage")
+                             "eps_acceptance_mean", "tau_shrink_on_divergence", "metric_pooled_offdiagonal_shrinkage",
+                             ## ADAM settings of the eps and the tau updates ("_A" code, fn_ps7_adam_file_name_code):
+                             "eps_adam_beta1", "eps_adam_beta2", "eps_adam_epsilon", "tau_adam_beta1", "tau_adam_beta2", "tau_adam_epsilon",
+                             "tau_learning_rate_restart_at_metric_end", "tau_adaptation_scheme",
+                             "tau_gradient_estimator", "tau_cost_exponent", "esjd_jump_power", "tau_jitter_burnin",
+                             ## time-criterion settings of CHESSR_time / SNAPER_time (sampling_timing_probe_L_values,
+                             ## time_criterion_previous_run_path and time_criterion_ess_parameter_set may hold several values;
+                             ## fn_ps7_validate_time_criterion_settings checks them):
+                             "run_sampling_timing_probe", "sampling_timing_probe_n_iter_per_L", "n_iter_sampling_for_time_criterion_source",
+                             "ESS_target_for_time_criterion", "ESS_per_iter_sampling_expected",
+                             "time_per_leapfrog_step_sampling", "time_per_iter_overhead_sampling", "time_per_iter_summaries_sampling")
         for (field in scalar_settings) {
             value <-  settings[[field]]
             if (!is.null(value) && length(value) != 1L) {
@@ -637,6 +1585,9 @@ R_fn_file_name_string <-  function(Model_type,
             }
         }
         ##
+        ## ---- tau_initial: a number or "adaptive"; a numeric level that arrives as text (a character grid column) is restored exactly:
+        if (!is.null(settings$tau_initial)) settings$tau_initial <-  fn_ps7_tau_initial_value(settings$tau_initial)
+        ##
         if (!is.null(settings$store_log_lik_trace) &&
             (!is.logical(settings$store_log_lik_trace) || is.na(settings$store_log_lik_trace))) {
             stop("settings$store_log_lik_trace must be TRUE or FALSE (NULL/missing keeps the PS7 default, FALSE).")
@@ -646,6 +1597,9 @@ R_fn_file_name_string <-  function(Model_type,
             (!is.logical(settings$autodiff_fallback) || is.na(settings$autodiff_fallback))) {
             stop("settings$autodiff_fallback must be a single TRUE or FALSE.")
         }
+        ##
+        ## pooled metric estimator settings (inert for "chain_mean" / "chain_mean_scaled", but a bad value still stops here):
+        invisible(fn_ps7_validate_metric_pooled_settings(settings = settings))
         ##
         settings <-  fn_ps7_resolve_burnin_schedule(settings = settings)
         theta_hat_us_freeze_iter <-  settings$theta_hat_us_freeze_iter
@@ -665,7 +1619,10 @@ R_fn_file_name_string <-  function(Model_type,
                                                                       "_np", model_args_list$n_pops,
                                                                       ## Corrected ramp, tau optimiser clock and squared-KE objective.
                                                                       ## Never resume a pre-fix run under the corrected adaptation.
-                                                                      if (development_algorithm) "_ta4" else "_ta2",
+                                                                      ## "_ta5" / "_ta6" / "_ta7" = the step-size acceptance mean and divergence tau shrink pairs
+                                                                      ## (see fn_ps7_tau_adaptation_version_token); "_ta4" = the pair every earlier run used.
+                                                                      ## if (development_algorithm) "_ta4" else "_ta2",
+                                                                      if (development_algorithm) fn_ps7_tau_adaptation_version_token(settings = settings) else "_ta2",
                                                                       settings$resolved_burnin_schedule$filename_token,
                                                                       ##
                                                                       "_dH", R_fn_enc_lgl(settings$diffusion_HMC),
@@ -676,7 +1633,11 @@ R_fn_file_name_string <-  function(Model_type,
                                                                       R_fn_enc_dHMC_int(settings$diffusion_HMC_integrator),
                                                                       ##
                                                                       ## trajectory-length adaptation; all "" at the original ChESSR settings:
-                                                                      if (development_algorithm) fn_ps7_encode_burnin_algorithm(settings$burnin_algorithm) else
+                                                                      ## if (development_algorithm) fn_ps7_encode_burnin_algorithm(settings$burnin_algorithm) else
+                                                                      ## (non-default time-criterion settings of CHESSR_time / SNAPER_time: "_bac<4 hex>" / "_bas<4 hex>")
+                                                                      if (development_algorithm) fn_ps7_encode_burnin_algorithm(burnin_algorithm = settings$burnin_algorithm,
+                                                                                                                                 time_criterion_settings_hash = fn_ps7_time_criterion_settings_hash(
+                                                                                                                                     fn_ps7_effective_time_criterion_settings(settings = settings, N = N, Model_type = Model_type))) else
                                                                           R_fn_enc_tau_obj(settings$burnin_algorithm),
                                                                       R_fn_enc_tau_wt(settings$tau_weight_by_p_jump),
                                                                       R_fn_enc_manual_L(settings$manual_L),
@@ -695,7 +1656,17 @@ R_fn_file_name_string <-  function(Model_type,
                                                                       "_it", settings$n_iter,
                                                                       "_LR", R_fn_enc_num(settings$learning_rate),
                                                                       "_AD", R_fn_enc_num(settings$adapt_delta),
-                                                                      "_ti", if (identical(settings$tau_initial, pi)) "pi" else
+                                                                      ## "_tiA" = tau_initial "adaptive" (tau set at the handover from the eigenvalue estimate):
+                                                                      ## "_ti", if (identical(settings$tau_initial, pi)) "pi" else
+                                                                      ## "_ti", if (identical(settings$tau_initial, "adaptive")) "A" else
+                                                                      ## "_tiAw.5" = adaptive with lambda_max from the last half of [clip_iter, handover] (no "w" = all of it):
+                                                                      ## "_tiAall" = all iterations from 1 to the handover; historical window codes are unchanged.
+                                                                      "_ti", if (identical(settings$tau_initial, "adaptive"))
+                                                                                  if (identical(settings$tau_initial_moments_window_fraction, "all")) "Aall" else
+                                                                                  paste0("A", if (!is.null(settings$tau_initial_moments_window_fraction) &&
+                                                                                                    settings$tau_initial_moments_window_fraction != 1)
+                                                                                                    paste0("w", R_fn_enc_num(settings$tau_initial_moments_window_fraction)) else "") else
+                                                                          if (identical(settings$tau_initial, pi)) "pi" else
                                                                           if (identical(settings$tau_initial, 2*pi)) "2pi" else
                                                                           ## New schedule names need room for their boundary token; do not rename legacy pi/2 files.
                                                                           if (!is.null(settings$resolved_burnin_schedule) && identical(settings$tau_initial, pi/2)) "hpi" else
@@ -741,9 +1712,22 @@ R_fn_file_name_string <-  function(Model_type,
         }
         ##
         if (settings$metric_estimator == "pooled") { 
-          file_name_string <-  paste0(file_name_string, "_Mp")
+          ## "_Mp" + the pooled-estimator code (fn_ps7_metric_pooled_file_name_code): nothing for "stan_style" resets with
+          ## off-diagonal shrinkage 0 (every earlier run, and any settings list without the two fields, whose name is therefore
+          ## unchanged), e.g. "_Mp.5w" for "none" / 0.5:
+          ## file_name_string <-  paste0(file_name_string, "_Mp")
+          file_name_string <-  paste0(file_name_string, "_Mp", fn_ps7_metric_pooled_file_name_code(settings = settings))
         } else if (settings$metric_estimator == "chain_mean_scaled") {
           file_name_string <-  paste0(file_name_string, "_Ms")     ## chain-mean variance x n_chains_burnin
+        }
+        ## "_Mi" = "per_iteration" (the cross-chain (co)variance of each iteration's draws, blended into the metric with ratio_M), followed
+        ## by the off-diagonal shrinkage when it is not 0 (fn_ps7_metric_per_iteration_file_name_code), e.g. "_Mi1". Any other value would
+        ## be saved under a "chain_mean" name (no code), so it stops here:
+        if (identical(settings$metric_estimator, "per_iteration")) {
+          file_name_string <-  paste0(file_name_string, "_Mi", fn_ps7_metric_per_iteration_file_name_code(settings = settings))
+        } else if (!settings$metric_estimator %in% c("pooled", "chain_mean", "chain_mean_scaled")) {
+          stop(paste0("R_fn_file_name_string: metric_estimator must be 'pooled', 'chain_mean', 'chain_mean_scaled' or 'per_iteration'; got: ",
+                      paste(as.character(settings$metric_estimator), collapse = ", ")))
         }
         ##
         ## A fixed (user-supplied) test order, e.g. "_tp546132"; absent = order estimated by the pre-burnin:
@@ -820,18 +1804,37 @@ R_fn_file_name_string <-  function(Model_type,
           } else if (is.numeric(tau_sampling_scale_effective)) {
             file_name_string <-  paste0(file_name_string, "_ts", R_fn_enc_num(tau_sampling_scale_effective))
           }
-          if (identical(validated_tau_jitter_settings$tau_adam_bias_correction, "performed_update_counter")) {
+          ## ---- ADAM settings: "_A<codes>" INSTEAD of "_ab1" (in its place) when any of them is not the default of every earlier
+          ##      run; "" at those defaults, so those names keep "_ab1" (see fn_ps7_adam_file_name_code):
+          adam_file_name_code <-  fn_ps7_adam_file_name_code(settings = settings)
+          # if (identical(validated_tau_jitter_settings$tau_adam_bias_correction, "performed_update_counter")) {
+          if (identical(validated_tau_jitter_settings$tau_adam_bias_correction, "performed_update_counter") && !nzchar(adam_file_name_code)) {
             file_name_string <-  paste0(file_name_string, "_ab1")
+          }
+          if (nzchar(adam_file_name_code)) {
+            file_name_string <-  paste0(file_name_string, "_A",
+                                       if (identical(validated_tau_jitter_settings$tau_adam_bias_correction, "iteration_index")) "i" else "",
+                                       adam_file_name_code)
           }
           if (identical(tau_adaptation_block_effective, "joint")) {
             file_name_string <-  paste0(file_name_string, "_tbJ")
           }
         }
         ##
+        ## ---- Step-size acceptance mean / divergence-triggered tau shrink: carried by the "_ta" digit above (no bytes added).
+        ##      A legacy "_ta2" name has no version to carry them, so only the pair of every earlier run is accepted there:
+        ##
+        if (!development_algorithm &&
+            !identical(fn_ps7_tau_adaptation_version_token(settings = utils::modifyList(x = settings, val = list(burnin_algorithm = NULL))), "_ta4")) {
+          stop("R_fn_file_name_string: a legacy (\"_ta2\") name cannot encode eps_acceptance_mean / tau_shrink_on_divergence; ",
+               "set burnin_algorithm, or eps_acceptance_mean = 'arithmetic' with tau_shrink_on_divergence = TRUE.")
+        }
+        ##
         ## ---- Guard: NAME_MAX is 255 BYTES per path component. Reserve 6 for the "_runNN"
         ##      suffix. Fails HERE (before the resume check) rather than at saveRDS after a
         ##      run has already completed and is about to be thrown away:
         ##
+        file_name_string <-  paste0(file_name_string, fn_ps7_trajectory_option_file_name_code(settings = settings))
         nb <-  nchar(basename(file_name_string), type = "bytes")
         ##
         ## ---- If the name is too long and the initial LR is just the LR (learning_rate_initial = NULL in the runner),
@@ -841,6 +1844,43 @@ R_fn_file_name_string <-  function(Model_type,
             isTRUE(abs(as.numeric(settings$learning_rate_initial) - as.numeric(settings$learning_rate)) < 1e-12)) {
           file_name_string <-  sub(pattern = paste0("_Li", R_fn_enc_num(settings$learning_rate_initial), "_d_"), replacement = "_LiLR_",
                                    x = file_name_string, fixed = TRUE)
+          nb <-  nchar(basename(file_name_string), type = "bytes")
+        }
+        ##
+        ## ---- Still too long (e.g. an "_A" ADAM code on a name already at the limit): three lossless short forms, applied together and
+        ##      only here, so every name that already fits (i.e. every run saved so far) is unchanged. fn_ps7_parse_run_name() reads
+        ##      none of these segments:
+        ##        "_rM<r>_<r>_"             -> "_rM<r>_"     when ratio_M_main = ratio_M_nuisance    (e.g. "_rM.9_.9_" -> "_rM.9_");
+        ##        "_LKJ<a>_<a>_"            -> "_LKJ<a>_"    when prior_LKJ_nd = prior_LKJ_d          (e.g. "_LKJ4_4_"  -> "_LKJ4_");
+        ##        "_md<inv|exp|con|non>_"   -> "_md<i|e|c|n>_"  (M_decay_type)                          (e.g. "_mdinv_"   -> "_mdi_").
+        ##
+        if (nb > 249) {
+          if (isTRUE(settings$ratio_M_main == settings$ratio_M_nuisance)) {
+            file_name_string <-  sub(pattern = paste0("_rM", R_fn_enc_num(settings$ratio_M_main), "_", R_fn_enc_num(settings$ratio_M_nuisance), "_"),
+                                     replacement = paste0("_rM", R_fn_enc_num(settings$ratio_M_main), "_"),
+                                     x = file_name_string, fixed = TRUE)
+          }
+          if (isTRUE(prior_LKJ_nd == prior_LKJ_d)) {
+            file_name_string <-  sub(pattern = paste0("_LKJ", prior_LKJ_nd, "_", prior_LKJ_d, "_"),
+                                     replacement = paste0("_LKJ", prior_LKJ_nd, "_"),
+                                     x = file_name_string, fixed = TRUE)
+          }
+          M_decay_type_code <-  R_fn_enc_map(settings$M_decay_type, R_fn_map_M_dcy)
+          M_decay_type_short_code <-  unname(c(inv = "i", exp = "e", con = "c", non = "n")[M_decay_type_code])
+          if (length(M_decay_type_short_code) == 1 && !is.na(M_decay_type_short_code)) {
+            file_name_string <-  sub(pattern = paste0("_md", M_decay_type_code, "_"),
+                                     replacement = paste0("_md", M_decay_type_short_code, "_"),
+                                     x = file_name_string, fixed = TRUE)
+          }
+          nb <-  nchar(basename(file_name_string), type = "bytes")
+        }
+        ##
+        ## ---- Still too long after those three (e.g. "_tc.75_jb3" with "_LR.0125"): one more lossless short form, again applied only
+        ##      here, so every name that already fits is unchanged. fn_ps7_parse_run_name() does not read this segment either:
+        ##        "_dH<d>_pH<p>_"           -> "_dH<d>pH<p>_"  (diffusion_HMC / partitioned_HMC flags)  (e.g. "_dH1_pH0_" -> "_dH1pH0_").
+        ##
+        if (nb > 249) {
+          file_name_string <-  sub(pattern = "_dH([01])_pH([01])_", replacement = "_dH\\1pH\\2_", x = file_name_string)
           nb <-  nchar(basename(file_name_string), type = "bytes")
         }
         if (nb > 249) {
@@ -901,6 +1941,8 @@ fn_ps7_format_seconds <-  function(x) {
         if (length(x) == 1 && is.numeric(x) && is.finite(x)) formatC(x, format = "f", digits = 2) else "NA"
 }
 ##
+## ----------------------------------------------------------------------------------------------------------------------------------
+##
 run_ps7_models <-  function( Model_type,
                             N,
                             y,
@@ -926,9 +1968,14 @@ run_ps7_models <-  function( Model_type,
   
         require(BayesMVP)
         if (is.null(settings$burnin_algorithm)) {
-            stop("New PS7 runs require settings$burnin_algorithm. Legacy tau_objective settings remain readable through the filename/result readers.")
+            stop("New PS7 runs require settings$burnin_algorithm. 
+                 Legacy tau_objective settings remain readable through the filename/result readers.")
         }
         settings$vect_type <-  vect_type
+        ##
+        ## ---- tau_initial: a number or "adaptive" (see fn_ps7_tau_initial_value); the file name, the sampler call and the
+        ##      requested/reported check below all read this one value:
+        if (length(settings$tau_initial) == 1) settings$tau_initial <-  fn_ps7_tau_initial_value(settings$tau_initial)
         ##
         cat(paste0("\n========== PS7 Phase 1: Running models for N = ", formatC(as.integer(N), format = "d"), " ==========\n"))
         if (!is.null(settings$burnin_post_adapt_iter)) {
@@ -936,6 +1983,48 @@ run_ps7_models <-  function( Model_type,
         }
         ## Older callers omitted this setting because PS7 hard-coded FALSE in the sampler call.
         if (is.null(settings$store_log_lik_trace)) settings$store_log_lik_trace <-  FALSE
+        ##
+        ## ---- ADAM settings of the NicoStan burn-in, separately for the step-size (eps) and the trajectory-length (tau) update: set in the
+        ##      runner's settings block (ps7_settings) and read here, before the resume check builds the file name. The same values go to
+        ##      the NicoStan options set just before the sampler call, to the file name ("_A" code) and to the saved settings:
+        ##
+        adam_setting_names <-  c("eps_adam_beta1", "eps_adam_beta2", "eps_adam_epsilon", 
+                                 "tau_adam_beta1", "tau_adam_beta2", "tau_adam_epsilon",
+                                 "tau_learning_rate_restart_at_metric_end")
+        ## a runner session started before tau_adaptation_scheme existed runs the scheme it always ran:
+        if (is.null(settings$tau_adaptation_scheme)) settings$tau_adaptation_scheme <-  "adam_decay"
+        if (!all(adam_setting_names %in% names(settings)) || any(vapply(settings[adam_setting_names],
+                                                                        function(value) length(value) != 1 || is.na(value), FALSE))) {
+            stop("ADAM settings missing (", 
+                 paste(adam_setting_names, collapse = ", "), 
+                 "): re-source the runner (they are set in its settings block).")
+        }
+        ps7_eps_adam_beta1   <-  settings$eps_adam_beta1
+        ps7_eps_adam_beta2   <-  settings$eps_adam_beta2
+        ps7_eps_adam_epsilon <-  settings$eps_adam_epsilon
+        ps7_tau_adam_beta1   <-  settings$tau_adam_beta1
+        ps7_tau_adam_beta2   <-  settings$tau_adam_beta2
+        ps7_tau_adam_epsilon <-  settings$tau_adam_epsilon
+        ps7_tau_learning_rate_restart_at_metric_end <-  settings$tau_learning_rate_restart_at_metric_end
+        ps7_tau_adaptation_scheme <-  settings$tau_adaptation_scheme
+        adam_settings_requested <-  fn_ps7_effective_adam_settings(settings = settings)
+        message(BayesMVP:::colourise(paste0("ADAM: eps beta1 = ", adam_settings_requested$eps_adam_beta1, ", beta2 = ", 
+                                            adam_settings_requested$eps_adam_beta2,
+                                            ", denominator constant = ", adam_settings_requested$eps_adam_epsilon,
+                                            " | tau beta1 = ", adam_settings_requested$tau_adam_beta1, ", beta2 = ", 
+                                            adam_settings_requested$tau_adam_beta2,
+                                            ", denominator constant = ", adam_settings_requested$tau_adam_epsilon,
+                                            " | tau learning-rate restart at the metric freeze = ",
+                                            adam_settings_requested$tau_learning_rate_restart_at_metric_end,
+                                            " | tau adaptation scheme = ", adam_settings_requested$tau_adaptation_scheme,
+                                            " | file-name code: ", { adam_code_for_message <-  fn_ps7_adam_file_name_code(settings = settings)
+                                                                     if (nzchar(adam_code_for_message)) paste0("_A", adam_code_for_message) else "none (_ab1)" }), "cyan"))
+        ## the NicoStan ADAM options are set before every sampler call and restored when run_ps7_models() returns:
+        NicoStan_adam_option_names <-  c("NicoStan_eps_adam_beta1", "NicoStan_eps_adam_beta2", "NicoStan_eps_adam_epsilon",
+                                         "NicoStan_tau_adam_beta1", "NicoStan_tau_adam_beta2", "NicoStan_tau_adam_epsilon",
+                                         "NicoStan_tau_learning_rate_restart_at_metric_end", "NicoStan_tau_adaptation_scheme")
+        previous_NicoStan_adam_options <-  stats::setNames(lapply(NicoStan_adam_option_names, getOption), NicoStan_adam_option_names)
+        on.exit(expr = options(previous_NicoStan_adam_options), add = TRUE)
         ## Snapshot once for resume, fitting and saving. An explicit saved setting takes precedence over the session option.
         if (is.null(settings$autodiff_fallback)) {
             settings$autodiff_fallback <-  getOption(x = "BayesMVP_autodiff_fallback", default = FALSE)
@@ -1048,12 +2137,27 @@ run_ps7_models <-  function( Model_type,
               settings$num_chunks_burnin    <-  10 ## -------------------------------------------------------------------------------------
               settings$num_chunks_sampling  <-  10 ## -------------------------------------------------------------------------------------
         } else if (N == 2500) { 
-              settings$n_chains_burnin <-  8 ## -------------------------------------------
+              settings$n_chains_burnin <-  4 ## -------------------------------------------
+              ##
               settings$n_threads_WCP_burnin <-  8  ## ---- from PS1 (burnin part)
               settings$num_chunks_burnin    <-  10 ## ---- from PS1 (burnin part)
+              settings$num_chunks_sampling  <-  10
         } else if (N == 500) { 
               settings$n_threads_WCP_burnin <-  2 ## ---- from PS1 (burnin part)
               settings$num_chunks_burnin    <-  2 ## ---- from PS1 (burnin part)
+        }
+        ##
+        ## ---- Burn-in chain count override (2026-09-30): environment variable PS7_N_CHAINS_BURNIN_OVERRIDE (unset = the settings above).
+        ##      Used to test whether more burn-in chains change the tau adaptation; the WCP threads per chain are reduced so that the
+        ##      burn-in stays within the machine's threads (180 on the local-HPC, 16 on the laptop):
+        ps7_n_chains_burnin_override <-  Sys.getenv("PS7_N_CHAINS_BURNIN_OVERRIDE", unset = "")
+        if (nzchar(ps7_n_chains_burnin_override)) {
+              settings$n_chains_burnin <-  as.numeric(ps7_n_chains_burnin_override)
+              ps7_total_burnin_threads <-  if (parallel::detectCores() > 16) 180 else 16
+              settings$n_threads_WCP_burnin <-  max(1, min(floor(ps7_total_burnin_threads / settings$n_chains_burnin), settings$num_chunks_burnin))
+              message(BayesMVP:::colourise(paste0("PS7_N_CHAINS_BURNIN_OVERRIDE: n_chains_burnin = ", settings$n_chains_burnin,
+                                                  ", n_threads_WCP_burnin = ", settings$n_threads_WCP_burnin,
+                                                  " (", settings$n_chains_burnin * settings$n_threads_WCP_burnin, " threads)"), "cyan"))
         }
         ##
         if (!is.null(num_chunks_burnin_user))   settings$num_chunks_burnin   <-  num_chunks_burnin_user
@@ -1101,6 +2205,60 @@ run_ps7_models <-  function( Model_type,
         print(paste("clip_iter = ", settings$clip_iter))
         print(paste("int = ", settings$int))
         ##
+        ## ---- time-criterion settings of CHESSR_time / SNAPER_time ("_bact" / "_bast"): keep only the EFFECTIVE values in the
+        ##      settings (see fn_ps7_effective_time_criterion_settings), so the file name, the sampler arguments and the saved settings
+        ##      agree, and every time-criterion field is absent from the settings of every other algorithm (whose saved settings
+        ##      are therefore unchanged):
+        ##
+        {
+            effective_time_criterion_settings <-  fn_ps7_effective_time_criterion_settings(settings = settings, N = N, Model_type = Model_type)
+            for (time_criterion_setting_name in ps7_time_criterion_setting_names) {
+                settings[[time_criterion_setting_name]] <-  NULL   ## removes the element (no named NULL is left behind)
+            }
+            if (!is.null(effective_time_criterion_settings)) {
+                for (time_criterion_setting_name in names(effective_time_criterion_settings)) {
+                    if (!is.null(effective_time_criterion_settings[[time_criterion_setting_name]])) {
+                        settings[[time_criterion_setting_name]] <-  effective_time_criterion_settings[[time_criterion_setting_name]]
+                    }
+                }
+                if (!is.null(settings$time_criterion_previous_run_path) && !all(file.exists(settings$time_criterion_previous_run_path))) {
+                    stop(paste0("time_criterion_previous_run_path: no saved run at ",
+                                paste(settings$time_criterion_previous_run_path[!file.exists(settings$time_criterion_previous_run_path)],
+                                      collapse = ", ")))
+                }
+                ##
+                ## ---- the previous runs must be of this model, N and sampling configuration: their sampling times are used as this run's.
+                ##      (n_iter need not match: every quantity taken from them is per sampling iteration. A setting that is NULL here, e.g.
+                ##      num_chunks_sampling left to the sampler, is not compared.)
+                ##
+                if (!is.null(settings$time_criterion_previous_run_path)) {
+                    previous_run_names_parsed <-  dplyr::bind_rows(lapply(X = basename(settings$time_criterion_previous_run_path), 
+                                                                          FUN = fn_ps7_parse_run_name))
+                    current_run_configuration <-  list(model_type             = Model_type,
+                                                       N                      = N,
+                                                       n_chains_sampling      = settings$n_chains_sampling,
+                                                       n_threads_WCP_sampling = settings$n_threads_WCP_sampling,
+                                                       num_chunks_sampling    = settings$num_chunks_sampling)
+                    for (configuration_name in names(current_run_configuration)) {
+                        if (is.null(current_run_configuration[[configuration_name]])) next
+                        previous_run_values <-  previous_run_names_parsed[[configuration_name]]
+                        current_value <-  current_run_configuration[[configuration_name]]
+                        values_differ <-  if (is.numeric(previous_run_values)) {
+                            is.na(previous_run_values) | previous_run_values != as.numeric(current_value)
+                        } else {
+                            is.na(previous_run_values) | previous_run_values != as.character(current_value)
+                        }
+                        if (any(values_differ)) {
+                            stop(paste0("time_criterion_previous_run_path: ", configuration_name, " of this run is ", current_value, ", but ",
+                                        paste(basename(settings$time_criterion_previous_run_path)[values_differ], collapse = ", "),
+                                        " has ", paste(previous_run_values[values_differ], collapse = ", "),
+                                        ". Use saved runs of the same model, N and sampling configuration."))
+                        }
+                    }
+                }
+            }
+        }
+        ##
         file_name_string_check <-  R_fn_file_name_string( Model_type = Model_type,
                                                          N = N,
                                                          settings = settings,
@@ -1131,6 +2289,16 @@ run_ps7_models <-  function( Model_type,
               if (file.exists(run_file)) {
                 existing_runs <-  c(existing_runs, run_i)
                 all_runs_results[[run_i]] <-  readRDS(run_file)
+                ## CHESSR_time / SNAPER_time: the 4-digit settings hash of "_bac<4 hex>" / "_bas<4 hex>" could in principle be shared
+                ## by two different settings texts, so a saved run is resumed only when its own text is the current one:
+                if (!is.null(effective_time_criterion_settings) &&
+                    !identical(all_runs_results[[run_i]]$time_criterion_inputs$time_criterion_settings_text,
+                               fn_ps7_time_criterion_settings_text(effective_time_criterion_settings = effective_time_criterion_settings))) {
+                    stop(paste0("The saved run ", basename(run_file), " was fitted with the time-criterion settings '",
+                                paste(all_runs_results[[run_i]]$time_criterion_inputs$time_criterion_settings_text, collapse = ""),
+                                "', not the current '", paste(fn_ps7_time_criterion_settings_text(effective_time_criterion_settings), collapse = ""),
+                                "' (the same 4-digit hash); move that run elsewhere before fitting these settings."))
+                }
                 if (isTRUE(settings$debug_burnin_timing) && is.null(all_runs_results[[run_i]]$sampler_diagnostics$burnin_profile)) {
                     warning("Loaded existing run without burn-in timing diagnostics: ", run_file,
                             ". Use a separate output directory for new profiled runs.", call. = FALSE)
@@ -1604,8 +2772,15 @@ run_ps7_models <-  function( Model_type,
               burnin_algorithm = if (is.null(settings$burnin_algorithm)) "KE" else settings$burnin_algorithm)
           tau_weight_by_p_jump_used <-  isTRUE(settings$tau_weight_by_p_jump)
           ##
-          if (!burnin_algorithm_used %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER")) {
-              stop("settings$burnin_algorithm must be 'KE', 'ChEES', 'CHESSR', 'CHESSR_log' or 'SNAPER'; got: ", burnin_algorithm_used)
+          ## if (!burnin_algorithm_used %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER")) {
+              ## stop("settings$burnin_algorithm must be 'KE', 'ChEES', 'CHESSR', 'CHESSR_log' or 'SNAPER'; got: ", burnin_algorithm_used)
+          ## if (!burnin_algorithm_used %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time")) {
+              ## stop("settings$burnin_algorithm must be 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time' or 'SNAPER_time'; got: ", burnin_algorithm_used)
+          ## if (!burnin_algorithm_used %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time", "ESJD", "ESJD_CHESSR", "ESJD_SNAPER")) {
+          if (!burnin_algorithm_used %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time", "ESJD", "ESJD_CHESSR",
+                                            "ESJD_SNAPER", "LQ_ESSR")) {
+              stop("settings$burnin_algorithm must be 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time', 'SNAPER_time', 'ESJD', 'ESJD_CHESSR', ",
+                   "'ESJD_SNAPER' or 'LQ_ESSR'; got: ", burnin_algorithm_used)
           }
           #
           # model_args_list$vect_type <-  "Stan"
@@ -1711,10 +2886,100 @@ run_ps7_models <-  function( Model_type,
               if (!"tau_adaptation_block" %in% names(formals(BayesMVP::R_fn_sample_model))) {
                   stop("This NicoStan / BayesMVP build has no tau_adaptation_block argument; reinstall NicoStan and BayesMVP together, restart R.")
               }
+              ## step-size acceptance mean and divergence-triggered tau shrink ("_ta" digit), checked BEFORE the fit,
+              ## so an older build stops here instead of after a completed run:
+              validated_eps_tau_shrink_settings <-  fn_ps7_validate_eps_tau_shrink_settings(settings = settings)
+              eps_acceptance_mean_requested <-  validated_eps_tau_shrink_settings$eps_acceptance_mean
+              tau_shrink_on_divergence_requested <-  validated_eps_tau_shrink_settings$tau_shrink_on_divergence
+              if (!all(c("eps_acceptance_mean", "tau_shrink_on_divergence") %in% names(formals(BayesMVP::R_fn_sample_model)))) {
+                  stop("This NicoStan / BayesMVP build has no eps_acceptance_mean / tau_shrink_on_divergence argument; reinstall NicoStan and BayesMVP together, restart R.")
+              }
+              ## pooled metric estimator: window resets and off-diagonal shrinkage (the "_Mp" code), checked BEFORE the fit, so an
+              ## older build stops here instead of after a completed run. Passed for every estimator; only "pooled" reads them:
+              validated_metric_pooled_settings <-  fn_ps7_validate_metric_pooled_settings(settings = settings)
+              metric_pooled_window_resets_requested <-  validated_metric_pooled_settings$metric_pooled_window_resets
+              metric_pooled_offdiagonal_shrinkage_requested <-  validated_metric_pooled_settings$metric_pooled_offdiagonal_shrinkage
+              if (!all(c("metric_pooled_window_resets", "metric_pooled_offdiagonal_shrinkage") %in% names(formals(BayesMVP::R_fn_sample_model)))) {
+                  stop("This NicoStan / BayesMVP build has no metric_pooled_window_resets / metric_pooled_offdiagonal_shrinkage argument; reinstall NicoStan and BayesMVP together, restart R.")
+              }
               ## effective starting tau and learning-rate hold value the sampler should report back:
               tau_initial_requested <-  if_null_then_set_to(settings$tau_initial,
                                                            if (identical(settings$metric_estimator, "pooled")) pi else 2 * pi)
               learning_rate_initial_requested <-  if_null_then_set_to(settings$learning_rate_initial, settings$learning_rate)
+          }
+          ##
+          ## ---- CHESSR_time / SNAPER_time ("_bact" / "_bast"): the time-criterion settings handed to NicoStan as ONE argument,
+          ##      time_criterion_settings (a named list, see NicoStan's fn_default_time_criterion_settings()), checked BEFORE the fit so
+          ##      an older build stops here. It is passed ONLY for these two algorithms (and only when tau is adapted), so the sampler
+          ##      call of every other algorithm is unchanged. NicoStan applies the precedence for each sampling time (user-supplied
+          ##      number > the previous run(s) > the sampling timing probe) and reads time_criterion_previous_run_path itself.
+          ##      n_iter_sampling_for_time_criterion: "planned_n_iter" passes nothing (NicoStan then uses the planned n_iter of the
+          ##      run); "ESS_target_for_time_criterion" passes the target, and ESS_per_iter_sampling_expected when it is user-supplied
+          ##      (otherwise NicoStan takes it from the previous run(s), which must then be given):
+          ##
+          time_criterion_is_used <-  fn_ps7_is_time_criterion_algorithm(burnin_algorithm = burnin_algorithm_used) && !isTRUE(manual_tau)
+          time_criterion_arguments <-  list()
+          time_criterion_inputs <-  NULL
+          if (time_criterion_is_used) {
+              if (!exists(x = "fn_ps7_time_criterion_values", mode = "function")) {
+                  stop("Source functions/fn_ps7_extract_tau_sweep.R before fitting CHESSR_time / SNAPER_time (it defines fn_ps7_time_criterion_values).")
+              }
+              if (!"time_criterion_settings" %in% names(formals(BayesMVP::R_fn_sample_model))) {
+                  stop(paste0("This NicoStan / BayesMVP build has no time_criterion_settings argument (needed for burnin_algorithm = '",
+                              burnin_algorithm_used, "'); reinstall NicoStan and BayesMVP together, restart R."))
+              }
+              ##
+              n_iter_sampling_uses_ESS_target <-  identical(settings$n_iter_sampling_for_time_criterion_source, "ESS_target_for_time_criterion")
+              if (n_iter_sampling_uses_ESS_target && is.null(settings$ESS_per_iter_sampling_expected) && is.null(settings$time_criterion_previous_run_path)) {
+                  stop(paste0("n_iter_sampling_for_time_criterion_source = 'ESS_target_for_time_criterion' needs ESS_per_iter_sampling_expected: ",
+                              "set it, or set time_criterion_previous_run_path to one or more saved runs."))
+              }
+              sampling_time_sources <-  vapply(X = ps7_sampling_timing_quantity_names, FUN = function(sampling_time_name) {
+                  if (!is.null(settings[[sampling_time_name]])) return("user_supplied")
+                  if (!is.null(settings$time_criterion_previous_run_path)) return("previous_run")
+                  if (isTRUE(settings$run_sampling_timing_probe)) return("sampling_timing_probe")
+                  return("none")
+              }, FUN.VALUE = character(1))
+              if (any(sampling_time_sources == "none")) {
+                  warning(paste0("burnin_algorithm = '", burnin_algorithm_used, "' with run_sampling_timing_probe = FALSE and no value for ",
+                                 paste(names(sampling_time_sources)[sampling_time_sources == "none"], collapse = ", "),
+                                 ": NicoStan falls back to burnin_to_sampling_leapfrog_time_ratio = 0 and sampling_overhead_in_leapfrog_steps = 0, ",
+                                 "i.e. the ", sub(pattern = "_time$", replacement = "", x = burnin_algorithm_used), " criterion."), call. = FALSE)
+              }
+              ##
+              time_criterion_settings_for_sampler <-  list(run_sampling_timing_probe = isTRUE(settings$run_sampling_timing_probe),
+                                                           sampling_timing_probe_L_values = settings$sampling_timing_probe_L_values,
+                                                           sampling_timing_probe_n_iter_per_L = settings$sampling_timing_probe_n_iter_per_L,
+                                                           time_criterion_previous_run_path = settings$time_criterion_previous_run_path,
+                                                           time_per_leapfrog_step_sampling = settings$time_per_leapfrog_step_sampling,
+                                                           time_per_iter_overhead_sampling = settings$time_per_iter_overhead_sampling,
+                                                           time_per_iter_summaries_sampling = settings$time_per_iter_summaries_sampling,
+                                                           ESS_target_for_time_criterion = if (n_iter_sampling_uses_ESS_target) settings$ESS_target_for_time_criterion else NULL,
+                                                           ESS_per_iter_sampling_expected = if (n_iter_sampling_uses_ESS_target) settings$ESS_per_iter_sampling_expected else NULL,
+                                                           ## NULL (inert) = NicoStan's default, "diagnostic":
+                                                           time_criterion_ess_parameter_set = settings$time_criterion_ess_parameter_set)
+              ## NULL = not given (the NicoStan default applies), so it is left out of the list:
+              time_criterion_settings_for_sampler <-  time_criterion_settings_for_sampler[!vapply(X = time_criterion_settings_for_sampler,
+                                                                                                   FUN = is.null, FUN.VALUE = TRUE)]
+              time_criterion_arguments <-  list(time_criterion_settings = time_criterion_settings_for_sampler)
+              ##
+              ## what PS7 handed to the sampler, and where each sampling time is expected to come from (saved with the run):
+              time_criterion_inputs <-  list(effective_time_criterion_settings = settings[intersect(x = ps7_time_criterion_setting_names, y = names(settings))],
+                                             time_criterion_settings_text = fn_ps7_time_criterion_settings_text(effective_time_criterion_settings = effective_time_criterion_settings),
+                                             time_criterion_settings_hash = fn_ps7_time_criterion_settings_hash(effective_time_criterion_settings = effective_time_criterion_settings),
+                                             time_criterion_settings_for_sampler = time_criterion_settings_for_sampler,
+                                             sampling_time_sources_expected = as.list(sampling_time_sources),
+                                             n_iter_sampling_for_time_criterion_source = settings$n_iter_sampling_for_time_criterion_source)
+              ##
+              message(BayesMVP:::colourise(paste0("Time criterion (", burnin_algorithm_used, "): run_sampling_timing_probe = ",
+                                                  isTRUE(settings$run_sampling_timing_probe),
+                                                  if (isTRUE(settings$run_sampling_timing_probe))
+                                                      paste0(" (", settings$sampling_timing_probe_n_iter_per_L, " iterations at each number of leapfrog steps in sampling_timing_probe_L_values = ",
+                                                             paste(settings$sampling_timing_probe_L_values, collapse = ", "), ")") else "",
+                                                  " | sampling times from: ", paste(names(sampling_time_sources), "=", sampling_time_sources, collapse = ", "),
+                                                  " | n_iter_sampling_for_time_criterion from: ", settings$n_iter_sampling_for_time_criterion_source,
+                                                  if (n_iter_sampling_uses_ESS_target) paste0(" (ESS_target_for_time_criterion = ", settings$ESS_target_for_time_criterion, ")") else
+                                                      paste0(" (", settings$n_iter, ")")), "cyan"))
           }
           ps7_step_times["prep"] <-  fn_ps7_stamp()  ## priors, correlation prior sets, per-chain inits, argument checks
           ##
@@ -1761,6 +3026,19 @@ run_ps7_models <-  function( Model_type,
           ps7_step_times["sampler_init"] <-  fn_ps7_stamp()  ## sampler cache key digest + cache hit or initialise_model() on the final model_args_list
           ##
           ## Call the installed provider so shared NicoStan functions retain their namespace bindings.
+          ## tau_initial = "adaptive": the part of [clip_iter, handover] that feeds lambda_max (NicoStan reads it as an option; 1 = all of it):
+          options(NicoStan_tau_initial_moments_window_fraction = if (is.null(settings$tau_initial_moments_window_fraction)) 1 else
+                                                                   settings$tau_initial_moments_window_fraction)
+          ## ADAM settings of the eps and the tau updates (read at the start of run_ps7_models(); every option is set explicitly, so the
+          ## sampler arguments beta1_adam / beta2_adam / eps_adam below are not used by either update):
+          options(NicoStan_eps_adam_beta1   = adam_settings_requested$eps_adam_beta1,
+                  NicoStan_eps_adam_beta2   = adam_settings_requested$eps_adam_beta2,
+                  NicoStan_eps_adam_epsilon = adam_settings_requested$eps_adam_epsilon,
+                  NicoStan_tau_adam_beta1   = adam_settings_requested$tau_adam_beta1,
+                  NicoStan_tau_adam_beta2   = adam_settings_requested$tau_adam_beta2,
+                  NicoStan_tau_adam_epsilon = adam_settings_requested$tau_adam_epsilon,
+                  NicoStan_tau_learning_rate_restart_at_metric_end = adam_settings_requested$tau_learning_rate_restart_at_metric_end,
+                  NicoStan_tau_adaptation_scheme = adam_settings_requested$tau_adaptation_scheme)
           model_results <-  do.call(what = BayesMVP::R_fn_sample_model, args = c(list(debug = FALSE,
                                                 stream = MCMC_seed,
                                                 ##
@@ -1825,6 +3103,11 @@ run_ps7_models <-  function( Model_type,
                                                 ## which block(s) the trajectory-length criterion is computed on ("_tbJ" = "joint";
                                                 ##, EXPERIMENTAL); "main" when inert (tau pinned):
                                                 tau_adaptation_block = tau_adaptation_block_requested,
+                                                ## burn-in step size adapted on the "harmonic" (default), "arithmetic" or "geometric" mean of the
+                                                ## per-chain acceptance probabilities ("_ta" digit, see fn_ps7_tau_adaptation_version_token):
+                                                eps_acceptance_mean = eps_acceptance_mean_requested,
+                                                ## divergence-triggered 0.95 tau shrink: FALSE (default) or TRUE ("_ta" digit):
+                                                tau_shrink_on_divergence = tau_shrink_on_divergence_requested,
                                                 burnin_TBB_pool_equals_n_chains = settings$burnin_TBB_pool_equals_n_chains,
                                                 ##
                                                 ## Sampler storage is controlled independently of summary export below.
@@ -1857,7 +3140,13 @@ run_ps7_models <-  function( Model_type,
                                                 # use_proposed = TRUE, ## -----------------
                                                 use_proposed = FALSE, ## -----------------
                                                 ##
-                                                beta1_adam = 0.00,
+                                                # beta1_adam = 0.00,
+                                                # beta1_adam = 0.90,
+                                                ## unused: the NicoStan_eps_adam_* / NicoStan_tau_adam_* options set above give both updates their settings
+                                                beta1_adam = 0,
+                                                ##
+                                                # beta2_adam = 0.95,
+                                                # eps_adam = 1e-8,
                                                 beta2_adam = 0.95,
                                                 eps_adam = 1e-8,
                                                 ##
@@ -1909,10 +3198,31 @@ run_ps7_models <-  function( Model_type,
                                                 num_chunks_sampling = settings$num_chunks_sampling,
                                                 ##
                                                 metric_estimator = settings$metric_estimator,
+                                                ## pooled estimator only ("_Mp" code; inert for "chain_mean" / "chain_mean_scaled"):
+                                                ## Welford window resets ("none" / "stan_style" / iterations) and off-diagonal shrinkage:
+                                                metric_pooled_window_resets = metric_pooled_window_resets_requested,
+                                                metric_pooled_offdiagonal_shrinkage = metric_pooled_offdiagonal_shrinkage_requested,
                                                 ##
-                                                test_perm_override = settings$test_perm_override), burnin_timing_arguments, fresh_process_arguments))
+                                                ## test_perm_override = settings$test_perm_override), burnin_timing_arguments, fresh_process_arguments))
+                                                test_perm_override = settings$test_perm_override), burnin_timing_arguments, fresh_process_arguments,
+                                                ## time-criterion arguments of CHESSR_time / SNAPER_time; empty for every other algorithm:
+                                                time_criterion_arguments,
+                                                fn_ps7_trajectory_option_arguments(settings = settings)))
           ##
           ps7_step_times["sampler_call"] <-  fn_ps7_stamp()  ## the whole R_fn_sample_model() call (initialisations + pre-burn-in + burn-in + sampling)
+          trajectory_option_arguments <-  fn_ps7_trajectory_option_arguments(settings = settings)
+          for (option_name in names(trajectory_option_arguments)) {
+              requested_value <-  trajectory_option_arguments[[option_name]]
+              reported_value <-  model_results[[option_name]]
+              matches_request <-  if (is.numeric(requested_value)) {
+                  length(reported_value) == 1 && is.numeric(reported_value) &&
+                  isTRUE(all.equal(as.numeric(reported_value), as.numeric(requested_value), tolerance = 1e-12))
+              } else identical(reported_value, requested_value)
+              if (!matches_request) {
+                  stop(option_name, ": requested ", paste(requested_value, collapse = ", "),
+                       " but the sampler reported ", paste(reported_value, collapse = ", "), ".")
+              }
+          }
           ##
           ## ---- the J_grad_option the C++ actually ran with (row "J_grad_option" of Model_args_strings) must be the one
           ##      requested - otherwise this run would be saved under the wrong file name:
@@ -2013,6 +3323,136 @@ run_ps7_models <-  function( Model_type,
                        tau_adam_bias_correction_reported, "' (iteration_index = field absent, i.e. a NicoStan build older than the fix).")
               }
               ##
+              ## eps_acceptance_mean / tau_shrink_on_divergence: the values NicoStan reports it applied (model_results, else the
+              ## burn-in object). NULL = a build without these options, treated as "arithmetic" / TRUE (the earlier behaviour):
+              eps_acceptance_mean_reported <-  BayesMVP::if_null_then_set_to(model_results$eps_acceptance_mean,
+                                                                             BayesMVP::if_null_then_set_to(model_results$burnin_object$eps_acceptance_mean, "arithmetic"))
+              tau_shrink_on_divergence_reported <-  BayesMVP::if_null_then_set_to(model_results$tau_shrink_on_divergence,
+                                                                                  BayesMVP::if_null_then_set_to(model_results$burnin_object$tau_shrink_on_divergence, TRUE))
+              if (!identical(eps_acceptance_mean_reported, eps_acceptance_mean_requested)) {
+                  stop("eps_acceptance_mean: requested '", eps_acceptance_mean_requested, "' but the sampler reports '",
+                       eps_acceptance_mean_reported, "' ('arithmetic' = field absent, i.e. a NicoStan build without eps_acceptance_mean).")
+              }
+              if (!identical(as.logical(tau_shrink_on_divergence_reported), tau_shrink_on_divergence_requested)) {
+                  stop("tau_shrink_on_divergence: requested ", tau_shrink_on_divergence_requested, " but the sampler reports ",
+                       tau_shrink_on_divergence_reported, " (TRUE = field absent, i.e. a NicoStan build without tau_shrink_on_divergence).")
+              }
+              ##
+              message(BayesMVP:::colourise(paste0("Effective eps_acceptance_mean = ", eps_acceptance_mean_reported,
+                                                  " | tau_shrink_on_divergence = ", tau_shrink_on_divergence_reported), "cyan"))
+              ##
+              ## pooled metric estimator: the values NicoStan reports it applied (model_results, else the burn-in object). NULL = a
+              ## build without these options, treated as "stan_style" / 0 (the earlier behaviour):
+              metric_pooled_window_resets_reported <-  BayesMVP::if_null_then_set_to(model_results$metric_pooled_window_resets,
+                                                                                     BayesMVP::if_null_then_set_to(model_results$burnin_object$metric_pooled_window_resets, "stan_style"))
+              metric_pooled_offdiagonal_shrinkage_reported <-  BayesMVP::if_null_then_set_to(model_results$metric_pooled_offdiagonal_shrinkage,
+                                                                                             BayesMVP::if_null_then_set_to(model_results$burnin_object$metric_pooled_offdiagonal_shrinkage, 0))
+              metric_pooled_window_reset_iterations_reported <-  BayesMVP::if_null_then_set_to(model_results$metric_pooled_window_reset_iterations,
+                                                                                               model_results$burnin_object$metric_pooled_window_reset_iterations)
+              if (!identical(fn_ps7_metric_pooled_window_resets_label(metric_pooled_window_resets = metric_pooled_window_resets_reported),
+                             fn_ps7_metric_pooled_window_resets_label(metric_pooled_window_resets = metric_pooled_window_resets_requested))) {
+                  stop("metric_pooled_window_resets: requested '", fn_ps7_metric_pooled_window_resets_label(metric_pooled_window_resets = metric_pooled_window_resets_requested),
+                       "' but the sampler reports '", fn_ps7_metric_pooled_window_resets_label(metric_pooled_window_resets = metric_pooled_window_resets_reported),
+                       "' ('stan_style' = field absent, i.e. a NicoStan build without metric_pooled_window_resets).")
+              }
+              metric_pooled_offdiagonal_shrinkage_reported <-  fn_ps7_validate_metric_pooled_settings(
+                  settings = list(metric_pooled_window_resets = metric_pooled_window_resets_reported,
+                                  metric_pooled_offdiagonal_shrinkage = metric_pooled_offdiagonal_shrinkage_reported))$metric_pooled_offdiagonal_shrinkage
+              if (!identical(metric_pooled_offdiagonal_shrinkage_reported, metric_pooled_offdiagonal_shrinkage_requested)) {
+                  stop("metric_pooled_offdiagonal_shrinkage: requested ", metric_pooled_offdiagonal_shrinkage_requested, " but the sampler reports ",
+                       paste(metric_pooled_offdiagonal_shrinkage_reported, collapse = ", "),
+                       " (0 = field absent, i.e. a NicoStan build without metric_pooled_offdiagonal_shrinkage).")
+              }
+              ##
+              message(BayesMVP:::colourise(paste0("Effective metric_pooled_window_resets = ",
+                                                  fn_ps7_metric_pooled_window_resets_label(metric_pooled_window_resets = metric_pooled_window_resets_reported),
+                                                  if (!is.null(metric_pooled_window_reset_iterations_reported))
+                                                      paste0(" (reset iterations: ", fn_ps7_metric_pooled_window_resets_label(
+                                                          metric_pooled_window_resets = as.numeric(metric_pooled_window_reset_iterations_reported)), ")") else "",
+                                                  " | metric_pooled_offdiagonal_shrinkage = ", metric_pooled_offdiagonal_shrinkage_reported,
+                                                  ## if (!identical(settings$metric_estimator, "pooled")) " (inert: metric_estimator is not 'pooled')" else ""), "cyan"))
+                                                  if (identical(settings$metric_estimator, "per_iteration")) " (window resets inert: metric_estimator is 'per_iteration')" else
+                                                  if (!identical(settings$metric_estimator, "pooled")) " (inert: metric_estimator is not 'pooled')" else ""), "cyan"))
+              ##
+              ## CHESSR_time / SNAPER_time ("_bact" / "_bast"): the sampler must return its time-criterion record, with
+              ## n_iter_sampling_for_time_criterion from the source requested (the planned n_iter, or ESS_target_for_time_criterion /
+              ## ESS_per_iter_sampling_expected) and every user-supplied value as given; a probe that did not run or did not fit, or a
+              ## fall-back to the rate criterion, gives a warning. Only read for these two algorithms:
+              time_criterion_record <-  NULL
+              if (time_criterion_is_used) {
+                  time_criterion_record <-  fn_ps7_time_criterion_record_from_results(model_results = model_results)
+                  if (is.null(time_criterion_record)) {
+                      stop("burnin_algorithm = '", burnin_algorithm_used, "' but the sampler returned no time-criterion record ",
+                           "(a NicoStan build without CHESSR_time / SNAPER_time); reinstall NicoStan and BayesMVP together, restart R.")
+                  }
+                  time_criterion_values <-  fn_ps7_time_criterion_values(time_criterion_record = time_criterion_record)
+                  fn_as_number <-  function(recorded_value) suppressWarnings(as.numeric(recorded_value))
+                  n_iter_sampling_for_time_criterion_reported <-  fn_as_number(time_criterion_values$n_iter_sampling_for_time_criterion)
+                  n_iter_sampling_for_time_criterion_expected <-  if (identical(settings$n_iter_sampling_for_time_criterion_source, "ESS_target_for_time_criterion"))
+                      settings$ESS_target_for_time_criterion / fn_as_number(time_criterion_values$ESS_per_iter_sampling_expected) else settings$n_iter
+                  if (!isTRUE(startsWith(x = as.character(time_criterion_values$n_iter_sampling_for_time_criterion_source),
+                                         prefix = settings$n_iter_sampling_for_time_criterion_source))) {
+                      stop("n_iter_sampling_for_time_criterion_source: requested '", settings$n_iter_sampling_for_time_criterion_source,
+                           "' but the sampler reports '", time_criterion_values$n_iter_sampling_for_time_criterion_source, "'.")
+                  }
+                  if (!isTRUE(all.equal(n_iter_sampling_for_time_criterion_reported, n_iter_sampling_for_time_criterion_expected, tolerance = 1e-9))) {
+                      stop("n_iter_sampling_for_time_criterion: expected ", n_iter_sampling_for_time_criterion_expected, " (",
+                           settings$n_iter_sampling_for_time_criterion_source, ") but the sampler reports ",
+                           time_criterion_values$n_iter_sampling_for_time_criterion, ".")
+                  }
+                  for (user_supplied_name in c(ps7_sampling_timing_quantity_names, "ESS_per_iter_sampling_expected", "ESS_target_for_time_criterion")) {
+                      if (!is.null(time_criterion_settings_for_sampler[[user_supplied_name]]) &&
+                          !isTRUE(all.equal(fn_as_number(time_criterion_values[[user_supplied_name]]), time_criterion_settings_for_sampler[[user_supplied_name]],
+                                            tolerance = 1e-12))) {
+                          stop(user_supplied_name, ": supplied ", time_criterion_settings_for_sampler[[user_supplied_name]], " but the sampler used ",
+                               time_criterion_values[[user_supplied_name]], ".")
+                      }
+                  }
+                  if (isTRUE(settings$run_sampling_timing_probe) &&
+                      (!isTRUE(as.logical(time_criterion_values$sampling_timing_probe_ran)) || !identical(time_criterion_values$sampling_timing_probe_status, "fitted"))) {
+                      warning(paste0("run_sampling_timing_probe = TRUE but the sampler reports that the probe ",
+                                     if (isTRUE(as.logical(time_criterion_values$sampling_timing_probe_ran))) "ran without a fit" else "did not run",
+                                     " (status '", time_criterion_values$sampling_timing_probe_status, "')."), call. = FALSE)
+                  }
+                  if (isTRUE(as.logical(time_criterion_values$time_criterion_fallback_to_rate_criterion))) {
+                      warning(paste0("burnin_algorithm = '", burnin_algorithm_used, "': no sampling times were available, so the sampler used the ",
+                                     sub(pattern = "_time$", replacement = "", x = burnin_algorithm_used), " criterion (burnin_to_sampling_leapfrog_time_ratio = 0, ",
+                                     "sampling_overhead_in_leapfrog_steps = 0)."), call. = FALSE)
+                  }
+                  fn_text_4_significant_digits <-  function(recorded_value) {
+                      if (is.numeric(recorded_value) && length(recorded_value) == 1 && is.finite(recorded_value)) as.character(signif(recorded_value, 4)) else
+                          as.character(recorded_value)
+                  }
+                  message(BayesMVP:::colourise(paste0("Effective time criterion (", burnin_algorithm_used, "):",
+                                                      " time_per_leapfrog_step_sampling = ", fn_text_4_significant_digits(time_criterion_values$time_per_leapfrog_step_sampling),
+                                                      " s (", time_criterion_values$time_per_leapfrog_step_sampling_source, ")",
+                                                      ", time_per_iter_overhead_sampling = ", fn_text_4_significant_digits(time_criterion_values$time_per_iter_overhead_sampling),
+                                                      " s (", time_criterion_values$time_per_iter_overhead_sampling_source, ")",
+                                                      ", time_per_iter_summaries_sampling = ", fn_text_4_significant_digits(time_criterion_values$time_per_iter_summaries_sampling),
+                                                      " s (", time_criterion_values$time_per_iter_summaries_sampling_source, ")",
+                                                      " | sampling_overhead_in_leapfrog_steps = ", fn_text_4_significant_digits(time_criterion_values$sampling_overhead_in_leapfrog_steps),
+                                                      " | probe: ", time_criterion_values$sampling_timing_probe_status,
+                                                      ", wall time ", fn_text_4_significant_digits(time_criterion_values$sampling_timing_probe_wall_time), " s",
+                                                      " (", fn_text_4_significant_digits(100 * fn_as_number(time_criterion_values$sampling_timing_probe_fraction_of_burnin)), "% of the burn-in)"), "cyan"))
+                  message(BayesMVP:::colourise(paste0("  time_per_leapfrog_step_burnin = ", fn_text_4_significant_digits(time_criterion_values$time_per_leapfrog_step_burnin_at_handover),
+                                                      " s at the handover, ", fn_text_4_significant_digits(time_criterion_values$time_per_leapfrog_step_burnin), " s at the end (",
+                                                      time_criterion_values$time_per_leapfrog_step_burnin_status, ")",
+                                                      " | n_iter_burnin = ", time_criterion_values$n_iter_burnin,
+                                                      ", n_iter_sampling_for_time_criterion = ", fn_text_4_significant_digits(n_iter_sampling_for_time_criterion_reported),
+                                                      " | at the handover / at the end:",
+                                                      " tau_offset_from_sampling_overhead = ", fn_text_4_significant_digits(time_criterion_values$tau_offset_from_sampling_overhead_at_handover),
+                                                      " / ", fn_text_4_significant_digits(time_criterion_values$tau_offset_from_sampling_overhead_at_end),
+                                                      ", burnin_to_sampling_leapfrog_time_ratio = ", fn_text_4_significant_digits(time_criterion_values$burnin_to_sampling_leapfrog_time_ratio_at_handover),
+                                                      " / ", fn_text_4_significant_digits(time_criterion_values$burnin_to_sampling_leapfrog_time_ratio_at_end),
+                                                      ", time_to_target_ESS_tau_penalty = ", fn_text_4_significant_digits(time_criterion_values$time_to_target_ESS_tau_penalty_at_handover),
+                                                      " / ", fn_text_4_significant_digits(time_criterion_values$time_to_target_ESS_tau_penalty_at_end)), "cyan"))
+                  message(BayesMVP:::colourise(paste0("  over the second half of the tau updates: ESS_elasticity_wrt_log_tau (pooled estimate) = ",
+                                                      fn_text_4_significant_digits(time_criterion_values$ESS_elasticity_wrt_log_tau_pooled_over_second_half_of_tau_updates),
+                                                      ", mean time_to_target_ESS_tau_penalty = ",
+                                                      fn_text_4_significant_digits(time_criterion_values$time_to_target_ESS_tau_penalty_mean_over_second_half_of_tau_updates),
+                                                      " | probe summaries: ", time_criterion_values$sampling_timing_probe_summaries_method), "cyan"))
+              }
+              ##
               ## tau_adaptation_block ("_tbJ";, EXPERIMENTAL): NULL = a NicoStan build without this option, treated
               ## as "main" (exactly like the tau_adam_bias_correction check above):
               tau_adaptation_block_reported <-  if (is.null(model_results$tau_adaptation_block)) "main" else
@@ -2022,7 +3462,52 @@ run_ps7_models <-  function( Model_type,
                        tau_adaptation_block_reported, "' (NULL/'main' = a NicoStan build without tau_adaptation_block).")
               }
               ##
-              if (!fn_numbers_match(model_results$tau_initial, tau_initial_requested)) {
+              ## ADAM ("_A" code): the settings the burn-in reports the eps and the tau updates used (burnin_object, "<setting>_used"). NULL =
+              ## a NicoStan build without that option, which used the sampler arguments 0 / 0.95 / 1e-8: accepted only when that was requested.
+              ## The expected tau beta1 is ps7_tau_adam_beta1 (0 when tau is pinned, where it is inert):
+              adam_settings_default_values <-  c(eps_adam_beta1 = 0, eps_adam_beta2 = 0.95, eps_adam_epsilon = 1e-8,
+                                                 tau_adam_beta1 = 0, tau_adam_beta2 = 0.95, tau_adam_epsilon = 1e-8)
+              adam_settings_reported <-  list()
+              for (adam_setting_name in names(adam_settings_default_values)) {
+                  adam_setting_reported <-  model_results$burnin_object[[paste0(adam_setting_name, "_used")]]
+                  if (is.null(adam_setting_reported)) adam_setting_reported <-  unname(adam_settings_default_values[adam_setting_name])
+                  if (!fn_numbers_match(adam_setting_reported, adam_settings_requested[[adam_setting_name]])) {
+                      stop(adam_setting_name, ": expected ", adam_settings_requested[[adam_setting_name]], " but the burn-in reports ", adam_setting_reported,
+                           " (", adam_settings_default_values[adam_setting_name], " = a NicoStan build without that option; re-source the NicoStan R files).")
+                  }
+                  adam_settings_reported[[adam_setting_name]] <-  as.numeric(adam_setting_reported)
+              }
+              tau_adam_beta1_reported <-  adam_settings_reported$tau_adam_beta1
+              tau_learning_rate_restart_reported <-  if (is.null(model_results$burnin_object$tau_learning_rate_restart_at_metric_end)) FALSE else
+                                                    as.logical(model_results$burnin_object$tau_learning_rate_restart_at_metric_end)
+              if (!identical(tau_learning_rate_restart_reported, adam_settings_requested$tau_learning_rate_restart_at_metric_end)) {
+                  stop("tau learning-rate restart at the metric freeze: requested ", adam_settings_requested$tau_learning_rate_restart_at_metric_end,
+                       " but the burn-in reports ", tau_learning_rate_restart_reported,
+                       " (FALSE = a NicoStan build without NicoStan_tau_learning_rate_restart_at_metric_end; re-source the NicoStan R files).")
+              }
+              tau_adaptation_scheme_reported <-  if (is.null(model_results$burnin_object$tau_adaptation_scheme)) "adam_decay" else
+                                                model_results$burnin_object$tau_adaptation_scheme
+              if (!identical(tau_adaptation_scheme_reported, adam_settings_requested$tau_adaptation_scheme)) {
+                  stop("tau adaptation scheme: requested ", adam_settings_requested$tau_adaptation_scheme, " but the burn-in reports ", tau_adaptation_scheme_reported,
+                       " ('adam_decay' = a NicoStan build without NicoStan_tau_adaptation_scheme; re-source the NicoStan R files).")
+              }
+              message(BayesMVP:::colourise(paste0("Effective ADAM: eps beta1 = ", adam_settings_reported$eps_adam_beta1, ", beta2 = ", adam_settings_reported$eps_adam_beta2,
+                                                  ", denominator constant = ", adam_settings_reported$eps_adam_epsilon,
+                                                  " | tau beta1 = ", adam_settings_reported$tau_adam_beta1, ", beta2 = ", adam_settings_reported$tau_adam_beta2,
+                                                  ", denominator constant = ", adam_settings_reported$tau_adam_epsilon,
+                                                  " | tau learning-rate restart = ", tau_learning_rate_restart_reported,
+                                                  " | tau adaptation scheme = ", tau_adaptation_scheme_reported,
+                                                  # if (identical(tau_adaptation_scheme_reported, "probe_then_average"))
+                                                  if (tau_adaptation_scheme_reported %in% c("probe_then_average", "fixed_length_probe_then_decay_and_average"))
+                                                      paste0(" (probe ended at iteration ", model_results$burnin_object$tau_probe_end_iteration,
+                                                             ", averaged tau ", signif(model_results$burnin_object$tau_main_averaged, 5), ")") else "",
+                                                  if (isTRUE(tau_learning_rate_restart_reported))
+                                                      paste0(" (from iteration ", model_results$burnin_object$tau_learning_rate_restart_iteration, ")") else ""), "cyan"))
+              ##
+              ## tau_initial "adaptive" is reported back as the string itself; a numeric level as the number it ran with:
+              ## if (!fn_numbers_match(model_results$tau_initial, tau_initial_requested)) {
+              if (!(if (identical(tau_initial_requested, "adaptive")) identical(model_results$tau_initial, "adaptive") else
+                        fn_numbers_match(model_results$tau_initial, tau_initial_requested))) {
                   stop("tau_initial: requested ", tau_initial_requested, " but the sampler ran with ",
                        paste(model_results$tau_initial, collapse = ", "), ".")
               }
@@ -2037,7 +3522,9 @@ run_ps7_models <-  function( Model_type,
                              " -> ", signif(model_results$tau_main_after_sampling_scale, 6), ")",
                              " | tau_adam_bias_correction = ", tau_adam_bias_correction_reported,
                              " | tau_adaptation_block = ", tau_adaptation_block_reported,
-                             " | tau_initial = ", signif(model_results$tau_initial, 7),
+                             ## " | tau_initial = ", signif(model_results$tau_initial, 7),
+                             " | tau_initial = ", if (is.character(model_results$tau_initial)) model_results$tau_initial else
+                                                      signif(model_results$tau_initial, 7),
                              " | learning_rate_initial = ", model_results$learning_rate_initial))
           }
           ##
@@ -2154,6 +3641,8 @@ run_ps7_models <-  function( Model_type,
           max_nRhat <-  if (length(x = tibble_gq_for_diagnostics$n_Rhat) > 0 && !anyNA(x = tibble_gq_for_diagnostics$n_Rhat)) max(tibble_gq_for_diagnostics$n_Rhat) else NA_real_
           ##
           min_ESS <-  if (length(x = tibble_gq_for_diagnostics$n_eff) > 0 && all(is.finite(x = tibble_gq_for_diagnostics$n_eff))) min(tibble_gq_for_diagnostics$n_eff) else NA_real_
+          ## the tail ESS over the same parameters (NicoStan's n_eff_tail; NA for a summary made before that column existed):
+          min_ESS_tail <-  if (length(x = tibble_gq_for_diagnostics$n_eff_tail) > 0 && all(is.finite(x = tibble_gq_for_diagnostics$n_eff_tail))) min(tibble_gq_for_diagnostics$n_eff_tail) else NA_real_
           ##
           time_total  <-  model_fit_object$summaries$efficiency_info$time_total
           time_burnin <-  model_fit_object$summaries$efficiency_info$time_burnin
@@ -2165,16 +3654,55 @@ run_ps7_models <-  function( Model_type,
           efficiency_info <-  model_fit_object$summaries$efficiency_info
           divergences <-  model_fit_object$summaries$divergences
           HMC_info <-  model_fit_object$summaries$HMC_info
+          ## pooled metric estimator settings, as the sampler reported them (checked above), also kept in HMC_info
+          ## (NicoStan's own entries are kept when it already records them):
+          if (is.null(HMC_info$metric_pooled_window_resets))          HMC_info$metric_pooled_window_resets <-  metric_pooled_window_resets_reported
+          if (is.null(HMC_info$metric_pooled_offdiagonal_shrinkage))  HMC_info$metric_pooled_offdiagonal_shrinkage <-  as.numeric(metric_pooled_offdiagonal_shrinkage_reported)
           ##
           ESS_per_sec_samp <-  min_ESS / time_sampling
           ESS_per_sec_total <-  min_ESS / time_total
           ##
           L_main_during_sampling <-  (HMC_info$tau_main / HMC_info$eps_main)
-          n_grad_evals_sampling_main <-  L_main_during_sampling * settings$n_iter * settings$n_chains_sampling
+          ## n_grad_evals_sampling_main <-  L_main_during_sampling * settings$n_iter * settings$n_chains_sampling
+          ## executed gradients: whole leapfrog steps under the sampling jitter (fn_ps7_expected_sampling_leapfrog_steps_per_iteration,
+          ## fn_ps7_extract_tau_sweep.R), not the nominal tau / eps:
+          ## n_grad_evals_sampling_main <-  fn_ps7_expected_sampling_leapfrog_steps_per_iteration( tau = HMC_info$tau_main,
+          ##                                                                                       eps = HMC_info$eps_main,
+          ##                                                                                       randomize_tau_sampling = if (is.null(settings$randomize_tau_sampling)) TRUE else settings$randomize_tau_sampling) *
+          ##                               settings$n_iter * settings$n_chains_sampling
+          ## gradient EVALUATIONS for the native sampling path (fn_ps7_expected_sampling_gradient_evaluations_per_iteration,
+          ## fn_ps7_extract_tau_sweep.R): expected leapfrog steps + 1 endpoint evaluation per iteration, except joint diffusion
+          ## kick_flow_kick (endpoint reused), plus one start-of-call evaluation per chain on the joint diffusion paths.
+          ## Path flags as the summary reported them (else the PS7 settings); these models always sample nuisance parameters:
+          diffusion_HMC_sampling <-  if (!is.null(HMC_info$diffusion_HMC)) HMC_info$diffusion_HMC else settings$diffusion_HMC
+          diffusion_HMC_integrator_sampling <-  if (!is.null(HMC_info$diffusion_HMC_integrator)) HMC_info$diffusion_HMC_integrator else settings$diffusion_HMC_integrator
+          partitioned_HMC_sampling <-  if (!is.null(HMC_info$partitioned_HMC)) HMC_info$partitioned_HMC else settings$partitioned_HMC
+          has_nuisance_sampling <-  Model_type %in% c("LC_MVP", "MVP", "LC_MVOP", "MVOP", "latent_trait")
+          randomize_tau_sampling_used <-  if (is.null(settings$randomize_tau_sampling)) TRUE else settings$randomize_tau_sampling
+          n_grad_evals_sampling_main <-  fn_ps7_expected_sampling_gradient_evaluations_per_iteration( tau = HMC_info$tau_main,
+                                                                                                      eps = HMC_info$eps_main,
+                                                                                                      randomize_tau_sampling = randomize_tau_sampling_used,
+                                                                                                      diffusion_HMC = diffusion_HMC_sampling,
+                                                                                                      diffusion_HMC_integrator = diffusion_HMC_integrator_sampling,
+                                                                                                      partitioned_HMC = partitioned_HMC_sampling,
+                                                                                                      has_nuisance = has_nuisance_sampling,
+                                                                                                      n_iter_per_chain_call = settings$n_iter) *
+                                        settings$n_iter * settings$n_chains_sampling
           Min_ess_per_grad_main_samp <-  min_ESS / n_grad_evals_sampling_main
+          Min_ess_tail_per_grad_main_samp <-  min_ESS_tail / n_grad_evals_sampling_main   ## the same gradient count as the bulk value
           ##
           L_us_during_sampling <-  (HMC_info$tau_us / HMC_info$eps_us)
-          n_grad_evals_sampling_us <-  L_us_during_sampling  * settings$n_iter * settings$n_chains_sampling
+          ## n_grad_evals_sampling_us <-  L_us_during_sampling  * settings$n_iter * settings$n_chains_sampling
+          ## nuisance gradient evaluations of a partitioned run: expected leapfrog steps at tau_us / eps_us + 1 per iteration
+          ## (not used below: the weights give the nuisance gradient weight 0 for the joint, non-partitioned PS7 runs):
+          n_grad_evals_sampling_us <-  fn_ps7_expected_sampling_gradient_evaluations_per_iteration( tau = HMC_info$tau_us,
+                                                                                                    eps = HMC_info$eps_us,
+                                                                                                    randomize_tau_sampling = randomize_tau_sampling_used,
+                                                                                                    diffusion_HMC = diffusion_HMC_sampling,
+                                                                                                    diffusion_HMC_integrator = diffusion_HMC_integrator_sampling,
+                                                                                                    partitioned_HMC = TRUE,
+                                                                                                    has_nuisance = has_nuisance_sampling) *
+                                      settings$n_iter * settings$n_chains_sampling
           Min_ess_per_grad_us_samp <-  min_ESS / n_grad_evals_sampling_us
           ##
           ## (non-partitioned: "main" grad = "all" grad, so use main only)
@@ -2256,10 +3784,16 @@ run_ps7_models <-  function( Model_type,
             max_nRhat = max_nRhat,
             ##
             min_ESS = min_ESS,
+            min_ESS_tail = min_ESS_tail,
             ##
             ESS_per_sec_total = ESS_per_sec_total,
             ESS_per_sec_samp = ESS_per_sec_samp,
             ESS_per_grad_samp = Min_ess_per_grad_samp_weighted,
+            ESS_tail_per_grad_samp = Min_ess_tail_per_grad_main_samp,
+            ## the gradient count behind ESS_per_grad_samp (readers rescale only runs without this marker, i.e. saved with the nominal tau / eps count):
+            ## ESS_per_grad_samp_gradient_count = "executed_leapfrog_steps_expected",
+            ## expected gradient evaluations for the native sampling path (fn_ps7_expected_sampling_gradient_evaluations_per_iteration):
+            ESS_per_grad_samp_gradient_count = "gradient_evaluations_expected",
             ##
             n_chains = settings$n_chains_sampling,
             n_iter = settings$n_iter,
@@ -2268,7 +3802,11 @@ run_ps7_models <-  function( Model_type,
             efficiency_info = efficiency_info,
             divergences = divergences,
             HMC_info = HMC_info,
-            settings = settings,
+            ## the run's settings, with the pooled metric estimator settings as validated above (and passed to the sampler):
+            ## settings = settings,
+            settings = utils::modifyList(x = settings,
+                                         val = list(metric_pooled_window_resets = metric_pooled_window_resets_requested,
+                                                    metric_pooled_offdiagonal_shrinkage = metric_pooled_offdiagonal_shrinkage_requested)),
             burnin_algorithm = burnin_algorithm_used,
             trajectory_adaptation_version = "metric_main_v4",
             vect_type = vect_type,
@@ -2290,9 +3828,39 @@ run_ps7_models <-  function( Model_type,
             tau_main_before_sampling_scale = model_results$tau_main_before_sampling_scale,
             tau_main_after_sampling_scale = model_results$tau_main_after_sampling_scale,
             tau_adam_bias_correction = tau_adam_bias_correction_reported,
+            ## step-size acceptance mean and divergence-triggered tau shrink, as the sampler reported them (checked above);
+            ## absent in runs saved before these options existed, which used "arithmetic" / TRUE:
+            eps_acceptance_mean = eps_acceptance_mean_reported,
+            tau_shrink_on_divergence = as.logical(tau_shrink_on_divergence_reported),
+            ## pooled metric estimator ("_Mp" code), as the sampler reported them (checked above): the window resets as requested
+            ## ("none" / "stan_style" / iterations), the reset iterations the burn-in used, and the off-diagonal shrinkage. Absent
+            ## in runs saved before these options existed, whose "_Mp" runs used "stan_style" / 0. Recorded for every estimator,
+            ## but only "pooled" reads them:
+            metric_pooled_window_resets = metric_pooled_window_resets_reported,
+            metric_pooled_window_reset_iterations = metric_pooled_window_reset_iterations_reported,
+            metric_pooled_offdiagonal_shrinkage = if (identical(metric_pooled_offdiagonal_shrinkage_reported, "adaptive")) "adaptive" else
+                                                    as.numeric(metric_pooled_offdiagonal_shrinkage_reported),
+            metric_pooled_offdiagonal_shrinkage_mode = if (identical(metric_pooled_offdiagonal_shrinkage_reported, "adaptive")) "adaptive" else "fixed",
             ## trajectory-length criterion block ("_tbJ";, EXPERIMENTAL), as the sampler reported it (checked above):
             tau_adaptation_block = tau_adaptation_block_reported,
+            ## ADAM ("_A" code; also in settings above): the settings of the eps and the tau updates and the tau learning-rate restart at
+            ## the metric freeze, as the burn-in reported them (checked above), and the restart iteration:
+            eps_adam_beta1 = adam_settings_reported$eps_adam_beta1,
+            eps_adam_beta2 = adam_settings_reported$eps_adam_beta2,
+            eps_adam_epsilon = adam_settings_reported$eps_adam_epsilon,
+            tau_adam_beta1 = adam_settings_reported$tau_adam_beta1,
+            tau_adam_beta2 = adam_settings_reported$tau_adam_beta2,
+            tau_adam_epsilon = adam_settings_reported$tau_adam_epsilon,
+            tau_learning_rate_restart_at_metric_end = tau_learning_rate_restart_reported,
+            tau_learning_rate_restart_iteration = model_results$burnin_object$tau_learning_rate_restart_iteration,
+            ## tau adaptation scheme ("p" code) and, for "probe_then_average", the probe end iteration, the probe tau path and the averaged tau:
+            tau_adaptation_scheme = tau_adaptation_scheme_reported,
+            tau_probe_end_iteration = model_results$burnin_object$tau_probe_end_iteration,
+            tau_probe_tau_path_vec = model_results$burnin_object$tau_probe_tau_path_vec,
+            tau_main_averaged = model_results$burnin_object$tau_main_averaged,
             tau_initial_effective = model_results$tau_initial,
+            ## tau_initial "adaptive": lambda_max estimates and the tau set at the handover (NULL for a numeric tau_initial):
+            tau_initial_adaptive = model_results$burnin_object$tau_initial_adaptive,
             learning_rate_initial_effective = model_results$learning_rate_initial,
             ##
             sampler_diagnostics = list(
@@ -2301,11 +3869,29 @@ run_ps7_models <-  function( Model_type,
                 sampling = sampling_diagnostics,
                 divergence_traces = model_results$sampling_object[[2]],  ## list of 1 x iteration matrices, one per chain
                 burnin_metric = model_results$burnin_object$EHMC_Metric_as_Rcpp_List,
+                metric_adaptive_shrinkage = model_results$burnin_object$metric_adaptive_shrinkage,
+                metric_adaptive_shrinkage_history = model_results$burnin_object$metric_adaptive_shrinkage_history,
+                ## burn-in record for metric diagnosis: burn-in chains' main draws (iteration x parameter x chain), main metric
+                ## variances used at each iteration, nuisance metric variance quantiles at each iteration (NULL for runs before it existed):
+                burnin_trace_main_all_chains = model_results$burnin_object$burnin_trace_main_all_chains,
+                burnin_metric_main_variance_history = model_results$burnin_object$burnin_metric_main_variance_history,
+                burnin_metric_nuisance_variance_quantiles_history = model_results$burnin_object$burnin_metric_nuisance_variance_quantiles_history,
                 burnin_integration_args = model_results$burnin_object$EHMC_args_as_Rcpp_List),
             ##
             time_total = time_total,
             time_burnin = time_burnin
           )
+          ##
+          ## CHESSR_time / SNAPER_time only ("_bact" / "_bast"): what PS7 handed to the sampler (time_criterion_inputs: the effective
+          ## settings, the settings text and hash of the file name, the time_criterion_settings list and the expected source of each
+          ## sampling time), and the sampler's time-criterion record as returned (time_criterion, checked above: the probe settings,
+          ## results and wall time, the sampling quantities and their sources, the online burn-in leapfrog time, the iteration counts,
+          ## and tau_offset_from_sampling_overhead / burnin_to_sampling_leapfrog_time_ratio at the handover and at the end). Added only
+          ## for these two algorithms, so the saved run of every other algorithm keeps exactly its earlier structure:
+          if (time_criterion_is_used) {
+            all_runs_results[[run_i]]$time_criterion_inputs <-  time_criterion_inputs
+            all_runs_results[[run_i]]$time_criterion <-  time_criterion_record
+          }
           ##
           # gc(verbose = FALSE)   ## removed: a full collection after every fit cost several seconds of wall time per fit
           ##
@@ -2456,6 +4042,11 @@ summarize_ps7_results <-  function(output_dir,
                                   ##
                                   ## "KE" = the kinetic-energy-change statistic; "ChEES" = position-based (Hoffman 2021).
                                   ## Pass c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER") to compare all three in one data frame.
+                                  ## "CHESSR_time" / "SNAPER_time" ("_bact" / "_bast") are accepted too, at their default time-criterion
+                                  ## settings (this reader has no time-criterion arguments, so it never rebuilds a "_bac<4 hex>" /
+                                  ## "_bas<4 hex>" name; fn_ps7_extract_tau_sweep() finds every such run from the names on disk).
+                                  ## "ESJD" / "ESJD_CHESSR" ("_baej" / "_baex") are accepted as well.
+                                  ## "ESJD_SNAPER" ("_baen") is accepted as well.
                                   burnin_algorithm = "KE",
                                   ##
                                   ## FALSE = median across chains with the accept indicator (original);
@@ -2503,7 +4094,12 @@ summarize_ps7_results <-  function(output_dir,
                                   ## FALSE = current PS7 default; TRUE = "_ll1". A vector compares both.
                                   store_log_lik_trace = FALSE,
                                   ## FALSE keeps existing filenames; TRUE finds "_af1" runs, c(FALSE, TRUE) reads both.
-                                  autodiff_fallback = FALSE
+                                  ## autodiff_fallback = FALSE
+                                  autodiff_fallback = FALSE,
+                                  ## pooled metric estimator (the "_Mp" code): NULL = "stan_style" / 0, which finds every run saved
+                                  ## before these options existed (plain "_Mp"); "none" with 0.5 finds the "_Mp.5w" runs:
+                                  metric_pooled_window_resets = NULL,
+                                  metric_pooled_offdiagonal_shrinkage = NULL
 
 ) {
   
@@ -2540,14 +4136,23 @@ summarize_ps7_results <-  function(output_dir,
                                                                weight_p_jump_only_for = tau_weight_by_p_jump_for)
         ##
         if (nrow(x = sampler_combinations) == 0) stop("Select at least one value for each of the sampler options.")
-        if (any(!sampler_combinations$metric_estimator %in% c("pooled", "chain_mean", "chain_mean_scaled"))) {
-            stop("metric_estimator must contain only 'pooled', 'chain_mean' and/or 'chain_mean_scaled'.")
+        ## if (any(!sampler_combinations$metric_estimator %in% c("pooled", "chain_mean", "chain_mean_scaled"))) {
+        if (any(!sampler_combinations$metric_estimator %in% c("pooled", "chain_mean", "chain_mean_scaled", "per_iteration"))) {
+            ## stop("metric_estimator must contain only 'pooled', 'chain_mean' and/or 'chain_mean_scaled'.")
+            stop("metric_estimator must contain only 'pooled', 'chain_mean', 'chain_mean_scaled' and/or 'per_iteration'.")
         }
         if (any(!sampler_combinations$diffusion_HMC_integrator %in% c("kick_flow_kick", "flow_kick_flow"))) {
             stop("diffusion_HMC_integrator must contain only 'kick_flow_kick' and/or 'flow_kick_flow'.")
         }
-        if (any(!sampler_combinations$burnin_algorithm %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER"))) {
-            stop("burnin_algorithm must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log' or 'SNAPER'.")
+        ## if (any(!sampler_combinations$burnin_algorithm %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER"))) {
+            ## stop("burnin_algorithm must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log' or 'SNAPER'.")
+        ## if (any(!sampler_combinations$burnin_algorithm %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time"))) {
+            ## stop("burnin_algorithm must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time' or 'SNAPER_time'.")
+        if (any(!sampler_combinations$burnin_algorithm %in% c("KE", "ChEES", "CHESSR", "CHESSR_log", "SNAPER", "CHESSR_time", "SNAPER_time",
+                                                              "ESJD", "ESJD_CHESSR", "ESJD_SNAPER", "LQ_ESSR"))) {
+            ## stop("burnin_algorithm must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time', 'SNAPER_time', 'ESJD', 'ESJD_CHESSR' or 'ESJD_SNAPER'.")
+            stop(paste0("burnin_algorithm must contain only 'KE', 'ChEES', 'CHESSR', 'CHESSR_log', 'SNAPER', 'CHESSR_time', 'SNAPER_time', 'ESJD', ",
+                        "'ESJD_CHESSR', 'ESJD_SNAPER' or 'LQ_ESSR'."))
         }
         if (any(!is.na(sampler_combinations$tau_ramp) & !(sampler_combinations$tau_ramp %in% c("original", "staged")))) {
             stop("tau_ramp must be NULL, or contain only 'original' and/or 'staged'.")
@@ -2562,6 +4167,9 @@ summarize_ps7_results <-  function(output_dir,
         if (any(!is.na(sampler_combinations$manual_L) &
                 (!is.finite(sampler_combinations$manual_L) | sampler_combinations$manual_L < 1))) {
             stop("manual_L must contain NA (adapt tau) and/or leapfrog-step counts >= 1.")
+        }
+        if ("adaptive" %in% tau_initial) {
+            stop("summarize_ps7_results() reads numeric tau_initial levels only; for tau_initial = \"adaptive\" use fn_ps7_extract_tau_sweep() and fn_ps7_summarise_runs().")
         }
         if (!is.numeric(tau_initial) || any(!is.finite(tau_initial) | tau_initial <= 0)) {
             stop("tau_initial must contain positive finite numbers.")
@@ -2679,7 +4287,10 @@ summarize_ps7_results <-  function(output_dir,
                                      burnin_TBB_pool_equals_n_chains = burnin_TBB_pool_equals_n_chains,
                                      J_grad_option = J_grad_option,
                                      store_log_lik_trace = store_log_lik_trace,
-                                     autodiff_fallback = sampler_combinations$autodiff_fallback[combination_index])
+                                     ## autodiff_fallback = sampler_combinations$autodiff_fallback[combination_index])
+                                     autodiff_fallback = sampler_combinations$autodiff_fallback[combination_index],
+                                     metric_pooled_window_resets = metric_pooled_window_resets,
+                                     metric_pooled_offdiagonal_shrinkage = metric_pooled_offdiagonal_shrinkage)
               ##
               model_args_stub <-  list( n_pops = n_pops,
                                        num_chunks = NULL)
@@ -2787,8 +4398,11 @@ summarize_ps7_results <-  function(output_dir,
                     n_divs = divs$n_divs,
                     pct_divs = divs$pct_divs,
                     ##
-                    ESS_per_grad_samp = r$ESS_per_grad_samp*1000,  ## legacy display column: min ESS per 1000 gradients
-                    min_ESS_per_grad_sampling = r$ESS_per_grad_samp,  ## unscaled: min ESS per ONE gradient
+                    ## ESS_per_grad_samp = r$ESS_per_grad_samp*1000,  ## legacy display column: min ESS per 1000 gradients
+                    ## min_ESS_per_grad_sampling = r$ESS_per_grad_samp,  ## unscaled: min ESS per ONE gradient
+                    ## per EXECUTED gradient (expected whole leapfrog steps under the sampling jitter; see fn_ps7_extract_tau_sweep.R):
+                    ESS_per_grad_samp = fn_ps7_ESS_per_grad_samp_expected_steps(run_object = r)*1000,  ## legacy display column: min ESS per 1000 gradients
+                    min_ESS_per_grad_sampling = fn_ps7_ESS_per_grad_samp_expected_steps(run_object = r),  ## unscaled: min ESS per ONE gradient
                     min_ESS_per_sec_sampling = r$ESS_per_sec_samp,
                     grad_evals_per_sec = eff$grad_evals_per_sec,
                     ##
@@ -5480,6 +7094,15 @@ fn_ps7_compare_tau_schemes <-  function( summary_df,
     invisible(list( overall = overall, paired = paired, fixed_L = fixed_L, dropped = dropped))
 
 }
+
+
+
+
+
+
+
+
+
 
 
 

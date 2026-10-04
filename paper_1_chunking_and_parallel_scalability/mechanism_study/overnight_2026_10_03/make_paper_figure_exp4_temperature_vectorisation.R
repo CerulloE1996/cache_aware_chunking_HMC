@@ -152,7 +152,10 @@ fn_run_trace <-  function( temperatures,
                                                         labels = run_legend_labels)
       run_linetype_scale <-  ggplot2::scale_linetype_manual(name = NULL, values = run_linetypes, breaks = run_names,
                                                             labels = run_legend_labels)
-      time_axis <-  ggplot2::scale_x_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10.6))
+      ## time_axis <-  ggplot2::scale_x_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10.6))
+      ## 4 Oct 2026: the upper limit 10.6 min silently dropped the last seconds of the two longest runs
+      ## (MD_BayesMVP, N_chunks = 1: 10.69 min; AD_Stan: 10.62 min); the limit now covers every logged second:
+      time_axis <-  ggplot2::scale_x_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10.75))
       ##
       plot_temperature <-  ggplot2::ggplot(data = traces,
                                            mapping = ggplot2::aes(x = minutes, y = Tctl,

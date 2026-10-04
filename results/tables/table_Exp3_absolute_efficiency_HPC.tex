@@ -1,46 +1,149 @@
-%%%%
-%%%%
 \begin{table}[H]
 %%%%
 \centering
-\normalsize
+\scriptfootnotesize
 %%%%
 \caption{
-\footnotesize{
+\scriptfootnotesize{
 % Experiment 3 on the HPC: estimated time to the target minimum ESS over sensitivities, specificities and prevalence. Targets are 7000, 2500 and 1000 across the three sample sizes. Stan entries are means over fifteen runs and exclude unrecorded posterior-summary costs, so their total times and speed-up ratios are conservative lower bounds; the BayesMVP entries are means over three runs of each selected configuration. Mplus uses the mean estimated total time from three PS5 runs at each sample size, scaling its full run time to retain its half-run burn-in allocation. Ratios are reported only for the same device and sample size.
 % Experiment 3 on the HPC: estimated time to the target minimum ESS over sensitivities, specificities and prevalence. Targets are 7000, 2500 and 1000 across the three sample sizes. Stan entries are means over three runs of the selected Stan configuration (the asymmetric burn-in: 250 burn-in iterations with 4 chains and the unpartitioned model, then 250 sampling iterations with 96 chains at $N=500$ and 64 chains at $N=2500$ and $10,000$, with tape chunking; see section \ref{section:paper1_absolute_efficiency_design}), including the recorded posterior-summary times; the NicoStan+BayesMVP entries are means over three runs of each selected configuration. Mplus uses the mean estimated total time from three PS5 runs at each sample size, scaling its full run time to retain its half-run burn-in allocation. Ratios are reported only for the same device and sample size.
-Experiment 3 on the HPC: estimated time to the target minimum ESS over sensitivities, specificities and prevalence. Targets are 7000, 2500 and 1000 across the three sample sizes. Stan entries are means over three runs of the selected Stan configuration (the asymmetric burn-in: 250 burn-in iterations with 4 chains and the unpartitioned model, then 250 sampling iterations with 96 chains at $N=500$ and 64 chains at $N=2500$ and $10,000$, with tape chunking; see section \ref{section:paper1_absolute_efficiency_design}), including the recorded posterior-summary times; the NicoStan+BayesMVP entries are means over three runs of each selected configuration. Mplus uses the mean estimated total time from three runs at each sample size (see section \ref{section:paper1_absolute_efficiency_design}), scaling its full run time to retain its half-run burn-in allocation. Speed-up is the time of each software divided by that of NicoStan+BayesMVP (i.e., the speed-up of NicoStan+BayesMVP over that software). Ratios are reported only for the same device and sample size.
+%%%% ---- to check ---- %%%%
+% Experiment 3 on the HPC: estimated time to the target minimum ESS over sensitivities, specificities and prevalence. Targets are 7000, 2500 and 1000 across the three sample sizes. Stan entries are means over three runs of the selected Stan configuration (the asymmetric burn-in: 250 burn-in iterations with 4 chains and the unpartitioned model, then 250 sampling iterations with 96 chains at $N=500$ and 64 chains at $N=2500$ and $10,000$, with tape chunking; see section \ref{section:paper1_absolute_efficiency_design}), including the recorded posterior-summary times; the NicoStan+BayesMVP entries are means over three runs of each selected configuration. Mplus uses the mean estimated total time from three runs at each sample size (see section \ref{section:paper1_absolute_efficiency_design}), scaling its full run time to retain its half-run burn-in allocation. Speed-up is the time of each software divided by that of NicoStan+BayesMVP (i.e., the speed-up of NicoStan+BayesMVP over that software). Ratios are reported only for the same device and sample size.
+%%%% ---- to check ---- %%%%
+% Experiment 3 on the local-HPC (two-population LC-MVP model;
+% see section \ref{section:paper1_absolute_efficiency_design}):
+% estimated time to the target minimum ESS over sensitivities, specificities and prevalence.
+% Targets are 7000, 2500 and 1000 across the three sample sizes.
+% The NicoStan+BayesMVP entries are means over three runs of each selected configuration
+%%%% ---- to check ---- %%%%
+% (see section \ref{section:ps1_ps2_results_experiment_3}).
+% Stan entries are means over three runs of the selected Stan configuration, i.e., the asymmetric burn-in:
+% (see section \ref{section:ps1_ps2_results_experiment_3});
+% at $N=10,000$, its mean burn-in, sampling and posterior-summary times are
+% \EthreeTBD{}, \EthreeTBD{} and \EthreeTBD{} s, and its mean minimum ESS is \EthreeTBD{}.
+% Stan entries are means over three runs of the selected Stan configuration, i.e., the asymmetric burn-in:
+% 250 burn-in iterations with $N_{\text{chains}} = 4$ and the unpartitioned model (\texttt{AD\_Stan}),
+% then 250 sampling iterations with the tape-chunked model (\texttt{AD\_Stan\_tape\_chunked};
+% $N_{\text{threads/chain}} = 1$), with $N_{\text{chains}} = 96$ and $N_{\text{chunks}} = 5$ at $N=500$,
+% and $N_{\text{chains}} = 64$ and $N_{\text{chunks}} = 16$ and $100$ at $N=2500$ and $10,000$, respectively
+%%%% ---- to check ---- %%%%
+% (see section \ref{section:paper1_absolute_efficiency_design}), including the recorded posterior-summary times.
+% (see section \ref{section:paper1_absolute_efficiency_design}), including the recorded posterior-summary times
+%%%% ---- to check ---- %%%%
+% (at $N=10,000$, the individual Stan runs range from \EthreeTBD{} to \EthreeTBD{} s,
+% with approximately \EthreeTBD{} ESS per gradient).
+% (at $N=10,000$, the individual Stan runs range from \EthreeTBD{} to \EthreeTBD{} s).
+% Relative to NicoStan+BayesMVP at $N=10,000$, the Stan totals in table \ref{table:paper1_nicostan_total_projection}
+% are approximately \EthreeTBD{} (\texttt{AD\_Stan}), \EthreeTBD{} (\texttt{AD\_Stan\_WCP}),
+%%%% ---- to check ---- %%%%
+% \EthreeTBD{} (\texttt{AD\_Stan\_WCP\_chunking}) and \EthreeTBD{} (\texttt{AD\_Stan\_tape\_chunked}) times longer;
+%%%% ---- to check ---- %%%%
+% \EthreeTBD{} (\texttt{AD\_Stan\_WCP\_chunking}) and \EthreeTBD{} (measured \texttt{AD\_Stan\_tape\_chunked})
+% times longer;
+% \EthreeTBD{} (\texttt{AD\_Stan\_WCP\_chunking}), \EthreeTBD{} (measured \texttt{AD\_Stan\_tape\_chunked})
+% and \EthreeTBD{} (\texttt{AD\_Stan\_tape\_chunked} with $180 \times 1$) times longer;
+%%%% ---- to check ---- %%%%
+% without the experiment 2 correction (see section \ref{section:ps1_ps2_results_experiment_3}),
+% the $180 \times 1$ \texttt{AD\_Stan\_tape\_chunked} totals there at $N=2500$ and $10,000$
+% are \EthreeTBD{} and \EthreeTBD{} seconds.
+%%%% ---- to check ---- %%%%
+% without the experiment 2 correction (see section \ref{section:ps1_ps2_results_experiment_3}),
+% the $180 \times 1$ \texttt{AD\_Stan\_tape\_chunked} totals there at $N=2500$ and $10,000$
+% are \EthreeTBD{} and \EthreeTBD{} seconds,
+% and with it, the \texttt{AD\_Stan\_WCP\_chunking} totals there are \EthreeTBD{} and \EthreeTBD{} seconds.
+% with the experiment 2 correction (see section \ref{section:paper1_absolute_efficiency_design}),
+% the \texttt{AD\_Stan\_WCP\_chunking} totals there at $N=2500$ and $10,000$
+% are \EthreeTBD{} and \EthreeTBD{} seconds
+% (the $180 \times 1$ \texttt{AD\_Stan\_tape\_chunked} totals there need no correction,
+% since they use only an experiment 2 ratio).
+%%%% ---- to check ---- %%%%
+% This was the fastest, at every $N$, of the asymmetric and the standard burn-in
+% The selected (asymmetric) burn-in was the fastest, at every $N$, of the asymmetric and the standard burn-in
+% (in which the burn-in chains use the tape-chunked model and the same $N_{\text{chains}}$ as sampling),
+% each with 250, 500 or 1000 burn-in iterations.
+% Mplus (standard, with \texttt{FBITERATIONS = 1000}, \texttt{THIN{=}10}
+% and $N_{\text{chains}} \times N_{\text{threads/chain}} = 180 \times 1$)
+% uses the mean estimated total time from three runs at each sample size
+% (see section \ref{section:paper1_absolute_efficiency_design}),
+% scaling its full run time to retain its half-run burn-in allocation.
+% Speed-up is the time of each software divided by that of NicoStan+BayesMVP
+% (i.e., the speed-up of NicoStan+BayesMVP over that software).
+%%%% ---- to check ---- %%%%
+%%%% ---- to check ---- %%%%
+% ESS/$10^3$ grad.\ is the minimum ESS per 1000 gradient evaluations during sampling (summed over all chains);
+% ESS/$10^3$ grad.\ is the minimum ESS per 1000 gradient evaluations during sampling (summed over all chains),
+% and ESS/s the minimum ESS per second of sampling (summed over all chains, excluding burn-in);
+% Mplus uses no gradients (--), and its minimum ESS per 1000 sampling iterations (summed over all chains)
+% at $N=10,000$ is \EthreeTBD{}, vs.\ \EthreeTBD{} for NicoStan+BayesMVP.
+%%%% ---- to check ---- %%%%
+% Ratios are reported only for the same device and sample size.
+% Ratios are reported only for the same device and sample size.
+% Bold marks the shortest time at each $N$.
+Experiment 3 on the local-HPC (two-population LC-MVP model;
+see section \ref{section:paper1_absolute_efficiency_design}):
+estimated time to the target minimum ESS over sensitivities, specificities and prevalence
+(targets $7000$, $2500$ and $1000$ at $N = 500$, $2500$ and $10,000$;
+means over three runs of each selected configuration; see section \ref{section:ps1_ps2_results_experiment_3}). \\
+Stan uses the asymmetric burn-in: 250 burn-in iterations with $N_{\text{chains}} = 4$ and \texttt{AD\_Stan},
+then 250 sampling iterations with \texttt{AD\_Stan\_tape\_chunked} ($N_{\text{threads/chain}} = 1$),
+with $N_{\text{chains}} = 96$ and $N_{\text{chunks}} = 5$ at $N=500$,
+and $N_{\text{chains}} = 64$ and $N_{\text{chunks}} = 16$ and $100$ at $N=2500$ and $10,000$, respectively;
+Mplus is standard Mplus with \texttt{FBITERATIONS = 1000}, \texttt{THIN{=}10}
+and $N_{\text{chains}} \times N_{\text{threads/chain}} = 180 \times 1$. \\
+Speed-up is the time of each software divided by that of NicoStan+BayesMVP;
+ESS/$10^3$ grad.\ is the minimum ESS per 1000 gradient evaluations during sampling,
+and ESS/s the minimum ESS per second of sampling (both summed over all chains; Mplus uses no gradients, --).
+Bold marks the shortest time at each $N$.
 }}
 %%%%
 \label{S:table:exp3_absolute_efficiency_hpc}
 %%%%
-\begin{tabular}{lrrrrrr}
+\PaperOneFitTable{
+%%%% ---- to check ---- %%%%
+% \begin{tabular}{lrrrrrr}
 %%%%
-\toprule
+% \toprule
 %%%%
- & \multicolumn{2}{c}{$N = 500$} & \multicolumn{2}{c}{$N = 2500$} & \multicolumn{2}{c}{$N = 10,000$} \\
- & Time & Speed-up & Time & Speed-up & Time & Speed-up \\
+%  & \multicolumn{2}{c}{$N = 500$} & \multicolumn{2}{c}{$N = 2500$} & \multicolumn{2}{c}{$N = 10,000$} \\
+%  & Time & Speed-up & Time & Speed-up & Time & Speed-up \\
  %%%%
-\midrule
+% \midrule
 %%%%
 % BayesMVP & \textbf{7.66 s} & 1$\times$ & \textbf{4.71 s} & 1$\times$ & \textbf{11.64 s} & 1$\times$ \\
 % BayesMVP & \textbf{2.27 s} & 1$\times$ & \textbf{3.63 s} & 1$\times$ & \textbf{10.51 s} & 1$\times$ \\
 % NicoStan+BayesMVP & \textbf{2.27 s} & 1$\times$ & \textbf{3.63 s} & 1$\times$ & \textbf{10.51 s} & 1$\times$ \\
 % NicoStan+BayesMVP & \textbf{2.27 s} & 1$\times$ & \textbf{3.30 s} & 1$\times$ & \textbf{10.51 s} & 1$\times$ \\
-NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \textbf{\EthreeTBD{} s} & 1$\times$ & \textbf{\EthreeTBD{} s} & 1$\times$ \\
+% NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \textbf{\EthreeTBD{} s} & 1$\times$ & \textbf{\EthreeTBD{} s} & 1$\times$ \\
 % Stan (NUTS) & 49.58 s & $6-7\times$ & 2996 s (49.9 min) & $600-700\times$ & 35,462 s (591.0 min) & $3050\times$ \\
 % Stan (NUTS) & 49.58 s & $20-25\times$ & 2996 s (49.9 min) & $800-850\times$ & 35,462 s (591.0 min) & $3370\times$ \\
 % Stan (NUTS) & 42.01 s & $18.5\times$ & 242.07 s (4.03 min) & $65-75\times$ & 1974 s (32.9 min) & $190\times$ \\
 % Stan (NUTS) & 42.01 s & $\EthreeTBD{}\times$ & 242.07 s (4.03 min) & $\EthreeTBD{}\times$ & 1974 s (32.9 min) & $\EthreeTBD{}\times$ \\
-Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} s & $\EthreeTBD{}\times$ \\
+% Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} s & $\EthreeTBD{}\times$ \\
 % Mplus (PX-Gibbs) & 36.03 s & $5\times$ & 110.20 s (1.84 min) & $20-25\times$ & 520.52 s (8.68 min) & $40-50\times$ \\
 % Mplus (PX-Gibbs) & 36.03 s & $16\times$ & 110.20 s (1.84 min) & $25-35\times$ & 520.52 s (8.68 min) & $45-55\times$ \\
-Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ \\
+% Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ \\
+%%%% ---- to check ---- %%%%
+% \begin{tabular}{lrrrrrrrrr}
+% \toprule
+%  & \multicolumn{3}{c}{$N = 500$} & \multicolumn{3}{c}{$N = 2500$} & \multicolumn{3}{c}{$N = 10,000$} \\
+%  & Time & Speed-up & ESS/$10^3$ grad. & Time & Speed-up & ESS/$10^3$ grad. & Time & Speed-up & ESS/$10^3$ grad. \\
+% \midrule
+% NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} \\
+% Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} \\
+% Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & -- & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & -- & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ & -- \\
+\begin{tabular}{lrrrrrrrrrrrr}
+\toprule
+ & \multicolumn{4}{c}{$N = 500$} & \multicolumn{4}{c}{$N = 2500$} & \multicolumn{4}{c}{$N = 10,000$} \\
+ & Time & Speed-up & ESS/$10^3$ grad. & ESS/s & Time & Speed-up & ESS/$10^3$ grad. & ESS/s & Time & Speed-up & ESS/$10^3$ grad. & ESS/s \\
+\midrule
+NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
 %%%%
 \bottomrule
 %%%%
 \end{tabular}
+}
 %%%%
 \end{table}
-%%%%
 %%%%

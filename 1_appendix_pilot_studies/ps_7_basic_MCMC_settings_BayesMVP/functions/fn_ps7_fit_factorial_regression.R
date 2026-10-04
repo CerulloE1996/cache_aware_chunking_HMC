@@ -29,6 +29,7 @@
 #' @param expected_factor_levels Optional complete planned grid, including levels not observed yet. Does not change any sampling settings.
 #' @param expected_run_indices Expected repeated seed/run labels, used to count missing fits. Default matches the present three-run study.
 #' @param matched_setting One or more binary settings for exact same-settings, same-run comparisons, e.g. tau_ramp.
+#'   A setting with more than two observed levels gives one comparison per non-reference level (e.g. 2pi / pi and adaptive / pi).
 #'   Known settings not selected as factors or with only one observed level are skipped explicitly; unknown names fail.
 #'   When theta_hat_us_rule is modelled, its two freeze columns may be dependent descriptors only if each rule has one
 #'   fully recorded, consistent endpoint: zero uses 0; running_mean_frozen uses one positive endpoint. Other schedule guards remain.
@@ -144,6 +145,17 @@ fn_ps7_fit_factorial_regression <-  function( runs_table,
         if (all(c("burnin_algorithm", "tau_objective") %in% names(runs_table))) {
                 if ("burnin_algorithm" %in% factor_settings) fixed_setting_names <-  setdiff(fixed_setting_names, "tau_objective")
                 if ("tau_objective" %in% factor_settings) fixed_setting_names <-  setdiff(fixed_setting_names, "burnin_algorithm")
+        }
+        ## The time-criterion settings hash of CHESSR_time / SNAPER_time ("_bac<4 hex>" / "_bas<4 hex>") is NA for every other
+        ## algorithm (inert there), so with burnin_algorithm as a factor it varies only through it. It is exempt when it is
+        ## constant within the CHESSR_time / SNAPER_time rows and NA in every other row; any other variation still stops below:
+        time_criterion_setting_columns <-  intersect(x = "time_criterion_settings_hash", y = fixed_setting_names)
+        if ("burnin_algorithm" %in% factor_settings && length(x = time_criterion_setting_columns)) {
+                time_criterion_rows <-  runs_table$burnin_algorithm %in% c("CHESSR_time", "SNAPER_time")
+                time_criterion_columns_exempt <-  time_criterion_setting_columns[vapply(X = time_criterion_setting_columns, FUN = function(column_name) {
+                    dplyr::n_distinct(runs_table[[column_name]][time_criterion_rows]) <= 1 && all(is.na(runs_table[[column_name]][!time_criterion_rows]))
+                }, FUN.VALUE = FALSE)]
+                fixed_setting_names <-  setdiff(fixed_setting_names, time_criterion_columns_exempt)
         }
         ## learning_rate_initial = NULL in the runner means the initial LR IS the LR, so it varies only with learning_rate:
         if (all(c("learning_rate", "learning_rate_initial") %in% names(runs_table)) &&
@@ -369,23 +381,32 @@ fn_ps7_fit_factorial_regression <-  function( runs_table,
         }
         skipped_matched_settings <-  tibble::tibble(setting = character(), reason = character())
         for (comparison_setting in matched_setting) {
-            if (!comparison_setting %in% factor_settings || nlevels(x = model_data[[comparison_setting]]) != 2) {
+            ## a setting with more than two observed levels (e.g. tau_initial = pi, 2pi, adaptive) is compared level by level with its
+            ## reference level (2pi / pi, adaptive / pi); with two levels this is the single comparison as before:
+            ## if (!comparison_setting %in% factor_settings || nlevels(x = model_data[[comparison_setting]]) != 2) {
+            if (!comparison_setting %in% factor_settings || nlevels(x = model_data[[comparison_setting]]) < 2) {
                 skipped_matched_settings <-  dplyr::bind_rows(skipped_matched_settings,
                     tibble::tibble(setting = comparison_setting,
                                    reason = if (!comparison_setting %in% factor_settings) "not selected as a regression factor" else
-                                       "requires exactly two observed levels"))
+                                       ## "requires exactly two observed levels"))
+                                       "requires at least two observed levels"))
                 next
             }
             comparison_levels <-  levels(x = model_data[[comparison_setting]])
             matching_columns <-  c(setdiff(x = factor_settings, y = comparison_setting), "run")
             reference_runs <-  model_data %>% dplyr::filter(.data[[comparison_setting]] == comparison_levels[1]) %>%
                 dplyr::select(dplyr::all_of(x = matching_columns), reference_outcome = "outcome_value", reference_file = "file")
-            alternative_runs <-  model_data %>% dplyr::filter(.data[[comparison_setting]] == comparison_levels[2]) %>%
+            for (alternative_level in comparison_levels[-1]) {
+            ## alternative_runs <-  model_data %>% dplyr::filter(.data[[comparison_setting]] == comparison_levels[2]) %>%
+            alternative_runs <-  model_data %>% dplyr::filter(.data[[comparison_setting]] == alternative_level) %>%
                 dplyr::select(dplyr::all_of(x = matching_columns), alternative_outcome = "outcome_value", alternative_file = "file")
-            matched_run_tables[[comparison_setting]] <-  dplyr::inner_join(x = reference_runs, y = alternative_runs, by = matching_columns) %>%
+            ## matched_run_tables[[comparison_setting]] <-  dplyr::inner_join(x = reference_runs, y = alternative_runs, by = matching_columns) %>%
+            matched_run_tables[[paste(comparison_setting, alternative_level, sep = ":")]] <-  dplyr::inner_join(x = reference_runs, y = alternative_runs, by = matching_columns) %>%
                 dplyr::mutate(matched_setting = comparison_setting,
-                              comparison = paste(comparison_levels[2], "/", comparison_levels[1]),
+                              ## comparison = paste(comparison_levels[2], "/", comparison_levels[1]),
+                              comparison = paste(alternative_level, "/", comparison_levels[1]),
                               ratio = .data$alternative_outcome / .data$reference_outcome, log_ratio = log(x = .data$ratio))
+            }
         }
         matched_runs <-  dplyr::bind_rows(matched_run_tables)
         matched_by_seed <-  tibble::tibble(matched_setting = character(), run = numeric(), comparison = character(),

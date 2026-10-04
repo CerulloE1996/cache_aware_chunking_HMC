@@ -1,36 +1,77 @@
 \begin{table}[H]
 %%%%
 \centering
-\small
+\scriptfootnotesize
 %%%%
 \caption{
-\footnotesize{
-        Selected $N_{\text{chunks}}$ for \texttt{MD\_BayesMVP\_WCP\_chunking},
-        for each device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$),
-        and $N$ (i.e., the $N_{\text{chunks}}$, with the lowest mean run time for that allocation;
-        see section \ref{section:paper1_chunk_wcp_selection_design}).
+\scriptfootnotesize{
+%%%% ---- to check ---- %%%%
+%         Selected $N_{\text{chunks}}$ for \texttt{MD\_BayesMVP\_WCP\_chunking},
+%         for each device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$),
+%         and $N$ (i.e., the $N_{\text{chunks}}$, with the lowest mean run time for that allocation;
+%         see section \ref{section:paper1_chunk_wcp_selection_design}).
         %%
-        The number in brackets is the throughput of this configuration relative to \texttt{MD\_BayesMVP\_WCP}
-        (i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$) at the same allocation;
-        (1$\times$) means that WCP-only itself was selected.
+%%%% ---- to check ---- %%%%
+%         The number in brackets is the throughput of this configuration relative to \texttt{MD\_BayesMVP\_WCP}
+%         (i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$) at the same allocation;
+%         (1$\times$) means that WCP-only itself was selected.
+%%%% ---- to check ---- %%%%
+%         The number in brackets is the throughput of this configuration relative to
+%         the fastest \texttt{MD\_BayesMVP\_WCP} allocation at that $N$
+%         (\dag{}; i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$),
+%         so that the largest number in each column is the fastest configuration (bold);
+%         The number in brackets is the throughput of this configuration relative to
+%         the fastest \texttt{MD\_BayesMVP\_WCP} allocation on that device at that $N$
+%         (\dag{}; i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$),
+%         so that, for each device, the largest number in each column is the fastest configuration (bold);
+%         an $N_{\text{chunks}}$ equal to $N_{\text{threads/chain}}$ means that WCP-only itself was selected.
         %%
-        Bold marks the fastest \texttt{MD\_BayesMVP\_WCP\_chunking} allocation at each $N$
+%         Bold marks the fastest \texttt{MD\_BayesMVP\_WCP\_chunking} allocation at each $N$
         %%%% ---- to check ---- %%%%
         % (i.e., the configuration which we used in E2;
-        (in E2, we used the fastest allocation at each $N_{\text{threads}}$;
-        see section \ref{section:methods:experiment_2_cross_algorithm_software}),
-        and \dag{} marks the fastest \texttt{MD\_BayesMVP\_WCP} allocation.
+%         (in E2, we used the fastest allocation at each $N_{\text{threads}}$;
+%         see section \ref{section:methods:experiment_2_cross_algorithm_software}),
+%         and \dag{} marks the fastest \texttt{MD\_BayesMVP\_WCP} allocation.
         %%%% ---- to check ---- %%%%
 %%%% ---- to check ---- %%%%
         % In E2, the fastest allocation at each $N_{\text{threads}}$ was always the one with the largest
         % $N_{\text{chains}}$ (e.g., $16 \times 6$ for $N_{\text{threads}} = 96$ on the local-HPC).
-        In E2, the fastest allocation at each $N_{\text{threads}}$ was always the one with the largest
-        $N_{\text{chains}}$ (e.g., $48 \times 2$ for $N_{\text{threads}} = 96$ on the local-HPC).
-        For $N_{\text{chains}} \ge 24$, the long runs used fewer iterations, and their times were scaled
-        to the same $N_{\text{iter}}$
-        (see section \ref{section:methods:experiment_1_plan:part_II_NicoStan_BayesMVP_WCP}).
+%%%% ---- to check ---- %%%%
+%         In E2, the fastest allocation at each $N_{\text{threads}}$ was always the one with the largest
+%         $N_{\text{chains}}$ (e.g., $48 \times 2$ for $N_{\text{threads}} = 96$ on the local-HPC).
+%         For \texttt{MD\_BayesMVP\_WCP\_chunking} in E2, the fastest allocation at each $N_{\text{threads}}$
+%         was always the one with the largest $N_{\text{chains}}$
+%%%% ---- to check ---- %%%%
+%         (e.g., $48 \times 2$ for $N_{\text{threads}} = 96$ on the local-HPC).
+%         For $N_{\text{chains}} \ge 24$, the long runs used fewer iterations, and their times were scaled
+%         to the same $N_{\text{iter}}$
+%         (e.g., $48 \times 2$ for $N_{\text{threads}} = 96$ on the local-HPC).
+%         For $N_{\text{chains}} \ge 24$ at $N \ge 10,000$, the long runs used fewer iterations,
+%         and their times were scaled to the same $N_{\text{iter}}$
+%         (see section \ref{section:methods:experiment_1_plan:part_II_NicoStan_BayesMVP_WCP}).
         %%
-        Hyphens mark allocations which were not tested at that $N$.
+%         Hyphens mark allocations which were not tested at that $N$.
+%%%% ---- to check ---- %%%%
+%         $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$.
+%%%% ---- to check ---- %%%%
+%         $^{*}$the second-best $N_{\text{chunks}}$ for that allocation was within $1\%$ (i.e., essentially tied).
+        Selected $N_{\text{chunks}}$ for \texttt{MD\_BayesMVP\_WCP\_chunking}
+        by device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$) and $N$
+        (see section \ref{section:paper1_chunk_wcp_selection_design}),
+%%%% ---- to check ---- %%%%
+%        with the throughput relative to the fastest \texttt{MD\_BayesMVP\_WCP} allocation (\dag{}) in brackets;
+%        an $N_{\text{chunks}}$ equal to $N_{\text{threads/chain}}$ is WCP-only. \\
+        \dag{} marks the allocation at which WCP-only
+        (\texttt{MD\_BayesMVP\_WCP}; one chunk per thread) was fastest,
+        and the number in brackets is the throughput relative to that WCP-only run;
+        an $N_{\text{chunks}}$ equal to $N_{\text{threads/chain}}$ is WCP-only itself. \\
+        Bold marks the fastest allocation at each $N$;
+        in E2, we used the fastest allocation at each $N_{\text{threads}}$,
+        which was always the one with the largest $N_{\text{chains}}$
+        (see section \ref{section:methods:experiment_2_cross_algorithm_software}). \\
+        Hyphens mark allocations which were not tested at that $N$;
+        $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$;
+        $^{*}$the second-best $N_{\text{chunks}}$ was within $1\%$.
 }}
 %%%%
 \label{S:table:WCP_selected_chunks}
@@ -65,38 +106,106 @@ Device & $N_{\text{chains}} \times N_{\text{threads/chain}}$ & $500$ & $2500$ & 
  % & $16 \times 6$ & 6 (1) & 6 (1) & 50 (1.06) & 100 (2.19) \\
  % & $16 \times 8$ & 8 (1) & 8 (1) & 25 (1.06) & 100 (2.11) \\
  % & $16 \times 11$ & - & - & 25 (1.04) & 100 (2.04) \\
-local-HPC & $4 \times 2$ & 4 (1.02$\times$) & 4 (1.05$\times$) & 10 (1.13$\times$) & 50 (1.33$\times$) \\
- & $4 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 50 (1.04$\times$) & 100 (1.30$\times$) \\
- & $4 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 8 (1$\times$) & 250 (1.16$\times$) \\
- & $4 \times 16$ & - & - & 50 (1.00$\times$) & 50 (1.13$\times$) \\
- & $4 \times 24$ & - & - & 24 (1$\times$) & 24 (1$\times$) \\
- & $4 \times 32$ & - & - & 50 (1.04$\times$) & 500 (1.07$\times$) \\
- & $4 \times 44$ & - & - & 44 (1$\times$) & 44 (1$\times$) \\
- & $8 \times 2$ & 2 (1$\times$) & 10 (1.03$\times$) & 10 (1.18$\times$) & 50 (1.52$\times$) \\
- & $8 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 50 (1.03$\times$) & 100 (1.48$\times$) \\
- & $8 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 8 (1$\times$) & 50 (1.56$\times$) \\
- & $8 \times 12$ & - & - & 50 (1.05$\times$) & 100 (1.37$\times$) \\
- & $8 \times 16$ & - & - & 16 (1$\times$) & 100 (1.25$\times$)\dag \\
- & $8 \times 22$ & - & - & 25 (1.00$\times$) & 100 (1.31$\times$) \\
- & $16 \times 2$ & 2 (1$\times$) & 4 (1.01$\times$) & 10 (1.21$\times$) & 100 (2.09$\times$) \\
- & $16 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (1.10$\times$)\dag & 100 (2.58$\times$) \\
- & $16 \times 6$ & 6 (1$\times$) & 6 (1$\times$) & 50 (1.06$\times$) & 100 (2.19$\times$) \\
- & $16 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 25 (1.06$\times$) & 100 (2.11$\times$) \\
- & $16 \times 11$ & - & - & 25 (1.04$\times$) & 100 (2.04$\times$) \\
- & $24 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (1.37$\times$) & 250 (3.59$\times$) \\
- & $32 \times 2$ & 2 (1$\times$) & 4 (1.06$\times$) & 25 (1.93$\times$) & 100 (4.65$\times$) \\
- & $32 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (1.74$\times$) & 100 (3.72$\times$) \\
- & $45 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (2.17$\times$) & 500 (5.06$\times$) \\
- & $48 \times 2$ & 2 (1$\times$) & 10 (1.06$\times$) & 25 (2.27$\times$) & 100 (5.20$\times$) \\
- & $64 \times 2$ & 4 (1.00$\times$) & 4 (1.10$\times$) & 25 (2.69$\times$) & 100 (5.59$\times$) \\
- & $90 \times 2$ & \textbf{2 (1$\times$)}\dag & \textbf{10 (1.16$\times$)}\dag & \textbf{50 (3.60$\times$)} & \textbf{100 (7.67$\times$)} \\
+%%%% ---- to check ---- %%%%
+% local-HPC & $4 \times 2$ & 4 (1.02$\times$) & 4 (1.05$\times$) & 10 (1.13$\times$) & 50 (1.33$\times$) \\
+%  & $4 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 50 (1.04$\times$) & 100 (1.30$\times$) \\
+%  & $4 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 8 (1$\times$) & 250 (1.16$\times$) \\
+%  & $4 \times 16$ & - & - & 50 (1.00$\times$) & 50 (1.13$\times$) \\
+%  & $4 \times 24$ & - & - & 24 (1$\times$) & 24 (1$\times$) \\
+%  & $4 \times 32$ & - & - & 50 (1.04$\times$) & 500 (1.07$\times$) \\
+%  & $4 \times 44$ & - & - & 44 (1$\times$) & 44 (1$\times$) \\
+%  & $8 \times 2$ & 2 (1$\times$) & 10 (1.03$\times$) & 10 (1.18$\times$) & 50 (1.52$\times$) \\
+%  & $8 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 50 (1.03$\times$) & 100 (1.48$\times$) \\
+%  & $8 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 8 (1$\times$) & 50 (1.56$\times$) \\
+%  & $8 \times 12$ & - & - & 50 (1.05$\times$) & 100 (1.37$\times$) \\
+%  & $8 \times 16$ & - & - & 16 (1$\times$) & 100 (1.25$\times$)\dag \\
+%  & $8 \times 22$ & - & - & 25 (1.00$\times$) & 100 (1.31$\times$) \\
+%  & $16 \times 2$ & 2 (1$\times$) & 4 (1.01$\times$) & 10 (1.21$\times$) & 100 (2.09$\times$) \\
+%  & $16 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (1.10$\times$)\dag & 100 (2.58$\times$) \\
+%  & $16 \times 6$ & 6 (1$\times$) & 6 (1$\times$) & 50 (1.06$\times$) & 100 (2.19$\times$) \\
+%  & $16 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 25 (1.06$\times$) & 100 (2.11$\times$) \\
+%  & $16 \times 11$ & - & - & 25 (1.04$\times$) & 100 (2.04$\times$) \\
+%  & $24 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (1.37$\times$) & 250 (3.59$\times$) \\
+%  & $32 \times 2$ & 2 (1$\times$) & 4 (1.06$\times$) & 25 (1.93$\times$) & 100 (4.65$\times$) \\
+%  & $32 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (1.74$\times$) & 100 (3.72$\times$) \\
+%  & $45 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 25 (2.17$\times$) & 500 (5.06$\times$) \\
+%  & $48 \times 2$ & 2 (1$\times$) & 10 (1.06$\times$) & 25 (2.27$\times$) & 100 (5.20$\times$) \\
+%  & $64 \times 2$ & 4 (1.00$\times$) & 4 (1.10$\times$) & 25 (2.69$\times$) & 100 (5.59$\times$) \\
+%  & $90 \times 2$ & \textbf{2 (1$\times$)}\dag & \textbf{10 (1.16$\times$)}\dag & \textbf{50 (3.60$\times$)} & \textbf{100 (7.67$\times$)} \\
+% \midrule
+% Laptop & $2 \times 2$ & 2 (1$\times$) & 4 (1.06$\times$) & 10 (1.50$\times$) & 50 (2.54$\times$) \\
+%  & $2 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 50 (1.68$\times$)\dag & 100 (3.62$\times$) \\
+%  & $2 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 50 (1.45$\times$) & 250 (2.67$\times$)\dag \\
+%  & $4 \times 2$ & 2 (1$\times$) & 10 (1.20$\times$)\dag & 50 (2.50$\times$) & 100 (6.32$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $4 \times 4$ & 4 (1$\times$) & 25 (1.00$\times$) & 50 (1.99$\times$) & 100 (4.75$\times$) \\
+%  & $4 \times 4$ & 4 (1$\times$) & 25$^{\S}$ (1.00$\times$) & 50 (1.99$\times$) & 100 (4.75$\times$) \\
+%  & $8 \times 2$ & \textbf{2 (1$\times$)}\dag & \textbf{10 (1.65$\times$)} & \textbf{50 (3.33$\times$)} & \textbf{250 (8.28$\times$)} \\
+%%%% ---- to check ---- %%%%
+% local-HPC & $4 \times 2$ & 4 (0.10$\times$) & 4 (0.12$\times$) & 10 (0.20$\times$) & 50 (0.33$\times$) \\
+%  & $4 \times 4$ & 4 (0.11$\times$) & 4 (0.18$\times$) & 50 (0.30$\times$) & 100 (0.53$\times$) \\
+%  & $4 \times 8$ & 8 (0.11$\times$) & 8 (0.21$\times$) & 8 (0.45$\times$) & 250 (0.76$\times$) \\
+%  & $4 \times 16$ & - & - & 50 (0.51$\times$) & 50 (0.97$\times$) \\
+%  & $4 \times 24$ & - & - & 24 (0.45$\times$) & 24 (0.87$\times$) \\
+%  & $4 \times 32$ & - & - & 50 (0.41$\times$) & 500 (0.82$\times$) \\
+%  & $4 \times 44$ & - & - & 44 (0.33$\times$) & 44 (0.77$\times$) \\
+%  & $8 \times 2$ & 2 (0.19$\times$) & 10 (0.24$\times$) & 10 (0.41$\times$) & 50 (0.65$\times$) \\
+%  & $8 \times 4$ & 4 (0.22$\times$) & 4 (0.35$\times$) & 50 (0.58$\times$) & 100 (1.01$\times$) \\
+%  & $8 \times 8$ & 8 (0.22$\times$) & 8 (0.36$\times$) & 8 (0.79$\times$) & 50 (1.47$\times$) \\
+%  & $8 \times 12$ & - & - & 50 (0.76$\times$) & 100 (1.30$\times$) \\
+%  & $8 \times 16$ & - & - & 16 (0.69$\times$) & 100 (1.25$\times$)\dag \\
+%  & $8 \times 22$ & - & - & 25 (0.61$\times$) & 100 (1.27$\times$) \\
+%  & $16 \times 2$ & 2 (0.38$\times$) & 4 (0.47$\times$) & 10 (0.77$\times$) & 100 (1.20$\times$) \\
+%  & $16 \times 4$ & 4 (0.42$\times$) & 4 (0.64$\times$) & 25 (1.10$\times$)\dag & 100 (1.86$\times$) \\
+%  & $16 \times 6$ & 6 (0.36$\times$) & 6 (0.58$\times$) & 50 (1.02$\times$) & 100 (1.77$\times$) \\
+%  & $16 \times 8$ & 8 (0.32$\times$) & 8 (0.53$\times$) & 25 (1.04$\times$) & 100 (1.74$\times$) \\
+%  & $16 \times 11$ & - & - & 25 (1.01$\times$) & 100 (1.79$\times$) \\
+%  & $24 \times 4$ & 4 (0.48$\times$) & 4 (0.72$\times$) & 25 (1.22$\times$) & 250 (1.98$\times$) \\
+%  & $32 \times 2$ & 2 (0.66$\times$) & 4 (0.91$\times$) & 25 (1.36$\times$) & 100 (2.13$\times$) \\
+%  & $32 \times 4$ & 4 (0.58$\times$) & 4 (0.84$\times$) & 25 (1.42$\times$) & 100 (2.16$\times$) \\
+%  & $45 \times 4$ & 4 (0.64$\times$) & 4 (0.89$\times$) & 25 (1.58$\times$) & 500 (2.46$\times$) \\
+%  & $48 \times 2$ & 2 (0.79$\times$) & 10 (0.94$\times$) & 25 (1.45$\times$) & 100 (2.17$\times$) \\
+%  & $64 \times 2$ & 4 (0.89$\times$) & 4 (1.01$\times$) & 25 (1.58$\times$) & 100 (2.23$\times$) \\
+%  & $90 \times 2$ & \textbf{2 (1.00$\times$)}\dag & \textbf{10 (1.16$\times$)}\dag & \textbf{50 (1.76$\times$)} & \textbf{100 (2.61$\times$)} \\
+% \midrule
+% Laptop & $2 \times 2$ & 2 (0.45$\times$) & 4 (0.65$\times$) & 10 (1.11$\times$) & 50 (1.98$\times$) \\
+%  & $2 \times 4$ & 4 (0.51$\times$) & 4 (0.93$\times$) & 50 (1.68$\times$)\dag & 100 (3.20$\times$) \\
+%  & $2 \times 8$ & 8 (0.29$\times$) & 8 (0.61$\times$) & 50 (1.26$\times$) & 250 (2.67$\times$)\dag \\
+%  & $4 \times 2$ & 2 (0.84$\times$) & 10 (1.20$\times$)\dag & 50 (2.01$\times$) & 100 (3.67$\times$) \\
+%  & $4 \times 4$ & 4 (0.58$\times$) & 25$^{\S}$ (0.93$\times$) & 50 (1.79$\times$) & 100 (3.43$\times$) \\
+%  & $8 \times 2$ & \textbf{2 (1.00$\times$)}\dag & \textbf{10 (1.37$\times$)} & \textbf{50 (2.20$\times$)} & \textbf{250 (3.95$\times$)} \\
+local-HPC & $4 \times 2$ & 4 (0.10$\times$) & 4 (0.12$\times$) & 10 (0.20$\times$) & 50$^{*}$ (0.33$\times$) \\
+ & $4 \times 4$ & 4 (0.11$\times$) & 4 (0.18$\times$) & 50 (0.30$\times$) & 100$^{*}$ (0.53$\times$) \\
+ & $4 \times 8$ & 8 (0.11$\times$) & 8 (0.21$\times$) & 8 (0.45$\times$) & 250$^{*}$ (0.76$\times$) \\
+ & $4 \times 16$ & - & - & 50$^{*}$ (0.51$\times$) & 50$^{*}$ (0.97$\times$) \\
+ & $4 \times 24$ & - & - & 24$^{*}$ (0.45$\times$) & 24$^{*}$ (0.87$\times$) \\
+ & $4 \times 32$ & - & - & 50 (0.41$\times$) & 500 (0.82$\times$) \\
+ & $4 \times 44$ & - & - & 44$^{*}$ (0.33$\times$) & 44 (0.77$\times$) \\
+ & $8 \times 2$ & 2 (0.19$\times$) & 10 (0.24$\times$) & 10 (0.41$\times$) & 50 (0.65$\times$) \\
+ & $8 \times 4$ & 4 (0.22$\times$) & 4 (0.35$\times$) & 50 (0.58$\times$) & 100$^{*}$ (1.01$\times$) \\
+ & $8 \times 8$ & 8 (0.22$\times$) & 8 (0.36$\times$) & 8$^{*}$ (0.79$\times$) & 50 (1.47$\times$) \\
+ & $8 \times 12$ & - & - & 50 (0.76$\times$) & 100 (1.30$\times$) \\
+ & $8 \times 16$ & - & - & 16$^{*}$ (0.69$\times$) & 100 (1.25$\times$)\dag \\
+ & $8 \times 22$ & - & - & 25$^{*}$ (0.61$\times$) & 100 (1.27$\times$) \\
+ & $16 \times 2$ & 2 (0.38$\times$) & 4$^{*}$ (0.47$\times$) & 10 (0.77$\times$) & 100$^{*}$ (1.20$\times$) \\
+ & $16 \times 4$ & 4 (0.42$\times$) & 4 (0.64$\times$) & 25 (1.10$\times$)\dag & 100$^{*}$ (1.86$\times$) \\
+ & $16 \times 6$ & 6 (0.36$\times$) & 6 (0.58$\times$) & 50 (1.02$\times$) & 100 (1.77$\times$) \\
+ & $16 \times 8$ & 8 (0.32$\times$) & 8 (0.53$\times$) & 25 (1.04$\times$) & 100 (1.74$\times$) \\
+ & $16 \times 11$ & - & - & 25 (1.01$\times$) & 100 (1.79$\times$) \\
+ & $24 \times 4$ & 4 (0.48$\times$) & 4 (0.72$\times$) & 25 (1.22$\times$) & 250 (1.98$\times$) \\
+ & $32 \times 2$ & 2$^{*}$ (0.66$\times$) & 4 (0.91$\times$) & 25 (1.36$\times$) & 100 (2.13$\times$) \\
+ & $32 \times 4$ & 4 (0.58$\times$) & 4 (0.84$\times$) & 25 (1.42$\times$) & 100 (2.16$\times$) \\
+ & $45 \times 4$ & 4 (0.64$\times$) & 4 (0.89$\times$) & 25 (1.58$\times$) & 500$^{*}$ (2.46$\times$) \\
+ & $48 \times 2$ & 2$^{*}$ (0.79$\times$) & 10$^{*}$ (0.94$\times$) & 25 (1.45$\times$) & 100 (2.17$\times$) \\
+ & $64 \times 2$ & 4$^{*}$ (0.89$\times$) & 4$^{*}$ (1.01$\times$) & 25 (1.58$\times$) & 100 (2.23$\times$) \\
+ & $90 \times 2$ & \textbf{2 (1.00$\times$)}\dag & \textbf{10 (1.16$\times$)}\dag & \textbf{50$^{*}$ (1.76$\times$)} & \textbf{100 (2.61$\times$)} \\
 \midrule
-Laptop & $2 \times 2$ & 2 (1$\times$) & 4 (1.06$\times$) & 10 (1.50$\times$) & 50 (2.54$\times$) \\
- & $2 \times 4$ & 4 (1$\times$) & 4 (1$\times$) & 50 (1.68$\times$)\dag & 100 (3.62$\times$) \\
- & $2 \times 8$ & 8 (1$\times$) & 8 (1$\times$) & 50 (1.45$\times$) & 250 (2.67$\times$)\dag \\
- & $4 \times 2$ & 2 (1$\times$) & 10 (1.20$\times$)\dag & 50 (2.50$\times$) & 100 (6.32$\times$) \\
- & $4 \times 4$ & 4 (1$\times$) & 25 (1.00$\times$) & 50 (1.99$\times$) & 100 (4.75$\times$) \\
- & $8 \times 2$ & \textbf{2 (1$\times$)}\dag & \textbf{10 (1.65$\times$)} & \textbf{50 (3.33$\times$)} & \textbf{250 (8.28$\times$)} \\
+Laptop & $2 \times 2$ & 2 (0.45$\times$) & 4 (0.65$\times$) & 10 (1.11$\times$) & 50$^{*}$ (1.98$\times$) \\
+ & $2 \times 4$ & 4 (0.51$\times$) & 4 (0.93$\times$) & 50 (1.68$\times$)\dag & 100 (3.20$\times$) \\
+ & $2 \times 8$ & 8 (0.29$\times$) & 8 (0.61$\times$) & 50 (1.26$\times$) & 250 (2.67$\times$)\dag \\
+ & $4 \times 2$ & 2 (0.84$\times$) & 10 (1.20$\times$)\dag & 50 (2.01$\times$) & 100 (3.67$\times$) \\
+ & $4 \times 4$ & 4 (0.58$\times$) & 25$^{\S}$$^{*}$ (0.93$\times$) & 50 (1.79$\times$) & 100$^{*}$ (3.43$\times$) \\
+ & $8 \times 2$ & \textbf{2$^{*}$ (1.00$\times$)}\dag & \textbf{10 (1.37$\times$)} & \textbf{50$^{*}$ (2.20$\times$)} & \textbf{250$^{*}$ (3.95$\times$)} \\
 %%%%
 \bottomrule
 %%%%
@@ -108,50 +217,96 @@ Laptop & $2 \times 2$ & 2 (1$\times$) & 4 (1.06$\times$) & 10 (1.50$\times$) & 5
 \begin{table}[H]
 %%%%
 \centering
-\small
+\scriptfootnotesize
 %%%%
 \caption{
 \scriptfootnotesize{
-        Selected $N_{\text{chunks}}$ for \texttt{AD\_Stan\_WCP\_chunking},
-        for each device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$),
-        and $N$ (i.e., the $N_{\text{chunks}}$, with the lowest mean run time for that allocation;
-        see section \ref{section:paper1_chunk_wcp_selection_design}). \\
+%%%% ---- to check ---- %%%%
+%         Selected $N_{\text{chunks}}$ for \texttt{AD\_Stan\_WCP\_chunking},
+%         for each device, allocation ($N_{\text{chains}} \times N_{\text{threads/chain}}$),
+%%%% ---- to check ---- %%%%
+%         and $N$ (i.e., the $N_{\text{chunks}}$, with the lowest mean run time for that allocation;
+%         see section \ref{section:paper1_chunk_wcp_selection_design}). \\
+% and $N$ (i.e., the $N_{\text{chunks}}$ with the lowest mean run time for that allocation;
+% see sections \ref{section:paper1_stan_chunk_wcp_selection_design}
+% and \ref{section:paper1_chunk_wcp_selection_design}). \\
         %%
-        The number in brackets is the throughput of this configuration relative to \texttt{AD\_Stan\_WCP}
-        (i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$) at the same allocation;
-        (1$\times$) means that WCP-only itself was selected. \\
+%%%% ---- to check ---- %%%%
+%         The number in brackets is the throughput of this configuration relative to \texttt{AD\_Stan\_WCP}
+%         (i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$) at the same allocation;
+%         (1$\times$) means that WCP-only itself was selected. \\
+%%%% ---- to check ---- %%%%
+%         The number in brackets is the throughput of this configuration relative to
+%         the fastest \texttt{AD\_Stan\_WCP} allocation at that $N$
+%         (\dag{}; i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$),
+%         so that the largest number in each column is the fastest configuration (bold);
+%         The number in brackets is the throughput of this configuration relative to
+%         the fastest \texttt{AD\_Stan\_WCP} allocation on that device at that $N$
+%         (\dag{}; i.e., WCP-only, with $N_{\text{chunks}} = N_{\text{threads/chain}}$),
+%         so that, for each device, the largest number in each column is the fastest configuration (bold);
+%         an $N_{\text{chunks}}$ equal to $N_{\text{threads/chain}}$ means that WCP-only itself was selected. \\
         %%
         %%%% ---- to check ---- %%%%
         % Bold marks the fastest \texttt{AD\_Stan\_WCP\_chunking} allocation at each $N$
         % (i.e., the configuration which we used in E2;
         % see section \ref{section:methods:experiment_2_cross_algorithm_software}),
         % and \dag{} marks the fastest \texttt{AD\_Stan\_WCP} allocation.
-        Bold marks the fastest \texttt{AD\_Stan\_WCP\_chunking} allocation at each $N$,
-        and \dag{} marks the fastest \texttt{AD\_Stan\_WCP} allocation;
-        in E2 (see section \ref{section:methods:experiment_2_cross_algorithm_software}),
-        we used the fastest allocation at each $N_{\text{threads}}$
-        (see section \ref{section:paper1_chunk_wcp_selection_design}),
+%         Bold marks the fastest \texttt{AD\_Stan\_WCP\_chunking} allocation at each $N$,
+%         and \dag{} marks the fastest \texttt{AD\_Stan\_WCP} allocation;
+%         in E2 (see section \ref{section:methods:experiment_2_cross_algorithm_software}),
+%         we used the fastest allocation at each $N_{\text{threads}}$
+%         (see section \ref{section:paper1_chunk_wcp_selection_design}),
         %%%% ---- to check ---- %%%%
         % with the $N_{\text{chunks}}$ given here.
-        i.e., the one with the largest $N_{\text{chains}}$
+%%%% ---- to check ---- %%%%
+%         i.e., the one with the largest $N_{\text{chains}}$
+%         which was usually the one with the largest $N_{\text{chains}}$
 %%%% ---- to check ---- %%%%
         % (e.g., $16 \times 6$ and $16 \times 11$ for $N_{\text{threads}} = 96$ and $176$ on the local-HPC,
         % and $8 \times 2$ for $N_{\text{threads}} = 16$ on the laptop),
         % except for $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$ on the local-HPC,
         % and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop,
-        (e.g., $48 \times 2$ and $90 \times 2$ for $N_{\text{threads}} = 96$ and $180$ on the local-HPC,
-        and $8 \times 2$ for $N_{\text{threads}} = 16$ on the laptop),
-        except for $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$,
+%         (e.g., $48 \times 2$ and $90 \times 2$ for $N_{\text{threads}} = 96$ and $180$ on the local-HPC,
+%         and $8 \times 2$ for $N_{\text{threads}} = 16$ on the laptop),
+%         except for $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$,
+%         $16 \times 4$ at $N_{\text{threads}} = 64$ for $N = 2500$ and $10,000$,
+%         and $24 \times 4$ at $N_{\text{threads}} = 96$ for $N = 50,000$ on the local-HPC,
+%%%% ---- to check ---- %%%%
+%         and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop,
+%         with the $N_{\text{chunks}}$ given here. \\
+%%%% ---- to check ---- %%%%
+%         and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop
+%         (within $0.13\%$ of $4 \times 2$, and within $0.11\%$ of $4 \times 4$ and $8 \times 2$, respectively),
+%         with the $N_{\text{chunks}}$ given here. \\
+%         Note that $8 \times 16$ (local-HPC, $N{=}50,000$) and $4 \times 4$ (laptop, $N{=}2500$)
+%         were within $1\%$ of the \dag{} allocation. \\
+%         and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop,
+%         with the $N_{\text{chunks}}$ given here. \\
+        %%
+%         Hyphens mark allocations which were not tested at that $N$. \\
+%%%% ---- to check ---- %%%%
+%         $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$. \\
+%%%% ---- to check ---- %%%%
+%         $^{*}$the second-best $N_{\text{chunks}}$ for that allocation was within $1\%$ (i.e., essentially tied).
+%%%% ---- to check ---- %%%%
+%         For $N_{\text{chains}} \ge 24$, the long runs used fewer iterations, and their times were scaled
+%         to the same $N_{\text{iter}}$
+%         (see section \ref{section:methods:experiment_1_plan:part_II_NicoStan_BayesMVP_WCP}).
+        Selected $N_{\text{chunks}}$ for \texttt{AD\_Stan\_WCP\_chunking},
+        as in table \ref{S:table:WCP_selected_chunks}
+        (see section \ref{section:paper1_stan_chunk_wcp_selection_design}),
+%%%% ---- to check ---- %%%%
+%        with the throughput relative to the fastest \texttt{AD\_Stan\_WCP} allocation (\dag{}) in brackets. \\
+        \dag{} marks the allocation at which WCP-only
+        (\texttt{AD\_Stan\_WCP}; one chunk per thread) was fastest,
+        and the number in brackets is the throughput relative to that WCP-only run. \\
+        In E2, we used the fastest allocation at each $N_{\text{threads}}$,
+        i.e., the one with the largest $N_{\text{chains}}$,
+        except $4 \times 4$ at $N_{\text{threads}} = 16$ for $N \ge 10,000$,
         $16 \times 4$ at $N_{\text{threads}} = 64$ for $N = 2500$ and $10,000$,
         and $24 \times 4$ at $N_{\text{threads}} = 96$ for $N = 50,000$ on the local-HPC,
-        and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop,
-        with the $N_{\text{chunks}}$ given here. \\
-        %%
-        Hyphens mark allocations which were not tested at that $N$. \\
-%%%% ---- to check ---- %%%%
-        For $N_{\text{chains}} \ge 24$, the long runs used fewer iterations, and their times were scaled
-        to the same $N_{\text{iter}}$
-        (see section \ref{section:methods:experiment_1_plan:part_II_NicoStan_BayesMVP_WCP}).
+        and $2 \times 4$ and $2 \times 8$ at $N{=}50,000$ on the laptop
+        (see section \ref{section:methods:experiment_2_cross_algorithm_software}).
 }}
 %%%%
 \label{S:table:WCP_selected_chunks_Stan}
@@ -186,38 +341,124 @@ Device & $N_{\text{chains}} \times N_{\text{threads/chain}}$ & $500$ & $2500$ & 
  % & $16 \times 6$ & \textbf{6 (1)}\dag & 25 (1.37)\dag & 50 (2.20) & 250 (2.66) \\
  % & $16 \times 8$ & 8 (1) & \textbf{25 (1.60)} & 100 (2.30) & 500 (2.70) \\
  % & $16 \times 11$ & - & - & \textbf{100 (2.28)} & \textbf{500 (2.64)} \\
-local-HPC & $4 \times 2$ & 4 (1.13$\times$) & 4 (1.02$\times$) & 10 (1.16$\times$) & 50 (1.17$\times$) \\
- & $4 \times 4$ & 10 (1.05$\times$) & 10 (1.30$\times$) & 25 (1.42$\times$) & 100 (1.37$\times$) \\
- & $4 \times 8$ & 10 (1.08$\times$) & 10 (1.27$\times$) & 50 (1.50$\times$) & 250 (1.78$\times$) \\
- & $4 \times 16$ & - & - & 100 (1.65$\times$) & 250 (2.15$\times$) \\
- & $4 \times 24$ & - & - & 100 (1.21$\times$) & 250 (1.88$\times$) \\
- & $4 \times 32$ & - & - & 100 (1.29$\times$) & 250 (1.96$\times$) \\
- & $4 \times 44$ & - & - & 44 (1$\times$)\dag & 500 (1.61$\times$) \\
- & $8 \times 2$ & 4 (1.04$\times$) & 4 (1.06$\times$) & 10 (1.24$\times$) & 50 (1.30$\times$) \\
- & $8 \times 4$ & 10 (1.09$\times$) & 10 (1.36$\times$) & 25 (1.62$\times$) & 250 (1.70$\times$) \\
- & $8 \times 8$ & 8 (1$\times$) & 25 (1.40$\times$) & 100 (1.90$\times$) & 250 (2.33$\times$) \\
- & $8 \times 12$ & - & - & 50 (1.85$\times$) & 250 (2.31$\times$) \\
- & $8 \times 16$ & - & - & 50 (1.79$\times$) & 500 (2.22$\times$) \\
- & $8 \times 22$ & - & - & 100 (1.62$\times$) & 500 (2.14$\times$)\dag \\
- & $16 \times 2$ & 4 (1.05$\times$) & 10 (1.26$\times$) & 25 (1.53$\times$) & 250 (1.79$\times$) \\
- & $16 \times 4$ & 10 (1.03$\times$) & 10 (1.59$\times$) & 50 (2.20$\times$) & 250 (2.60$\times$) \\
- & $16 \times 6$ & 6 (1$\times$) & 25 (1.37$\times$)\dag & 50 (2.20$\times$) & 250 (2.66$\times$) \\
- & $16 \times 8$ & 8 (1$\times$) & 25 (1.60$\times$) & 100 (2.30$\times$) & 500 (2.70$\times$) \\
- & $16 \times 11$ & - & - & 100 (2.28$\times$) & 500 (2.64$\times$) \\
- & $24 \times 4$ & 10 (1.08$\times$) & 25 (1.95$\times$) & 100 (2.48$\times$) & 500 (3.72$\times$) \\
- & $32 \times 2$ & 4 (1.21$\times$) & 10 (2.10$\times$) & 50 (2.30$\times$) & 250 (3.42$\times$) \\
- & $32 \times 4$ & 10 (1.06$\times$) & 25 (1.98$\times$) & 100 (2.37$\times$) & 1000 (3.23$\times$) \\
- & $45 \times 4$ & 10 (1.12$\times$)\dag & 25 (2.26$\times$) & 100 (2.62$\times$) & 1000 (3.42$\times$) \\
- & $48 \times 2$ & 4 (1.20$\times$) & 25 (2.27$\times$) & 50 (2.68$\times$) & 500 (3.52$\times$) \\
- & $64 \times 2$ & 4 (1.30$\times$) & 25 (2.28$\times$) & 100 (2.76$\times$) & 1000 (3.33$\times$) \\
- & $90 \times 2$ & \textbf{10 (1.53$\times$)} & \textbf{25 (2.49$\times$)} & \textbf{100 (2.90$\times$)} & \textbf{1000 (3.68$\times$)} \\
+%%%% ---- to check ---- %%%%
+% local-HPC & $4 \times 2$ & 4 (1.13$\times$) & 4 (1.02$\times$) & 10 (1.16$\times$) & 50 (1.17$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $4 \times 4$ & 10 (1.05$\times$) & 10 (1.30$\times$) & 25 (1.42$\times$) & 100 (1.37$\times$) \\
+%  & $4 \times 8$ & 10 (1.08$\times$) & 10 (1.27$\times$) & 50 (1.50$\times$) & 250 (1.78$\times$) \\
+%  & $4 \times 4$ & 10$^{\S}$ (1.05$\times$) & 10 (1.30$\times$) & 25 (1.42$\times$) & 100 (1.37$\times$) \\
+%  & $4 \times 8$ & 10$^{\S}$ (1.08$\times$) & 10 (1.27$\times$) & 50 (1.50$\times$) & 250 (1.78$\times$) \\
+%  & $4 \times 16$ & - & - & 100 (1.65$\times$) & 250 (2.15$\times$) \\
+%  & $4 \times 24$ & - & - & 100 (1.21$\times$) & 250 (1.88$\times$) \\
+%  & $4 \times 32$ & - & - & 100 (1.29$\times$) & 250 (1.96$\times$) \\
+%  & $4 \times 44$ & - & - & 44 (1$\times$)\dag & 500 (1.61$\times$) \\
+%  & $8 \times 2$ & 4 (1.04$\times$) & 4 (1.06$\times$) & 10 (1.24$\times$) & 50 (1.30$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $8 \times 4$ & 10 (1.09$\times$) & 10 (1.36$\times$) & 25 (1.62$\times$) & 250 (1.70$\times$) \\
+%  & $8 \times 4$ & 10$^{\S}$ (1.09$\times$) & 10 (1.36$\times$) & 25 (1.62$\times$) & 250 (1.70$\times$) \\
+%  & $8 \times 8$ & 8 (1$\times$) & 25 (1.40$\times$) & 100 (1.90$\times$) & 250 (2.33$\times$) \\
+%  & $8 \times 12$ & - & - & 50 (1.85$\times$) & 250 (2.31$\times$) \\
+%  & $8 \times 16$ & - & - & 50 (1.79$\times$) & 500 (2.22$\times$) \\
+%  & $8 \times 22$ & - & - & 100 (1.62$\times$) & 500 (2.14$\times$)\dag \\
+%  & $16 \times 2$ & 4 (1.05$\times$) & 10 (1.26$\times$) & 25 (1.53$\times$) & 250 (1.79$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $16 \times 4$ & 10 (1.03$\times$) & 10 (1.59$\times$) & 50 (2.20$\times$) & 250 (2.60$\times$) \\
+%  & $16 \times 4$ & 10$^{\S}$ (1.03$\times$) & 10 (1.59$\times$) & 50 (2.20$\times$) & 250 (2.60$\times$) \\
+%  & $16 \times 6$ & 6 (1$\times$) & 25 (1.37$\times$)\dag & 50 (2.20$\times$) & 250 (2.66$\times$) \\
+%  & $16 \times 8$ & 8 (1$\times$) & 25 (1.60$\times$) & 100 (2.30$\times$) & 500 (2.70$\times$) \\
+%  & $16 \times 11$ & - & - & 100 (2.28$\times$) & 500 (2.64$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $24 \times 4$ & 10 (1.08$\times$) & 25 (1.95$\times$) & 100 (2.48$\times$) & 500 (3.72$\times$) \\
+%  & $24 \times 4$ & 10$^{\S}$ (1.08$\times$) & 25 (1.95$\times$) & 100 (2.48$\times$) & 500 (3.72$\times$) \\
+%  & $32 \times 2$ & 4 (1.21$\times$) & 10 (2.10$\times$) & 50 (2.30$\times$) & 250 (3.42$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $32 \times 4$ & 10 (1.06$\times$) & 25 (1.98$\times$) & 100 (2.37$\times$) & 1000 (3.23$\times$) \\
+%  & $45 \times 4$ & 10 (1.12$\times$)\dag & 25 (2.26$\times$) & 100 (2.62$\times$) & 1000 (3.42$\times$) \\
+%  & $32 \times 4$ & 10$^{\S}$ (1.06$\times$) & 25 (1.98$\times$) & 100 (2.37$\times$) & 1000 (3.23$\times$) \\
+%  & $45 \times 4$ & 10$^{\S}$ (1.12$\times$)\dag & 25 (2.26$\times$) & 100 (2.62$\times$) & 1000 (3.42$\times$) \\
+%  & $48 \times 2$ & 4 (1.20$\times$) & 25 (2.27$\times$) & 50 (2.68$\times$) & 500 (3.52$\times$) \\
+%  & $64 \times 2$ & 4 (1.30$\times$) & 25 (2.28$\times$) & 100 (2.76$\times$) & 1000 (3.33$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $90 \times 2$ & \textbf{10 (1.53$\times$)} & \textbf{25 (2.49$\times$)} & \textbf{100 (2.90$\times$)} & \textbf{1000 (3.68$\times$)} \\
+%  & $90 \times 2$ & \textbf{10$^{\S}$ (1.53$\times$)} & \textbf{25 (2.49$\times$)} & \textbf{100 (2.90$\times$)} & \textbf{1000 (3.68$\times$)} \\
+% \midrule
+% Laptop & $2 \times 2$ & 4 (1.09$\times$) & 10 (1.15$\times$) & 50 (1.25$\times$) & 500 (1.40$\times$) \\
+%%%% ---- to check ---- %%%%
+%  & $2 \times 4$ & 10 (1.33$\times$) & 25 (1.68$\times$) & 250 (1.92$\times$) & 1000 (2.45$\times$) \\
+%  & $2 \times 8$ & 10 (1.11$\times$)\dag & 100 (1.84$\times$) & 250 (2.23$\times$)\dag & \textbf{1000 (2.84$\times$)}\dag \\
+%  & $4 \times 2$ & 10 (1.47$\times$) & 25 (1.75$\times$)\dag & 100 (2.06$\times$) & 1000 (2.58$\times$) \\
+%  & $4 \times 4$ & 10 (1.49$\times$) & 50 (2.02$\times$) & 250 (2.41$\times$) & 1000 (3.05$\times$) \\
+%  & $8 \times 2$ & \textbf{10 (1.86$\times$)} & \textbf{50 (2.17$\times$)} & \textbf{250 (2.70$\times$)} & 1000 (3.32$\times$) \\
+%  & $2 \times 4$ & 10$^{\S}$ (1.33$\times$) & 25 (1.68$\times$) & 250 (1.92$\times$) & 1000 (2.45$\times$) \\
+%  & $2 \times 8$ & 10$^{\S}$ (1.11$\times$)\dag & 100 (1.84$\times$) & 250 (2.23$\times$)\dag & \textbf{1000 (2.84$\times$)}\dag \\
+%  & $4 \times 2$ & 10$^{\S}$ (1.47$\times$) & 25 (1.75$\times$)\dag & 100 (2.06$\times$) & 1000 (2.58$\times$) \\
+%  & $4 \times 4$ & 10$^{\S}$ (1.49$\times$) & 50 (2.02$\times$) & 250 (2.41$\times$) & 1000 (3.05$\times$) \\
+%  & $8 \times 2$ & \textbf{10$^{\S}$ (1.86$\times$)} & \textbf{50 (2.17$\times$)} & \textbf{250 (2.70$\times$)} & 1000 (3.32$\times$) \\
+%%%% ---- to check ---- %%%%
+% local-HPC & $4 \times 2$ & 4 (0.18$\times$) & 4 (0.25$\times$) & 10 (0.37$\times$) & 50 (0.44$\times$) \\
+%  & $4 \times 4$ & 10$^{\S}$ (0.28$\times$) & 10 (0.45$\times$) & 25 (0.69$\times$) & 100 (0.83$\times$) \\
+%  & $4 \times 8$ & 10$^{\S}$ (0.37$\times$) & 10 (0.62$\times$) & 50 (1.01$\times$) & 250 (1.38$\times$) \\
+%  & $4 \times 16$ & - & - & 100 (1.12$\times$) & 250 (1.69$\times$) \\
+%  & $4 \times 24$ & - & - & 100 (1.06$\times$) & 250 (1.78$\times$) \\
+%  & $4 \times 32$ & - & - & 100 (1.01$\times$) & 250 (1.75$\times$) \\
+%  & $4 \times 44$ & - & - & 44 (1.00$\times$)\dag & 500 (1.58$\times$) \\
+%  & $8 \times 2$ & 4 (0.33$\times$) & 4 (0.45$\times$) & 10 (0.68$\times$) & 50 (0.82$\times$) \\
+%  & $8 \times 4$ & 10$^{\S}$ (0.52$\times$) & 10 (0.76$\times$) & 25 (1.19$\times$) & 250 (1.43$\times$) \\
+%  & $8 \times 8$ & 8 (0.65$\times$) & 25 (1.17$\times$) & 100 (1.64$\times$) & 250 (2.17$\times$) \\
+%  & $8 \times 12$ & - & - & 50 (1.71$\times$) & 250 (2.24$\times$) \\
+%  & $8 \times 16$ & - & - & 50 (1.63$\times$) & 500 (2.20$\times$) \\
+%  & $8 \times 22$ & - & - & 100 (1.54$\times$) & 500 (2.14$\times$)\dag \\
+%  & $16 \times 2$ & 4 (0.59$\times$) & 10 (0.80$\times$) & 25 (1.19$\times$) & 250 (1.45$\times$) \\
+%  & $16 \times 4$ & 10$^{\S}$ (0.83$\times$) & 10 (1.28$\times$) & 50 (1.84$\times$) & 250 (2.30$\times$) \\
+%  & $16 \times 6$ & 6 (0.89$\times$) & 25 (1.37$\times$)\dag & 50 (2.00$\times$) & 250 (2.51$\times$) \\
+%  & $16 \times 8$ & 8 (0.87$\times$) & 25 (1.38$\times$) & 100 (2.05$\times$) & 500 (2.55$\times$) \\
+%  & $16 \times 11$ & - & - & 100 (2.06$\times$) & 500 (2.61$\times$) \\
+%  & $24 \times 4$ & 10$^{\S}$ (0.98$\times$) & 25 (1.40$\times$) & 100 (2.05$\times$) & 500 (3.07$\times$) \\
+%  & $32 \times 2$ & 4 (0.90$\times$) & 10 (1.23$\times$) & 50 (1.77$\times$) & 250 (2.75$\times$) \\
+%  & $32 \times 4$ & 10$^{\S}$ (1.02$\times$) & 25 (1.40$\times$) & 100 (2.05$\times$) & 1000 (2.79$\times$) \\
+%  & $45 \times 4$ & 10$^{\S}$ (1.12$\times$)\dag & 25 (1.53$\times$) & 100 (2.21$\times$) & 1000 (2.89$\times$) \\
+%  & $48 \times 2$ & 4 (1.06$\times$) & 25 (1.42$\times$) & 50 (2.13$\times$) & 500 (2.90$\times$) \\
+%  & $64 \times 2$ & 4 (1.15$\times$) & 25 (1.49$\times$) & 100 (2.23$\times$) & 1000 (3.05$\times$) \\
+%  & $90 \times 2$ & \textbf{10$^{\S}$ (1.19$\times$)} & \textbf{25 (1.61$\times$)} & \textbf{100 (2.34$\times$)} & \textbf{1000 (3.22$\times$)} \\
+% \midrule
+% Laptop & $2 \times 2$ & 4 (0.67$\times$) & 10 (0.94$\times$) & 50 (1.04$\times$) & 500 (1.21$\times$) \\
+%  & $2 \times 4$ & 10$^{\S}$ (1.08$\times$) & 25 (1.59$\times$) & 250 (1.88$\times$) & 1000 (2.33$\times$) \\
+%  & $2 \times 8$ & 10$^{\S}$ (1.11$\times$)\dag & 100 (1.77$\times$) & 250 (2.23$\times$)\dag & \textbf{1000 (2.84$\times$)}\dag \\
+%  & $4 \times 2$ & 10$^{\S}$ (1.21$\times$) & 25 (1.75$\times$)\dag & 100 (1.92$\times$) & 1000 (2.33$\times$) \\
+%  & $4 \times 4$ & 10$^{\S}$ (1.42$\times$) & 50 (2.02$\times$) & 250 (2.34$\times$) & 1000 (2.84$\times$) \\
+%  & $8 \times 2$ & \textbf{10$^{\S}$ (1.50$\times$)} & \textbf{50 (2.09$\times$)} & \textbf{250 (2.37$\times$)} & 1000 (2.84$\times$) \\
+local-HPC & $4 \times 2$ & 4 (0.18$\times$) & 4$^{*}$ (0.25$\times$) & 10$^{*}$ (0.37$\times$) & 50 (0.44$\times$) \\
+ & $4 \times 4$ & 10$^{\S}$ (0.28$\times$) & 10 (0.45$\times$) & 25 (0.69$\times$) & 100$^{*}$ (0.83$\times$) \\
+ & $4 \times 8$ & 10$^{\S}$ (0.37$\times$) & 10$^{*}$ (0.62$\times$) & 50 (1.01$\times$) & 250 (1.38$\times$) \\
+ & $4 \times 16$ & - & - & 100 (1.12$\times$) & 250 (1.69$\times$) \\
+ & $4 \times 24$ & - & - & 100 (1.06$\times$) & 250 (1.78$\times$) \\
+ & $4 \times 32$ & - & - & 100$^{*}$ (1.01$\times$) & 250 (1.75$\times$) \\
+ & $4 \times 44$ & - & - & 44 (1.00$\times$)\dag & 500 (1.58$\times$) \\
+ & $8 \times 2$ & 4 (0.33$\times$) & 4$^{*}$ (0.45$\times$) & 10$^{*}$ (0.68$\times$) & 50$^{*}$ (0.82$\times$) \\
+ & $8 \times 4$ & 10$^{\S}$ (0.52$\times$) & 10 (0.76$\times$) & 25 (1.19$\times$) & 250 (1.43$\times$) \\
+ & $8 \times 8$ & 8 (0.65$\times$) & 25 (1.17$\times$) & 100 (1.64$\times$) & 250 (2.17$\times$) \\
+ & $8 \times 12$ & - & - & 50 (1.71$\times$) & 250$^{*}$ (2.24$\times$) \\
+ & $8 \times 16$ & - & - & 50 (1.63$\times$) & 500$^{*}$ (2.20$\times$) \\
+ & $8 \times 22$ & - & - & 100 (1.54$\times$) & 500 (2.14$\times$)\dag \\
+ & $16 \times 2$ & 4 (0.59$\times$) & 10 (0.80$\times$) & 25 (1.19$\times$) & 250 (1.45$\times$) \\
+ & $16 \times 4$ & 10$^{\S}$ (0.83$\times$) & 10 (1.28$\times$) & 50 (1.84$\times$) & 250 (2.30$\times$) \\
+ & $16 \times 6$ & 6$^{*}$ (0.89$\times$) & 25 (1.37$\times$)\dag & 50 (2.00$\times$) & 250$^{*}$ (2.51$\times$) \\
+ & $16 \times 8$ & 8 (0.87$\times$) & 25 (1.38$\times$) & 100 (2.05$\times$) & 500 (2.55$\times$) \\
+ & $16 \times 11$ & - & - & 100 (2.06$\times$) & 500 (2.61$\times$) \\
+ & $24 \times 4$ & 10$^{\S}$ (0.98$\times$) & 25 (1.40$\times$) & 100$^{*}$ (2.05$\times$) & 500 (3.07$\times$) \\
+ & $32 \times 2$ & 4 (0.90$\times$) & 10 (1.23$\times$) & 50$^{*}$ (1.77$\times$) & 250 (2.75$\times$) \\
+ & $32 \times 4$ & 10$^{\S}$ (1.02$\times$) & 25 (1.40$\times$) & 100 (2.05$\times$) & 1000$^{*}$ (2.79$\times$) \\
+ & $45 \times 4$ & 10$^{\S}$ (1.12$\times$)\dag & 25 (1.53$\times$) & 100 (2.21$\times$) & 1000$^{*}$ (2.89$\times$) \\
+ & $48 \times 2$ & 4 (1.06$\times$) & 25 (1.42$\times$) & 50 (2.13$\times$) & 500 (2.90$\times$) \\
+ & $64 \times 2$ & 4 (1.15$\times$) & 25 (1.49$\times$) & 100 (2.23$\times$) & 1000 (3.05$\times$) \\
+ & $90 \times 2$ & \textbf{10$^{\S}$$^{*}$ (1.19$\times$)} & \textbf{25 (1.61$\times$)} & \textbf{100 (2.34$\times$)} & \textbf{1000 (3.22$\times$)} \\
 \midrule
-Laptop & $2 \times 2$ & 4 (1.09$\times$) & 10 (1.15$\times$) & 50 (1.25$\times$) & 500 (1.40$\times$) \\
- & $2 \times 4$ & 10 (1.33$\times$) & 25 (1.68$\times$) & 250 (1.92$\times$) & 1000 (2.45$\times$) \\
- & $2 \times 8$ & 10 (1.11$\times$)\dag & 100 (1.84$\times$) & 250 (2.23$\times$)\dag & \textbf{1000 (2.84$\times$)}\dag \\
- & $4 \times 2$ & 10 (1.47$\times$) & 25 (1.75$\times$)\dag & 100 (2.06$\times$) & 1000 (2.58$\times$) \\
- & $4 \times 4$ & 10 (1.49$\times$) & 50 (2.02$\times$) & 250 (2.41$\times$) & 1000 (3.05$\times$) \\
- & $8 \times 2$ & \textbf{10 (1.86$\times$)} & \textbf{50 (2.17$\times$)} & \textbf{250 (2.70$\times$)} & 1000 (3.32$\times$) \\
+Laptop & $2 \times 2$ & 4 (0.67$\times$) & 10 (0.94$\times$) & 50 (1.04$\times$) & 500 (1.21$\times$) \\
+ & $2 \times 4$ & 10$^{\S}$ (1.08$\times$) & 25 (1.59$\times$) & 250 (1.88$\times$) & 1000 (2.33$\times$) \\
+ & $2 \times 8$ & 10$^{\S}$ (1.11$\times$)\dag & 100 (1.77$\times$) & 250 (2.23$\times$)\dag & \textbf{1000 (2.84$\times$)}\dag \\
+ & $4 \times 2$ & 10$^{\S}$ (1.21$\times$) & 25 (1.75$\times$)\dag & 100 (1.92$\times$) & 1000 (2.33$\times$) \\
+ & $4 \times 4$ & 10$^{\S}$ (1.42$\times$) & 50 (2.02$\times$) & 250 (2.34$\times$) & 1000 (2.84$\times$) \\
+ & $8 \times 2$ & \textbf{10$^{\S}$ (1.50$\times$)} & \textbf{50 (2.09$\times$)} & \textbf{250 (2.37$\times$)} & 1000 (2.84$\times$) \\
 %%%%
 \bottomrule
 %%%%

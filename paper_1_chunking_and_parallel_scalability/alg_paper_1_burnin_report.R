@@ -40,7 +40,9 @@ rm(list = ls())
       ## ---- N values to report: the  burn-in rerun measured N = 500 / 2,500 / 10,000 on both devices; the HPC
       ##      N = 50,000 file on disk is from the build and is left out rather than mixed in.
       ##
-      burnin_report_N_vec <- c(500, 2500, 10000)
+      ## ---- 2026-09-28 rerun (fix-2 build): N = 500 / 2,500 / 10,000 / 50,000 were measured on BOTH devices, so N = 50,000 is now reported.
+      # burnin_report_N_vec <- c(500, 2500, 10000)
+      burnin_report_N_vec <- c(500, 2500, 10000, 50000)
 }
 ##
 ## ------- Functions (defines only; no sampling, no compilation):  ---------------------------------------------------------------------

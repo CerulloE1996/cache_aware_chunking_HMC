@@ -2,88 +2,144 @@
 %%%%
 \centering
 %%%%
-\normalsize
+\scriptfootnotesize
 %%%%
 \caption{
 \scriptfootnotesize{
-        Hardware-counter profiling (experiment 4; see section \ref{section:ps1_ps2_plan_for_experiment_4}).
+%%%% ---- to check ---- %%%%
+%         Hardware-counter profiling (experiment 4; see section \ref{section:ps1_ps2_plan_for_experiment_4}).
         %%
-        Throughput is in chain-iterations per second; IPC = instructions per cycle.
+%         Throughput is in chain-iterations per second; IPC = instructions per cycle.
         %%%% ---- to check ---- %%%%
-        One chain-iteration is $L = 10$ leapfrog steps for NicoStan+BayesMVP and $L = 1$ for the Stan model
-        (as in experiments 1 and 2; see table \ref{table:ps2_parallel_scalability_algorithm_setup_parameters}).
+%         One chain-iteration is $L = 10$ leapfrog steps for NicoStan+BayesMVP and $L = 1$ for the Stan model
+%         (as in experiments 1 and 2; see table \ref{table:ps2_parallel_scalability_algorithm_setup_parameters}).
         %%
         % Panel A: local-HPC, $N{=}50,000$, $N_{\text{threads\_per\_chain}} = 1$; DRAM traffic measured at the memory controllers.
         % Panel A: local-HPC, $N{=}50,000$, $N_{\text{threads\_per\_chain}} = 1$; DRAM traffic measured at the memory controllers,
-        Panel A: local-HPC, $N{=}50,000$, $N_{\text{threads/chain}} = 1$; DRAM traffic measured at the memory controllers,
-        with all four columns from the same runs (i.e., repeats of these design (i) cases, with the DRAM traffic also recorded).
+%         Panel A: local-HPC, $N{=}50,000$, $N_{\text{threads/chain}} = 1$; DRAM traffic measured at the memory controllers,
+%         with all four columns from the same runs (i.e., repeats of these design (i) cases, with the DRAM traffic also recorded).
         %%
-        Panel B: local-HPC, $N{=}50,000$, eight chains packed onto one CCD vs. spread over eight CCDs.
+%         Panel B: local-HPC, $N{=}50,000$, eight chains packed onto one CCD vs. spread over eight CCDs.
         %%
         % Panel C: $N{=}50,000$, eight chunked chains ($N_{\text{threads\_per\_chain}} = 1$)
         % vs. one chain with $N_{\text{threads\_per\_chain}} = 8$, on the same 8 cores
-        Panel C: $N{=}50,000$, eight chunked chains ($N_{\text{threads/chain}} = 1$)
-        vs. one chain with $N_{\text{threads/chain}} = 8$, on the same 8 cores
-        (local-HPC: all 8 threads on one CCD, or spread over eight CCDs).
+%         Panel C: $N{=}50,000$, eight chunked chains ($N_{\text{threads/chain}} = 1$)
+%         vs. one chain with $N_{\text{threads/chain}} = 8$, on the same 8 cores
+%         (local-HPC: all 8 threads on one CCD, or spread over eight CCDs).
         %%
         %%%% ---- to check ---- %%%%
         % Chunks: BayesMVP 500 (HPC) and 100 (laptop), BayesMVP chunking + WCP 200;
         % Stan model 250 (HPC) and 500 (laptop), Stan model chunking + WCP 250.
-        In panel C, $N_{\text{chunks}} = 500$ (local-HPC) and $100$ (laptop) for \texttt{MD\_BayesMVP\_chunking},
-        $200$ for \texttt{MD\_BayesMVP\_WCP\_chunking}, $250$ (local-HPC) and $500$ (laptop)
-        for \texttt{AD\_Stan\_tape\_chunked}, $250$ for \texttt{AD\_Stan\_WCP\_chunking},
-        and $8$ for the WCP-only configurations (\texttt{MD\_BayesMVP\_WCP} and \texttt{AD\_Stan\_WCP});
-        its last column gives the L1 data-cache fills per chain-iteration from other CCDs
-        (chunking + WCP / WCP-only).
+%         In panel C, $N_{\text{chunks}} = 500$ (local-HPC) and $100$ (laptop) for \texttt{MD\_BayesMVP\_chunking},
+%         $200$ for \texttt{MD\_BayesMVP\_WCP\_chunking}, $250$ (local-HPC) and $500$ (laptop)
+%         for \texttt{AD\_Stan\_tape\_chunked}, $250$ for \texttt{AD\_Stan\_WCP\_chunking},
+%         and $8$ for the WCP-only configurations (\texttt{MD\_BayesMVP\_WCP} and \texttt{AD\_Stan\_WCP});
+%         its last column gives the L1 data-cache fills per chain-iteration from other CCDs
+%         (chunking + WCP / WCP-only).
         %%
-        Panel D: design (i) cases without the memory-controller counts,
-        with the L1 data-cache fills per chain-iteration from the L3 cache and from RAM
-        (one fill is one 64-byte cache line).
+%         Panel D: design (i) cases without the memory-controller counts,
+%         with the L1 data-cache fills per chain-iteration from the L3 cache and from RAM
+%         (one fill is one 64-byte cache line).
         %%
-        Panel E: SMT with pinned chains (design (iv), $N{=}50,000$):
-        $N_{\text{chains}} = 8$ (one per core) vs. $16$ (two per core), on the 8 cores of one local-HPC CCD
-        (with $N_{\text{chains}} = 8$ from design (ii)), and on the laptop's 8 cores
-        (with $N_{\text{chains}} = 16$ unpinned, from design (i)).
+%         Panel E: SMT with pinned chains (design (iv), $N{=}50,000$):
+%         $N_{\text{chains}} = 8$ (one per core) vs. $16$ (two per core), on the 8 cores of one local-HPC CCD
+%         (with $N_{\text{chains}} = 8$ from design (ii)), and on the laptop's 8 cores
+%         (with $N_{\text{chains}} = 16$ unpinned, from design (i)).
 %%%% ---- to check ---- %%%%
         %%
-        Panel F: full-load runs (design (v); local-HPC, $N{=}50,000$, $N_{\text{chains}} = 180$,
-        $N_{\text{threads/chain}} = 1$; Mplus standard with BITERATIONS), each of ${\sim}{600}$\,s,
-        after the CPU had cooled to within $2^{\circ}$C of idle;
-        Tctl is the CPU's control temperature (mean of the last 120\,s; idle: mean of the 5 minutes before the
-        first run), power is the CPU package power whilst sampling (median of the per-second values),
-        memory-bound slots are the dispatch slots lost to the back end whilst loads had not completed
-        (AMD's top-down counters), DRAM traffic is measured at the memory controllers,
-        and FP ops are the floating-point instructions retired per core-cycle (whatever their width).
-        With chunking, Tctl was still rising slowly after 10 minutes (by up to $1.7^{\circ}$C per minute);
-        in one continuous sampling call (${\sim}{500}$\,s, i.e., without the short pauses between
-        the calls of these runs), \texttt{MD\_BayesMVP\_chunking} reached $78^{\circ}$C,
-        and up to $84^{\circ}$C as the first chains finished.
-        The logs and scripts of design (v) are in the paper's GitHub repository
-        (\url{https://github.com/CerulloE1996/cache_aware_chunking_HMC}).
-        Floating-point uops were mostly 512-bit for NicoStan+BayesMVP ($87\%$),
-        and scalar or 128-bit for the Stan model and Mplus ($96\%$ or more).
-        Built without AVX-512 (i.e., AVX2 only, from the same source),
-        \texttt{MD\_BayesMVP\_chunking} was $7.2\%$ slower with $N_{\text{chains}} = 180$
-        ($N_{\text{chunks}} = 500$) and with $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$;
-        mean of two runs each).
-        With the same build, BayesMVP's AVX-512 maths functions (exp, log, tanh, $\Phi$ and related functions)
-        replaced by stan::math's scalar functions made it $2.12\times$, $1.98\times$ and $1.73\times$ slower with
-        $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$), $80$ (one chain per physical core) and $180$
-        ($N_{\text{chunks}} = 500$), and replaced by its AVX2 functions, $1.11\times$, $1.15\times$ and
-        $1.05\times$ slower
-        (mean of two runs each).
+%         Panel F: full-load runs (design (v); local-HPC, $N{=}50,000$, $N_{\text{chains}} = 180$,
+%         $N_{\text{threads/chain}} = 1$; Mplus standard with BITERATIONS), each of ${\sim}{600}$\,s,
+%         after the CPU had cooled to within $2^{\circ}$C of idle;
+%         Tctl is the CPU's control temperature (mean of the last 120\,s; idle: mean of the 5 minutes before the
+%         first run), power is the CPU package power whilst sampling (median of the per-second values),
+%         memory-bound slots are the dispatch slots lost to the back end whilst loads had not completed
+%         (AMD's top-down counters), DRAM traffic is measured at the memory controllers,
+%         and FP ops are the floating-point instructions retired per core-cycle (whatever their width).
+        %%%% ---- to check ---- %%%%
+% With chunking, Tctl was still rising slowly after 10 minutes (by up to $1.7^{\circ}$C per minute);
+%%%% ---- to check ---- %%%%
+% With chunking, Tctl was still rising after 10 minutes
+%         (by up to $1.7^{\circ}$C per minute over the last 2 minutes);
+%         in one continuous sampling call (${\sim}{500}$\,s, i.e., without the short pauses between
+%         the calls of these runs), \texttt{MD\_BayesMVP\_chunking} reached $78^{\circ}$C,
+%         and up to $84^{\circ}$C as the first chains finished.
+%         The logs and scripts of design (v) are in the paper's GitHub repository
+%         (\url{https://github.com/CerulloE1996/cache_aware_chunking_HMC}).
+%         Floating-point uops were mostly 512-bit for NicoStan+BayesMVP ($87\%$),
+%         and scalar or 128-bit for the Stan model and Mplus ($96\%$ or more).
+%         Built without AVX-512 (i.e., AVX2 only, from the same source),
+%%%% ---- to check ---- %%%%
+%         \texttt{MD\_BayesMVP\_chunking} was $7.2\%$ slower with $N_{\text{chains}} = 180$
+%         ($N_{\text{chunks}} = 500$) and with $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$;
+%         \texttt{MD\_BayesMVP\_chunking} was $7.2\%$ slower with $N_{\text{chains}} = 180$
+%         ($N_{\text{chunks}} = 500$) and $7.3\%$ slower with $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$;
+%         mean of two runs each).
+%%%% ---- to check ---- %%%%
+%         With the same build, BayesMVP's AVX-512 maths functions
+%%%% ---- to check ---- %%%%
+%         With the AVX-512 build, BayesMVP's AVX-512 maths functions (exp, log, tanh, $\Phi$ and related functions)
+%         replaced by stan::math's scalar functions made it $2.12\times$, $1.98\times$ and $1.73\times$ slower with
+%         $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$), %%%% ---- to check ---- %%%%
+% $80$ (one chain per physical core)
+% $80$ (one per physical core, on $80$ of the $96$ cores) and $180$
+%         ($N_{\text{chunks}} = 500$), and replaced by its AVX2 functions, $1.11\times$, $1.15\times$ and
+%         $1.05\times$ slower
+%%%% ---- to check ---- %%%%
+% With the AVX-512 build, replacing BayesMVP's AVX-512 maths functions
+% (exp, log, tanh, $\Phi$ and related functions) by stan::math's scalar functions made it
+% $2.12\times$, $1.98\times$ and $1.73\times$ slower with $N_{\text{chains}} = 1$ ($N_{\text{chunks}} = 100$),
+% $80$ (one per physical core, on $80$ of the $96$ cores) and $180$ ($N_{\text{chunks}} = 500$),
+% and replacing them by its AVX2 functions made it $1.11\times$, $1.15\times$ and $1.05\times$ slower
+%         (mean of two runs each).
         %%
-        Design (i) used $N_{\text{chunks}} \in \{1, 4, 25, 100, 500\}$ (NicoStan+BayesMVP)
-        and $\{1, 10, 50, 250, 500\}$ (Stan model) at $N{=}50,000$,
-        and $\{1, 4, 25, 100\}$ for both at $N{=}10,000$.
+%         Design (i) used $N_{\text{chunks}} \in \{1, 4, 25, 100, 500\}$ (NicoStan+BayesMVP)
+%         and $\{1, 10, 50, 250, 500\}$ (Stan model) at $N{=}50,000$,
+%         and $\{1, 4, 25, 100\}$ for both at $N{=}10,000$.
         %%
-        Pinned threads used the logical CPUs $0{-}7$ (one CCD), $0, 8, \dots, 56$ (eight CCDs)
+%         Pinned threads used the logical CPUs $0{-}7$ (one CCD), $0, 8, \dots, 56$ (eight CCDs)
         %%%% ---- to check ---- %%%%
         % and $0{-}7$ with $96{-}103$ (SMT) on the local-HPC, and $0, 2, \dots, 14$ on the laptop
         % (see figures \ref{S:figure:cpu_topology_HPC} and \ref{S:figure:cpu_topology_laptop}).
+%         and $0{-}7$ with $96{-}103$ (SMT) on the local-HPC, and $0, 2, \dots, 14$ on the laptop
+%         (see figures \ref{S:figure:cpu_topology_HPC} and \ref{S:figure:cpu_topology_laptop});
+%         on the laptop, design (iii) and $N_{\text{chains}} = 16$ in design (iv) were not pinned.
+        Hardware-counter profiling (experiment 4; see section \ref{section:ps1_ps2_plan_for_experiment_4}):
+        throughput in chain-iterations per second
+        (one chain-iteration is $L = 10$ leapfrog steps for NicoStan+BayesMVP
+        and $L = 1$ for the Stan model), and IPC = instructions per cycle.
+        Panel A: local-HPC, $N{=}50,000$, $N_{\text{threads/chain}} = 1$ (repeats of the design (i) cases),
+        with DRAM traffic measured at the memory controllers.
+        Panel B: local-HPC, $N{=}50,000$, eight chains packed onto one CCD vs. spread over eight CCDs.
+        Panel C: $N{=}50,000$, eight chunked chains ($N_{\text{threads/chain}} = 1$)
+        vs. one chain with $N_{\text{threads/chain}} = 8$, on the same 8 cores
+        (local-HPC: on one CCD, or spread over eight CCDs; laptop: not pinned),
+        with $N_{\text{chunks}} = 500$ (local-HPC) and $100$ (laptop) for \texttt{MD\_BayesMVP\_chunking},
+        $200$ for \texttt{MD\_BayesMVP\_WCP\_chunking}, $250$ (local-HPC) and $500$ (laptop)
+        for \texttt{AD\_Stan\_tape\_chunked}, $250$ for \texttt{AD\_Stan\_WCP\_chunking},
+        and $8$ for WCP-only (\texttt{MD\_BayesMVP\_WCP} and \texttt{AD\_Stan\_WCP});
+        its last column gives the L1 data-cache fills per chain-iteration from other CCDs
+        (chunking + WCP / WCP-only).
+        Panel D: design (i) cases, with the L1 data-cache fills per chain-iteration from the L3 cache and from RAM
+        (one fill is one 64-byte cache line).
+        Panel E: SMT with pinned chains (design (iv), $N{=}50,000$):
+        $N_{\text{chains}} = 8$ (one per core) vs. $16$ (two per core), on the 8 cores of one local-HPC CCD,
+        and on the laptop's 8 cores ($N_{\text{chains}} = 16$ not pinned).
+        Panel F: full-load runs (design (v); local-HPC, $N{=}50,000$, $N_{\text{chains}} = 180$,
+        $N_{\text{threads/chain}} = 1$; Mplus standard with BITERATIONS), each of ${\sim}{600}$\,s,
+        started within $2^{\circ}$C of idle:
+        Tctl is the CPU's control temperature (mean of the last 120\,s),
+        power the CPU package power whilst sampling
+        (median of the per-second values), memory-bound slots the dispatch slots lost to the back end
+        whilst loads had not completed (AMD's top-down counters),
+        DRAM traffic is measured at the memory controllers,
+        and FP ops are the floating-point instructions retired per core-cycle
+        (logs and scripts: \url{https://github.com/CerulloE1996/cache_aware_chunking_HMC}).
+        Design (i) used $N_{\text{chunks}} \in \{1, 4, 25, 100, 500\}$ (NicoStan+BayesMVP)
+        and $\{1, 10, 50, 250, 500\}$ (Stan model) at $N{=}50,000$,
+        and $\{1, 4, 25, 100\}$ for both at $N{=}10,000$;
+        pinned threads used the logical CPUs $0{-}7$ (one CCD), $0, 8, \dots, 56$ (eight CCDs)
         and $0{-}7$ with $96{-}103$ (SMT) on the local-HPC, and $0, 2, \dots, 14$ on the laptop
-        (see figures \ref{S:figure:cpu_topology_HPC} and \ref{S:figure:cpu_topology_laptop});
-        on the laptop, design (iii) and $N_{\text{chains}} = 16$ in design (iv) were not pinned.
+        (see figures \ref{S:figure:cpu_topology_HPC} and \ref{S:figure:cpu_topology_laptop}).
 }}
 %%%%
 \label{table:exp4_profiling}
@@ -189,7 +245,9 @@ Configuration & $N_{\text{chains}}$ & Throughput & IPC & \makecell[r]{DRAM traff
 NicoStan+BayesMVP, local-HPC, one CCD & & 44.8 & 33.0 & 15.9 & 0.00 / 0.00 & \\
 NicoStan+BayesMVP, local-HPC, eight CCDs & & 44.2 & 22.6 & 24.0 & 0.95 / 0.91 & \\
 Stan model, local-HPC, one CCD & & 21.7 & 16.5 & 8.8 & 0.00 / 0.00 & \\
-Stan model, local-HPC, eight CCDs & & 22.7 & 13.3 & 13.6 & 0.16 / 0.08 & \\
+%%%% ---- to check ---- %%%%
+% Stan model, local-HPC, eight CCDs & & 22.7 & 13.3 & 13.6 & 0.16 / 0.08 & \\
+Stan model, local-HPC, eight CCDs & & 22.7 & 13.3 & 13.6 & 0.16 / 0.07 & \\
 NicoStan+BayesMVP, laptop & & 21.9 & 14.5 & 6.1 & - & \\
 Stan model, laptop & & 9.7 & 6.1 & 4.1 & - & \\
 %%%%
@@ -205,12 +263,45 @@ Stan model, laptop & & 9.7 & 6.1 & 4.1 & - & \\
 %%%%
 \centering
 %%%%
-\normalsize
+\scriptfootnotesize
 %%%%
 \caption{
 \scriptfootnotesize{
 %%%% ---- to check ---- %%%%
         % Hardware-counter profiling (continued): panels D and E.
+%%%% ---- to check ---- %%%%
+%         Hardware-counter profiling (continued): panels D to F.
+%%%% ---- to check ---- %%%%
+% Hardware-counter profiling (continued): panels D to G.
+        %%
+%%%% ---- to check ---- %%%%
+%         Panel G: SMT on the laptop at the best $N_{\text{chunks}}$ with SMT for $N{=}50,000$
+%         (see tables \ref{table:ps1_smt_best_n_chunks} and \ref{table:ps1_smt_best_n_chunks_Stan}),
+%         and with $N_{\text{chunks}} = 500$ (as in panel E) for \texttt{MD\_BayesMVP\_chunking}:
+%         $N_{\text{chains}} = 8$ vs.\ $16$ (i.e., without and with SMT),
+%         unpinned (as in design (i)),
+%         with the CPU time and the dispatch stalls also recorded
+%         (mean of three runs each).
+%         The clock speed whilst running (i.e., cycles per second of CPU time) was $2.33{-}2.35$\,GHz in every case;
+%         time running is the chains' total CPU time as a percentage of $N_{\text{chains}}$ times the wall time;
+%         the IPC per core is the IPC times the threads per core (i.e., times $2$ with $N_{\text{chains}} = 16$,
+%         and times $180/96$ with $N_{\text{chains}} = 180$ on the local-HPC in panel D);
+%         and the stalls are the percentages of cycles in which dispatch stalled
+%         because the load queue or the floating-point register file was full (AMD's Zen 3 counters).
+%         Panel G: SMT at $N{=}50,000$, in repeats of design (i) cases
+%         with the CPU time and the dispatch stalls also recorded,
+%         and with fewer other programs running than for panels A to F (the mean of two to twelve runs each):
+%         on the laptop, at the best $N_{\text{chunks}}$ with SMT
+%         (see tables \ref{table:ps1_smt_best_n_chunks} and \ref{table:ps1_smt_best_n_chunks_Stan};
+%         and $N_{\text{chunks}} = 500$, as in panel E, for \texttt{MD\_BayesMVP\_chunking}),
+%         and on the local-HPC, with the $N_{\text{chunks}}$ of panel D;
+%         $^{\dagger}$pinned one chain per physical core (logical CPUs $0{-}95$).
+%         The clock speed is the cycles per second of CPU time (i.e., whilst running);
+%         time running is the chains' total CPU time as a percentage of $N_{\text{chains}}$ times the wall time;
+%         the IPC per core is the IPC times the threads per core (i.e., times $2$ with $N_{\text{chains}} = 16$,
+%         and times $180/96$ with $N_{\text{chains}} = 180$);
+%         and the stalls are the percentages of cycles in which dispatch stalled because the load queue
+%         or the floating-point register file was full (with the same AMD event codes on Zen 3 and Zen 4).
         Hardware-counter profiling (continued): panels D to F.
 }}
 %%%%
@@ -225,13 +316,25 @@ Configuration & $N_{\text{chains}}$ & Throughput & IPC & \makecell[r]{Instructio
 \multicolumn{7}{l}{local-HPC, $N{=}50,000$} \\
 \texttt{MD\_BayesMVP}, $N_{\text{chunks}} = 1$ & 1 & 4.2 & 0.90 & 0.79 & 13.5 & 17.1 \\
 \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 25$ & 1 & 5.4 & 1.23 & 0.84 & 11.6 & 0.58 \\
+%%%% ---- to check ---- %%%%
+ & 96 & 246.3 & 1.05 & 0.83 & 11.3 & 2.79 \\
  & 180 & 201.1 & 0.37 & 0.83 & 15.6 & 9.14 \\
 \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 100$ & 1 & 6.1 & 1.61 & 0.97 & 4.37 & 0.45 \\
+%%%% ---- to check ---- %%%%
+ & 96 & 288.6 & 1.52 & 0.97 & 3.73 & 1.55 \\
  & 180 & 359.2 & 0.96 & 0.97 & 7.35 & 1.51 \\
 \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 500$ & 1 & 5.8 & 2.23 & 1.42 & 0.64 & 0.42 \\
+%%%% ---- to check ---- %%%%
+ & 96 & 282.4 & 2.04 & 1.43 & 0.27 & 1.51 \\
  & 180 & 341.8 & 1.34 & 1.43 & 0.68 & 1.74 \\
 \texttt{AD\_Stan}, $N_{\text{chunks}} = 1$ & 1 & 3.5 & 2.39 & 2.57 & 0.86 & 16.0 \\
+%%%% ---- to check ---- %%%%
+ & 96 & 42.2 & 0.36 & 2.56 & 5.72 & 49.1 \\
+ & 180 & 40.2 & 0.19 & 2.56 & 3.39 & 51.9 \\
 \texttt{AD\_Stan\_tape\_chunked}, $N_{\text{chunks}} = 250$ & 1 & 3.0 & 3.06 & 3.87 & 11.9 & 1.76 \\
+%%%% ---- to check ---- %%%%
+\texttt{AD\_Stan\_tape\_chunked}, $N_{\text{chunks}} = 500$ & 96 & 125.7 & 2.88 & 4.03 & 13.0 & 1.21 \\
+ & 180 & 135.0 & 1.88 & 4.03 & 16.6 & 2.20 \\
 \multicolumn{7}{l}{laptop, $N{=}50,000$} \\
 \texttt{MD\_BayesMVP}, $N_{\text{chunks}} = 1$ & 16 & 2.2 & 0.13 & 1.54 & 12.6 & 59.3 \\
 \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 25$ & 8 & 14.5 & 1.25 & 1.57 & 9.99 & 8.26 \\
@@ -270,6 +373,102 @@ Mplus standard (BITERATIONS) & 180 & 63.6 & 258 & 55 & 50 & 0.06 \\
 \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 500$ & 180 & 74.5 & 369 & 24 & 169 & 0.44 \\
 \texttt{AD\_Stan}, $N_{\text{chunks}} = 1$ & 180 & 69.2 & 308 & 75 & 300 & 0.04 \\
 \texttt{AD\_Stan\_tape\_chunked}, $N_{\text{chunks}} = 250$ & 180 & 70.4 & 369 & 37 & 267 & 0.14 \\
+%%%% ---- to check ---- %%%%
+%%%%
+\hline
+%%%%
+\end{tabular}
+%%%%
+}
+\end{table}
+%%%%
+\begin{table}[H]
+\ContinuedFloat
+%%%%
+\centering
+%%%%
+\scriptfootnotesize
+%%%%
+\caption{
+\scriptfootnotesize{
+        Hardware-counter profiling (continued): panels G and H.
+        %%
+        Panel G: SMT at $N{=}50,000$, in repeats of design (i) cases
+        with the CPU time and the dispatch stalls also recorded,
+        and with fewer other programs running than for panels A to F (the mean of two to twelve runs each):
+        on the laptop, at the best $N_{\text{chunks}}$ with SMT
+        (see tables \ref{table:ps1_smt_best_n_chunks} and \ref{table:ps1_smt_best_n_chunks_Stan};
+        and $N_{\text{chunks}} = 500$, as in panel E, for \texttt{MD\_BayesMVP\_chunking}),
+        and on the local-HPC, with the $N_{\text{chunks}}$ of panel D;
+        $^{\dagger}$pinned one chain per physical core (logical CPUs $0{-}95$).
+        The clock speed is the cycles per second of CPU time (i.e., whilst running);
+        time running is the chains' total CPU time as a percentage of $N_{\text{chains}}$ times the wall time;
+        the IPC per core is the IPC times the threads per core (i.e., times $2$ with $N_{\text{chains}} = 16$,
+        and times $180/96$ with $N_{\text{chains}} = 180$);
+        and the stalls are the percentages of cycles in which dispatch stalled because the load queue
+        or the floating-point register file was full (with the same AMD event codes on Zen 3 and Zen 4).
+        %%
+        Panel H: \texttt{MD\_BayesMVP\_chunking} on the local-HPC at the best $N_{\text{chunks}}$ with SMT
+        (see table \ref{table:ps1_smt_best_n_chunks}),
+        timed exactly as in E1 (i.e., with the same runner, settings, data, iterations and two-run timing;
+        see equation \ref{eq:paper1_two_run_timing}; mean of three repeats each):
+        the wall time per sampling iteration with $N_{\text{chains}} = 96$ unpinned (as in E1), $96^{\dagger}$,
+        and $180$ unpinned, and the SMT gain (see equation \ref{eq:paper1_smt_gain}) relative to each.
+}}
+%%%%
+\PaperOneFitTable{
+\begin{tabular}{llrrrrr}
+%%%% ---- to check ---- %%%%
+%%%%
+\hline
+%%%%
+%%%% ---- to check ---- %%%%
+% \multicolumn{7}{l}{\textit{Panel G} (laptop, $N{=}50,000$)} \\
+% Configuration & $N_{\text{chains}}$ & Throughput & IPC & \makecell[r]{Time running \\ (\%)} & \makecell[r]{Load-queue \\ stalls (\%)} & \makecell[r]{FP register-file \\ stalls (\%)} \\
+%%%%
+% \hline
+%%%%
+% \texttt{AD\_Stan\_tape\_chunked}, $N_{\text{chunks}} = 1000$ & 8 & 8.9 & 2.31 & 94 & 18.4 & 0.1 \\
+%  & 16 & 10.7 & 1.60 & 82 & 7.8 & 0.2 \\
+% \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 250$ & 8 & 20.1 & 2.37 & 89 & 7.1 & 7.9 \\
+%  & 16 & 23.8 & 1.48 & 87 & 4.5 & 7.3 \\
+% \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 500$ & 8 & 19.4 & 2.48 & 89 & 6.1 & 7.3 \\
+%  & 16 & 22.7 & 1.54 & 86 & 3.3 & 6.5 \\
+\multicolumn{7}{l}{\textit{Panel G} ($N{=}50,000$)} \\
+Configuration & $N_{\text{chains}}$ & Throughput & IPC & \makecell[r]{Clock \\ (GHz)} & \makecell[r]{Time running \\ (\%)} & \makecell[r]{Stalls (\%): load queue \\ / FP register file} \\
+%%%%
+\hline
+%%%%
+\multicolumn{7}{l}{laptop} \\
+\texttt{AD\_Stan\_tape\_chunked}, $N_{\text{chunks}} = 1000$ & 8 & 9.4 & 2.46 & 2.35 & 94 & 20.2 / 0.0 \\
+ & 16 & 11.6 & 1.61 & 2.34 & 89 & 8.1 / 0.2 \\
+\texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 250$ & 8 & 23.0 & 2.54 & 2.36 & 97 & 7.9 / 8.7 \\
+ & 16 & 25.6 & 1.48 & 2.35 & 93 & 4.7 / 7.5 \\
+\texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 500$ & 8 & 22.2 & 2.66 & 2.36 & 98 & 6.8 / 8.0 \\
+ & 16 & 24.7 & 1.54 & 2.35 & 93 & 3.4 / 6.7 \\
+\multicolumn{7}{l}{local-HPC} \\
+\texttt{AD\_Stan\_tape\_chunked}, $N_{\text{chunks}} = 500$ & 96 & 136.4 & 3.00 & 3.23 & 59 & 12.8 / 0.0 \\
+ & 96$^{\dagger}$ & 137.0 & 3.05 & 3.23 & 58 & - \\
+ & 180 & 144.1 & 1.87 & 2.89 & 60 & 7.3 / 0.2 \\
+\texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 500$ & 96 & 300.0 & 2.06 & 3.29 & 65 & 10.9 / 7.8 \\
+ & 96$^{\dagger}$ & 336.2 & 2.14 & 3.25 & 72 & - \\
+ & 180 & 396.3 & 1.37 & 2.88 & 86 & 8.2 / 9.6 \\
+\texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 100$ & 96 & 304.4 & 1.50 & 3.22 & 64 & - \\
+ & 96$^{\dagger}$ & 338.2 & 1.56 & 3.18 & 69 & - \\
+ & 180 & 404.5 & 0.96 & 2.82 & 81 & - \\
+%%%% ---- to check ---- %%%%
+%%%%
+\hline
+%%%%
+\multicolumn{7}{l}{\textit{Panel H} (\texttt{MD\_BayesMVP\_chunking}, local-HPC)} \\
+$N$ & $N_{\text{chunks}}$ & \makecell[r]{ms per iteration, \\ $N_{\text{chains}} = 96$} & \makecell[r]{ms per iteration, \\ $N_{\text{chains}} = 96^{\dagger}$} & \makecell[r]{ms per iteration, \\ $N_{\text{chains}} = 180$} & \makecell[r]{SMT gain (\%) \\ vs.\ $96$} & \makecell[r]{SMT gain (\%) \\ vs.\ $96^{\dagger}$} \\
+%%%%
+\hline
+%%%%
+$500$ & 2 & 4.56 & 3.84 & 6.23 & 37.4 & 15.5 \\
+$2500$ & 10 & 15.37 & 13.20 & 21.78 & 32.3 & 13.6 \\
+$10,000$ & 50 & 59.36 & 52.03 & 83.12 & 33.9 & 17.4 \\
+$50,000$ & 500 & 311.1 & 275.9 & 429.1 & 35.9 & 20.5 \\
 %%%%
 \hline
 %%%%

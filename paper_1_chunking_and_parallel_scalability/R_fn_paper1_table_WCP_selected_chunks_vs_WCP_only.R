@@ -11,12 +11,22 @@
 ##      Input:  the chunk-search CSVs of the extended chunk grid (one per device, algorithm and N).
 ##      Output: one .tex table per algorithm (same labels as the tables they replace).
 ##
+## ---- 2026-10-04: the bracket is now the throughput relative to the FASTEST WCP-only allocation on the same
+##      device at the same N (one baseline per device and N), not relative to WCP-only at the same allocation
+##      (lines 7-8 above): with the same-allocation baseline, a slow WCP-only allocation inflated its bracket, so
+##      the largest bracket was not the fastest configuration. The same-allocation ratio is still written to the
+##      *_values.csv files (ratio_vs_WCP_only). Cells are "N_chunks (ratio x)", with a section mark on the
+##      largest N_chunks tested at that N, as in Main.tex.
+##
 ##
 # data_dir   <-  "paper_1_computational_outputs/manuscript_outputs_final_both_devices_extended_chunk_grid/data"
 ## 2026-10-03: the export with the narrow-WCP local-HPC runs (up to 90 chains x 2 threads):
 data_dir   <-  "paper_1_computational_outputs/manuscript_outputs_final_both_devices_narrow_WCP_2026_10_03/data"
 # output_dir <-  path.expand("~/Paper1_upload_WCP_only_tables/Files/Supplement/assets/WCP_selected_chunks/tables")
-output_dir <-  path.expand("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v42_2026_10_03/tables_v45")
+# output_dir <-  path.expand("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v42_2026_10_03/tables_v45")
+## 2026-10-04: the re-based tables go to their own folder (the tables_v45 outputs above are kept unchanged):
+output_dir <-  path.expand(paste0("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v46_2026_10_03/",
+                                  "tables_2026_10_04_rebased"))
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 ##
 N_values <-  c(500, 2500, 10000, 50000)
@@ -69,6 +79,10 @@ for (algorithm in names(table_settings)) {
                                     WCP_only_total_iter_per_sec = WCP_only$total_iter_per_sec,
                                     ratio_vs_WCP_only           = selected$chain_rate / WCP_only$chain_rate,
                                     selected_is_WCP_only        = selected$num_chunks == selected$threads_per_chain,
+                                    ## 2026-10-04: near-tie flag - the second-best N_chunks of this allocation is within 1%:
+                                    near_tie                    = nrow(rows) > 1 &&
+                                                                  sort(rows$total_iter_per_sec, decreasing = TRUE)[2] >=
+                                                                  0.99 * max(rows$total_iter_per_sec),
                                     stringsAsFactors            = FALSE)
 
                 }))
@@ -77,14 +91,30 @@ for (algorithm in names(table_settings)) {
                 per_allocation$fastest_chunking_WCP <-  per_allocation$selected_total_iter_per_sec == max(per_allocation$selected_total_iter_per_sec)
                 per_allocation$fastest_WCP_only     <-  per_allocation$WCP_only_total_iter_per_sec == max(per_allocation$WCP_only_total_iter_per_sec)
                 ##
+                ## ---- 2026-10-04: one baseline per device and N - the fastest WCP-only allocation (the dagger
+                ##      row); total iterations/second are comparable across allocations here, because N_iter is
+                ##      the same for every allocation of this arm at this N:
+                per_allocation$ratio_vs_fastest_WCP_only <-  per_allocation$selected_total_iter_per_sec /
+                                                             max(per_allocation$WCP_only_total_iter_per_sec)
+                ## the largest N_chunks tested at this device and N (section mark in the table):
+                per_allocation$largest_tested_num_chunks <-  per_allocation$selected_num_chunks ==
+                                                             max(chunk_search$num_chunks)
+                ##
                 per_allocation
 
         }))))
         ##
         ## ---- Cell text: "N_chunks (ratio vs. WCP-only)"; "(1)" when WCP-only itself was selected:
-        cells$cell <-  paste0( cells$selected_num_chunks, " (",
-                               ifelse( cells$selected_is_WCP_only, "1",
-                                       formatC(cells$ratio_vs_WCP_only, format = "f", digits = 2)), ")")
+        # cells$cell <-  paste0( cells$selected_num_chunks, " (",
+        #                        ifelse( cells$selected_is_WCP_only, "1",
+        #                                formatC(cells$ratio_vs_WCP_only, format = "f", digits = 2)), ")")
+        ## ---- 2026-10-04: cell text "N_chunks (ratio vs. the fastest WCP-only allocation, with the times
+        ##      sign)", with a section mark on the largest N_chunks tested at that N:
+        cells$cell <-  paste0( cells$selected_num_chunks,
+                               ifelse(cells$largest_tested_num_chunks, "$^{\\S}$", ""),
+                               ifelse(cells$near_tie, "$^{*}$", ""),
+                               " (", formatC(cells$ratio_vs_fastest_WCP_only, format = "f", digits = 2),
+                               "$\\times$)")
         cells$cell <-  ifelse(cells$fastest_chunking_WCP, paste0("\\textbf{", cells$cell, "}"), cells$cell)
         ## cells$cell <-  ifelse(cells$fastest_WCP_only, paste0(cells$cell, "$^{\\dagger}$"), cells$cell)
         ## (the text dagger keeps every table row within the 114-character source width)
@@ -137,16 +167,33 @@ for (algorithm in names(table_settings)) {
                    "        and $N$ (i.e., the $N_{\\text{chunks}}$, with the lowest mean run time for that allocation;",
                    "        see section \\ref{section:paper1_chunk_wcp_selection_design}).",
                    "        %%",
-                   paste0("        The number in brackets is the throughput of this configuration relative to ", WCP_only_name),
-                   "        (i.e., WCP-only, with $N_{\\text{chunks}} = N_{\\text{threads/chain}}$) at the same allocation;",
-                   "        (1) means that WCP-only itself was selected.",
+## (the eight caption lines before 2026-10-04, with the same-allocation bracket:)
+# paste0("        The number in brackets is the throughput of this configuration relative to ", WCP_only_name),
+# "        (i.e., WCP-only, with $N_{\\text{chunks}} = N_{\\text{threads/chain}}$) at the same allocation;",
+# "        (1) means that WCP-only itself was selected.",
+# "        %%",
+# paste0("        Bold marks the fastest ", WCP_chunking_name, " allocation at each $N$"),
+# "        (i.e., the configuration which we used in E2;",
+# "        see section \\ref{section:methods:experiment_2_cross_algorithm_software}),",
+# paste0("        and \\dag{} marks the fastest ", WCP_only_name, " allocation."),
+                   ## ---- 2026-10-04: the re-based bracket (one baseline per device and N), as in Main.tex:
+                   "        The number in brackets is the throughput of this configuration relative to",
+                   paste0("        the fastest ", WCP_only_name, " allocation on that device at that $N$"),
+                   "        (\\dag{}; i.e., WCP-only, with $N_{\\text{chunks}} = N_{\\text{threads/chain}}$),",
+                   "        so that, for each device, the largest number in each column",
+                   "        is the fastest configuration (bold);",
+                   "        an $N_{\\text{chunks}}$ equal to $N_{\\text{threads/chain}}$",
+                   "        means that WCP-only itself was selected.",
                    "        %%",
-                   paste0("        Bold marks the fastest ", WCP_chunking_name, " allocation at each $N$"),
-                   "        (i.e., the configuration which we used in E2;",
-                   "        see section \\ref{section:methods:experiment_2_cross_algorithm_software}),",
-                   paste0("        and \\dag{} marks the fastest ", WCP_only_name, " allocation."),
+                   paste0("        Bold marks the fastest ", WCP_chunking_name, " allocation at each $N$,"),
+                   paste0("        and \\dag{} marks the fastest ", WCP_only_name, " allocation;"),
+                   "        in E2 (see section \\ref{section:methods:experiment_2_cross_algorithm_software}),",
+                   "        we used the fastest allocation at each $N_{\\text{threads}}$",
+                   "        (see section \\ref{section:paper1_chunk_wcp_selection_design}).",
                    "        %%",
                    "        Hyphens mark allocations which were not tested at that $N$.",
+                   "        $^{\\S}$the largest $N_{\\text{chunks}}$ tested for that $N$;",
+                   "        $^{*}$the second-best $N_{\\text{chunks}}$ for that allocation was within $1\\%$ (i.e., essentially tied).",
                    "}}",
                    "%%%%",
                    paste0("\\label{", settings$label, "}"),

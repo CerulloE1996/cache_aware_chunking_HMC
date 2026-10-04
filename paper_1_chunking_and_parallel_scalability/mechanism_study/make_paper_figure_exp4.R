@@ -16,6 +16,14 @@
                                  "Stan model (NicoStan) + tape chunking, 250 chunks")
       bandwidth$configuration <-  factor(x = bandwidth$configuration, levels = configuration_order)
       ##
+      ## ---- legend text: each configuration by its model name and N_chunks, as in the text (plotmath):
+      model_name_of_configuration <-  ifelse(grepl("^NicoStan", configuration_order),
+                                             ifelse(grepl(", 1 chunk$", configuration_order), "MD_BayesMVP", "MD_BayesMVP_chunking"),
+                                             ifelse(grepl(", 1 chunk$", configuration_order), "AD_Stan", "AD_Stan_tape_chunked"))
+      N_chunks_of_configuration   <-  as.numeric(sub("^.*, ([0-9]+) chunks?$", "\\1", configuration_order))
+      configuration_legend_labels <-  do.call(what = expression, args = lapply(X = seq_along(along.with = configuration_order), FUN = function(i)
+                                           bquote(.(model_name_of_configuration[i]) ~ "(" * N[chunks] == .(N_chunks_of_configuration[i]) * ")")))
+      ##
       plot_bandwidth <-  ggplot2::ggplot( data = bandwidth,
                                           mapping = ggplot2::aes(x = n_chains, y = DRAM_total_GB_per_second,
                                                                  colour = configuration, linetype = implementation, group = configuration)) +
@@ -26,11 +34,16 @@
                          ggplot2::geom_point() +
                          ggplot2::scale_x_log10(breaks = c(8, 48, 96, 180)) +
                          ggplot2::scale_y_continuous(limits = c(0, 480), breaks = seq(0, 450, by = 50)) +
-                         ggplot2::scale_linetype_manual(values = c("NicoStan+BayesMVP" = "solid", "Stan model (NicoStan)" = "longdash")) +
+                         ## ggplot2::scale_linetype_manual(values = c("NicoStan+BayesMVP" = "solid", "Stan model (NicoStan)" = "longdash")) +
+                         ggplot2::scale_linetype_manual(values = c("NicoStan+BayesMVP" = "solid", "Stan model (NicoStan)" = "longdash"),
+                                                        labels = c("NicoStan+BayesMVP" = "NicoStan+BayesMVP",
+                                                                   "Stan model (NicoStan)" = "Stan model (via NicoStan)")) +
+                         ggplot2::scale_colour_discrete(labels = configuration_legend_labels) +
                          ## Line-type key (solid = NicoStan+BayesMVP, long-dashed = Stan model) above the colour key; the colour key lines use the same line types:
                          ggplot2::guides( linetype = ggplot2::guide_legend(order = 1, override.aes = list(shape = NA)),
                                           colour = ggplot2::guide_legend(order = 2, override.aes = list(linetype = c(rep("solid", 4), rep("longdash", 3))))) +
-                         ggplot2::labs( x = expression(paste(N[chains], " (one thread per chain; log scale)")),
+                         ## ggplot2::labs( x = expression(paste(N[chains], " (one thread per chain; log scale)")),
+                         ggplot2::labs( x = expression(N[chains] ~ "(" * N["threads/chain"] == 1 * "; log scale)"),
                                         y = "DRAM traffic, reads + writes (GB/s)",
                                         linetype = "Line type",
                                         colour = "Configuration") +

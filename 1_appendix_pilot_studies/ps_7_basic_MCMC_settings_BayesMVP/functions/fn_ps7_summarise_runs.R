@@ -436,6 +436,10 @@ fn_ps7_summarise_runs <-  function( runs_table,
                                          tau_sampling_scale                   = "tau_samp_scale",
                                          tau_adam_bias_correction             = "adam_bias_corr",
                                          tau_adaptation_block                 = "tau_block",
+                                         eps_acceptance_mean                  = "eps_accept_mean",
+                                         tau_shrink_on_divergence             = "tau_div_shrink",
+                                         metric_pooled_window_resets          = "pooled_resets",
+                                         metric_pooled_offdiagonal_shrinkage  = "pooled_offdiag_shrink",
                                          test_perm_override                   = "test_order")
               ##
               rows_to_print <-  if (is.finite(top_n)) configuration_table$rank <= top_n & !is.na(configuration_table$rank) else rep(TRUE, nrow(configuration_table))

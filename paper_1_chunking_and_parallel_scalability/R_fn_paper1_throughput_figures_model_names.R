@@ -47,19 +47,13 @@ fn_plot_throughput_by_model_name <-  function( df,
                 df_dev <-  df[df$device == dev, , drop = FALSE]
                 if (nrow(df_dev) == 0) next
                 ##
-                ## 2026-10-03: the 176-thread WCP points were the stand-ins for the missing 180-thread WCP cells
-                ## (the WCP grid stopped at 16 chains); now that 180-thread WCP allocations exist, a 176 point is
-                ## dropped wherever the same configuration also has a 180 point (the data are unchanged):
-                has_180 <-  paste(df_dev$N_num, df_dev$model_name)[df_dev$n_threads == 180]
-                drop_176 <-  df_dev$n_threads == 176 & paste(df_dev$N_num, df_dev$model_name) %in% has_180
-                df_dev <-  df_dev[!drop_176, , drop = FALSE]
-                ##
                 ## every measured thread count gets a tick; on the local-HPC the 176-thread (WCP) and 180-thread points share one
                 ## combined tick, as they are too close to label separately on a log scale:
                 if (dev == "HPC") {
                     x_breaks <-  c(1, 2, 4, 8, 16, 32, 64, 96, 128, 178)
                     x_labels <-  c("1", "2", "4", "8", "16", "32", "64", "96", "128", "176/180")
-                    ## 2026-10-03: with no 176-thread points left, the last tick is simply 180:
+                    ## 2026-10-04: the "176/180" tick is used only when 176-thread points exist (no data are dropped;
+                    ## figures without 176-thread runs get a plain "180" tick):
                     if (!any(df_dev$n_threads == 176)) {
                           x_breaks[length(x_breaks)] <-  180
                           x_labels[length(x_labels)] <-  "180"
