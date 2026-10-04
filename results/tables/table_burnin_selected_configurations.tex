@@ -90,8 +90,7 @@
     with $N_{\text{chunks}} = 1$ for NicoStan+BayesMVP,
     the best $N_{\text{chunks}}$ for the Stan model via NicoStan,
     and \texttt{AD\_Stan} for the Stan model via cmdstanr (with $N_{\text{burn\_chains}} = 4$ only;
-    see sections \ref{section:paper1_burnin_design}, \ref{section:paper1_stan_burnin_design}
-    and \ref{section:paper1_stan_cmdstanr_burnin_design}). \\
+    see section \ref{section:paper1_burnin_design}). \\
     %%
     An entry is WCP-only if $N_{\text{chunks}} = N_{\text{threads/chain}} > 1$
     (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP} or \texttt{AD\_\allowbreak Stan\_\allowbreak WCP}),
@@ -102,7 +101,8 @@
     (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP\_\allowbreak chunking}
     or \texttt{AD\_\allowbreak Stan\_\allowbreak WCP\_\allowbreak chunking}). \\
     %%
-    $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$.
+    $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$. \\
+    %%
     $^{\P}$within $1\%$ of the second-best configuration
     ($8 \times 8$/8, $4 \times 8$/8, $8 \times 2$/250 and $4 \times 44$/44, respectively).
 }}
