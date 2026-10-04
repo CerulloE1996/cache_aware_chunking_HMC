@@ -660,8 +660,10 @@ fn_paper1_burnin_figure_best_chunks <-  function( rows,
                                                                        levels = paste0("N = ", fn_paper1_format_number_commas_from_10000(N_values))),
                                                  ## chains_label = factor(x      = paste0(.data$n_chains_burnin, " burn-in chains"),
                                                  ##                       levels = paste0(chains_values, " burn-in chains")))
-                                                 chains_label = factor(x      = paste0("N[chains]==", .data$n_chains_burnin, '~"(burn-in)"'),
-                                                                       levels = paste0("N[chains]==", chains_values, '~"(burn-in)"')))
+                                                 ## chains_label = factor(x      = paste0("N[chains]==", .data$n_chains_burnin, '~"(burn-in)"'),
+                                                 ##                       levels = paste0("N[chains]==", chains_values, '~"(burn-in)"')))
+                                                 chains_label = factor(x      = paste0('N["burn_chains"]==', .data$n_chains_burnin),
+                                                                       levels = paste0('N["burn_chains"]==', chains_values)))
         ##
         ## series_levels      <-  c("no_chunking", "best_chunks_at_each_WCP")
         ## series_labels      <-  c(expression("No chunking, no WCP (" * N[chunks] * " = 1, " * N[WCP] * " = 1)"),

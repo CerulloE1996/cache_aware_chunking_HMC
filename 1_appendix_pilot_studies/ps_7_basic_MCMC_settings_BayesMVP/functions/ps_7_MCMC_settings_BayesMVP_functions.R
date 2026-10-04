@@ -3643,6 +3643,9 @@ run_ps7_models <-  function( Model_type,
           min_ESS <-  if (length(x = tibble_gq_for_diagnostics$n_eff) > 0 && all(is.finite(x = tibble_gq_for_diagnostics$n_eff))) min(tibble_gq_for_diagnostics$n_eff) else NA_real_
           ## the tail ESS over the same parameters (NicoStan's n_eff_tail; NA for a summary made before that column existed):
           min_ESS_tail <-  if (length(x = tibble_gq_for_diagnostics$n_eff_tail) > 0 && all(is.finite(x = tibble_gq_for_diagnostics$n_eff_tail))) min(tibble_gq_for_diagnostics$n_eff_tail) else NA_real_
+          ## the ESS of the centred squared draws over the same parameters (NicoStan's n_eff_sd, the posterior SD's ESS; Enzo, 4 Oct 2026:
+          ## a separate endpoint of equal standing; NA for a summary made before that column existed):
+          min_ESS_sd <-  if (length(x = tibble_gq_for_diagnostics$n_eff_sd) > 0 && all(is.finite(x = tibble_gq_for_diagnostics$n_eff_sd))) min(tibble_gq_for_diagnostics$n_eff_sd) else NA_real_
           ##
           time_total  <-  model_fit_object$summaries$efficiency_info$time_total
           time_burnin <-  model_fit_object$summaries$efficiency_info$time_burnin
@@ -3690,6 +3693,7 @@ run_ps7_models <-  function( Model_type,
                                         settings$n_iter * settings$n_chains_sampling
           Min_ess_per_grad_main_samp <-  min_ESS / n_grad_evals_sampling_main
           Min_ess_tail_per_grad_main_samp <-  min_ESS_tail / n_grad_evals_sampling_main   ## the same gradient count as the bulk value
+          Min_ess_sd_per_grad_main_samp <-  min_ESS_sd / n_grad_evals_sampling_main       ## the same gradient count as the bulk value
           ##
           L_us_during_sampling <-  (HMC_info$tau_us / HMC_info$eps_us)
           ## n_grad_evals_sampling_us <-  L_us_during_sampling  * settings$n_iter * settings$n_chains_sampling
@@ -3755,6 +3759,12 @@ run_ps7_models <-  function( Model_type,
                 is.finite(time_summaries) && time_summaries >= 0) {
               sampling_time_to_target_min_ESS <-  time_sampling * target_min_ESS / min_ESS
               summary_time_to_target_min_ESS <-  time_summaries * target_min_ESS / min_ESS
+              ## the same for the posterior SD's ESS (min_ESS_sd), a separate endpoint reported alongside:
+              if (is.finite(min_ESS_sd) && min_ESS_sd > 0) {
+                  time_to_target_min_ESS_sd <-  time_burnin + (time_sampling + time_summaries) * target_min_ESS / min_ESS_sd
+                  cat(BayesMVP:::colourise(paste0("time to min ESS(theta^2) (same target; SD's ESS ", round(min_ESS_sd), "): ",
+                                                  formatC(time_to_target_min_ESS_sd, format = "f", digits = 1), " s"), "cyan"), "\n")
+              }
               cat(BayesMVP:::colourise(paste0("time to min ESS (target ", sub("^ +", "", formatC(target_min_ESS, format = "f", digits = 0)), " at N = ", sub("^ +", "", formatC(N, format = "f", digits = 0)), "): burn-in ", sub("^ +", "", formatC(time_burnin, format = "f", digits = 1)), " s + sampling ", sub("^ +", "", formatC(sampling_time_to_target_min_ESS, format = "f", digits = 1)), " s + summaries ", sub("^ +", "", formatC(summary_time_to_target_min_ESS, format = "f", digits = 1)), " s = ", sub("^ +", "", formatC(time_burnin + sampling_time_to_target_min_ESS + summary_time_to_target_min_ESS, format = "f", digits = 1)), " s | (this run: min ESS ", sub("^ +", "", formatC(min_ESS, format = "f", digits = 0)), " after ", sub("^ +", "", formatC(time_sampling, format = "f", digits = 1)), " s of sampling)"), "blue"), "\n")
             }
           })
@@ -3785,11 +3795,13 @@ run_ps7_models <-  function( Model_type,
             ##
             min_ESS = min_ESS,
             min_ESS_tail = min_ESS_tail,
+            min_ESS_sd = min_ESS_sd,
             ##
             ESS_per_sec_total = ESS_per_sec_total,
             ESS_per_sec_samp = ESS_per_sec_samp,
             ESS_per_grad_samp = Min_ess_per_grad_samp_weighted,
             ESS_tail_per_grad_samp = Min_ess_tail_per_grad_main_samp,
+            ESS_sd_per_grad_samp = Min_ess_sd_per_grad_main_samp,
             ## the gradient count behind ESS_per_grad_samp (readers rescale only runs without this marker, i.e. saved with the nominal tau / eps count):
             ## ESS_per_grad_samp_gradient_count = "executed_leapfrog_steps_expected",
             ## expected gradient evaluations for the native sampling path (fn_ps7_expected_sampling_gradient_evaluations_per_iteration):
@@ -4391,6 +4403,13 @@ summarize_ps7_results <-  function(output_dir,
                     max_nRhat = eff$Max_nested_rhat_main,
                     ##
                     min_ESS = r$min_ESS, ## eff$Min_ESS_main,
+                    ## the posterior SD's ESS (NicoStan n_eff_sd; NA for runs saved before 4 Oct 2026) and its rate per 1000 gradients
+                    ## with the SAME gradient count as ESS_per_grad_samp, plus its time to the target ESS (burn-in never scaled):
+                    min_ESS_sd = if (is.null(r$min_ESS_sd)) NA_real_ else r$min_ESS_sd,
+                    ESS_sd_per_grad_samp = if (is.null(r$min_ESS_sd) || !is.finite(r$min_ESS_sd) || !is.finite(r$min_ESS) || r$min_ESS <= 0) NA_real_ else
+                                               fn_ps7_ESS_per_grad_samp_expected_steps(run_object = r) * 1000 * r$min_ESS_sd / r$min_ESS,
+                    est_time_to_target_ESS_sd_mins = if (!is.null(r$min_ESS_sd) && is.finite(r$min_ESS_sd) && r$min_ESS_sd > 0)
+                        (time_burnin + (target_ESS_val/r$min_ESS_sd)*(time_sampling + time_summaries))/60 else NA_real_,
                     ##
                     ESS_per_sec_total = r$ESS_per_sec_total, ## eff$ESS_per_sec_total,
                     ESS_per_sec_samp = r$ESS_per_sec_samp, ## eff$ESS_per_sec_samp,

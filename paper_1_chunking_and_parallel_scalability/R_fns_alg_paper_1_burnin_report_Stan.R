@@ -927,15 +927,21 @@ fn_paper1_burnin_figure_Stan <-  function( Stan_rows_by_device,
                                                        c("device_selector", "n_chains_burnin")])
         ## row_labels <-  paste0(device_full_name[row_keys$device_selector], "\n", row_keys$n_chains_burnin, " burn-in chains")
         ## (plotmath strip labels: the device above N_chains = ..., parsed by the panel's labeller)
-        row_labels <-  paste0('atop("', device_full_name[row_keys$device_selector], '", N[chains]==', row_keys$n_chains_burnin, '~"(burn-in)")')
+        ## row_labels <-  paste0('atop("', device_full_name[row_keys$device_selector], '", N[chains]==', row_keys$n_chains_burnin, '~"(burn-in)")')
+        row_labels <-  paste0( 'atop("', device_full_name[row_keys$device_selector], '", N["burn_chains"]==',
+                               row_keys$n_chains_burnin, ')')
         ##
         configuration_summary$N_label      <-  factor(x = paste0("N = ", fn_paper1_format_number_commas_from_10000(configuration_summary$N)),
                                                       levels = paste0("N = ", fn_paper1_format_number_commas_from_10000(N_values)))
         ## configuration_summary$chains_label <-  factor(x = paste0(device_full_name[configuration_summary$device_selector], "\n", configuration_summary$n_chains_burnin, " burn-in chains"),
         ##                                               levels = row_labels)
-        configuration_summary$chains_label <-  factor(x = paste0('atop("', device_full_name[configuration_summary$device_selector], '", N[chains]==',
-                                                                 configuration_summary$n_chains_burnin, '~"(burn-in)")'),
-                                                      levels = row_labels)
+        ## configuration_summary$chains_label <-  factor(x = paste0('atop("', device_full_name[configuration_summary$device_selector], '", N[chains]==',
+        ##                                                          configuration_summary$n_chains_burnin, '~"(burn-in)")'),
+        ##                                               levels = row_labels)
+        configuration_summary$chains_label <-  factor( x = paste0( 'atop("', device_full_name[configuration_summary$device_selector],
+                                                                   '", N["burn_chains"]==',
+                                                                   configuration_summary$n_chains_burnin, ')'),
+                                                       levels = row_labels)
         ##
         no_chunking <-  configuration_summary[configuration_summary$num_chunks_burnin == 1 & configuration_summary$n_threads_WCP_burnin == 1, , drop = FALSE]
         ##

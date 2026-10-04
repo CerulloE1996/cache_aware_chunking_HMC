@@ -1,76 +1,128 @@
 \begin{table}[H]
 \scriptfootnotesize
 \centering
+%%%% ---- previous version (one row per burn-in N_chains) ---- %%%%
+% \caption{
+% \scriptfootnotesize{
+%     Selected burn-in configurations, given as $N_{\text{threads/chain}}$/$N_{\text{chunks}}$,
+%     i.e., the configuration with the lowest mean seconds per burn-in iteration
+%     for each device, burn-in $N_{\text{chains}}$ and $N$
+%     (the circled points in figures \ref{S:figure:burnin_chunk_WCP_comparison_local_HPC},
+%     % \ref{S:figure:burnin_chunk_WCP_comparison_laptop} and \ref{S:figure:burnin_chunk_WCP_comparison_Stan};
+%     \ref{S:figure:burnin_chunk_WCP_comparison_laptop}, 
+%     \ref{S:figure:burnin_chunk_WCP_comparison_Stan}
+%     and \ref{S:figure:burnin_chunk_WCP_comparison_Stan_laptop};
+%     see sections \ref{section:paper1_burnin_design} and \ref{section:paper1_stan_burnin_design}). \\
+%     %%
+%     For NicoStan+BayesMVP,
+%     $^{\dagger}$ marks WCP-only (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP};
+%     $N_{\text{chunks}} = N_{\text{threads/chain}}$),
+%     $^{\ddagger}$ chunking-only (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak chunking};
+%     $N_{\text{threads/chain}} = 1$),
+%     and $^{*}$ neither (\texttt{MD\_BayesMVP});
+%     every other entry is \texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP\_\allowbreak chunking}. \\
+%     %%
+%     %     For the Stan model, every entry is \texttt{AD\_Stan\_WCP\_chunking}
+%     %     (i.e., $N_{\text{chunks}} > N_{\text{threads/chain}} > 1$).
+%     % For the Stan model, every entry is \texttt{AD\_Stan\_WCP\_chunking}
+%     For the Stan model (NicoStan), every entry is \texttt{AD\_Stan\_WCP\_chunking}
+%     (i.e., $N_{\text{chunks}} > N_{\text{threads/chain}} > 1$). \\
+%     For Stan via cmdstanr (burn-in $N_{\text{chains}} = 4$ only;
+%     see section \ref{section:paper1_stan_cmdstanr_burnin_design}),
+%     $^{\dagger}$ marks \texttt{AD\_Stan\_WCP}; every other entry is \texttt{AD\_Stan\_WCP\_chunking}. \\
+%     $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$. \\
+%     %%
+%     $^{\P}$within $1\%$ of the second-fastest configuration
+%     % (8/8$^{\dagger}$, 2/250 and 6/25, respectively).
+%     (8/8$^{\dagger}$, 2/250, 6/25 and 44/44$^{\dagger}$, respectively).
+% }}
+% \label{table:paper1_burnin_selected_configurations}
+% \PaperOneFitTable{
+% \begin{tabular}{lllcccc}
+% \hline
+%  & & Burn-in & \multicolumn{4}{c}{$N$} \\
+% Model & Device & $N_{\text{chains}}$ & $500$ & $2500$ & $10,000$ & $50,000$ \\ \hline
+% NicoStan+BayesMVP & local-HPC & 4  & 8/8$^{\dagger}$ & 8/8$^{\dagger}$ & 16/50 & 16/250 \\
+% %%%% ---- to check ---- %%%%
+% %                   &           & 8  & 8/10 & 8/8$^{\dagger}$ & 8/25 & 8/100 \\
+% %                   &           & 16 & 6/10 & 4/4$^{\dagger}$ & 4/25 & 4/50 \\
+% %%%% ---- to check ---- %%%%
+% %                   &           & 8  & 8/10$^{\S}$ & 8/8$^{\dagger}$ & 8/25 & 8/100 \\
+%                   &           & 8  & 8/10$^{\S\P}$ & 8/8$^{\dagger}$ & 8/25 & 8/100 \\
+%                   &           & 16 & 6/10$^{\S}$ & 4/4$^{\dagger}$ & 4/25 & 4/50 \\
+%                   & laptop    & 4  & 1/1$^{*}$ & 2/4 & 2/50 & 2/100 \\
+% %%%% ---- to check ---- %%%%
+% %                   &           & 8  & 1/1$^{*}$ & 1/10$^{\ddagger}$ & 1/25$^{\ddagger}$ & 1/250$^{\ddagger}$ \\
+%                   &           & 8  & 1/1$^{*}$ & 1/10$^{\ddagger}$ & 1/25$^{\ddagger}$ & 1/250$^{\ddagger\P}$ \\
+% \hline
+% %%%% ---- to check ---- %%%%
+% % Stan model        & local-HPC & 4  & 8/10 & 8/25 & 16/50 & 16/250 \\
+% %                   &           & 8  & 4/10 & 8/25 & 12/50 & 16/500 \\
+% %                   &           & 16 & 8/10 & 8/25 & 11/100 & 11/500 \\
+% %                   & laptop    & 4  & 4/10 & 4/50 & 4/250 & 4/1000 \\
+% %                   &           & 8  & 2/10 & 2/50 & 2/250 & 2/1000 \\
+% % Stan model        & local-HPC & 4  & 8/10$^{\S}$ & 8/25 & 16/50 & 16/250 \\
+% Stan model (NicoStan) & local-HPC & 4  & 8/10$^{\S}$ & 8/25 & 16/50 & 16/250 \\
+%                   &           & 8  & 4/10$^{\S}$ & 8/25 & 12/50 & 16/500 \\
+% %%%% ---- to check ---- %%%%
+% %                   &           & 16 & 8/10$^{\S}$ & 8/25 & 11/100 & 11/500 \\
+%                   &           & 16 & 8/10$^{\S}$ & 8/25$^{\P}$ & 11/100 & 11/500 \\
+%                   & laptop    & 4  & 4/10$^{\S}$ & 4/50 & 4/250 & 4/1000 \\
+%                   &           & 8  & 2/10$^{\S}$ & 2/50 & 2/250 & 2/1000 \\
+% \hline
+% Stan model (cmdstanr) & local-HPC & 4  & 44/44$^{\dagger}$ & 44/44$^{\dagger}$ & 44/50$^{\P}$ & 44/500 \\
+%                       & laptop    & 4  & 4/10 & 4/50 & 4/250 & 4/1000 \\
+% \hline
+% \end{tabular}
 \caption{
 \scriptfootnotesize{
-    Selected burn-in configurations, given as $N_{\text{threads/chain}}$/$N_{\text{chunks}}$,
-    i.e., the configuration with the lowest mean seconds per burn-in iteration
-    for each device, burn-in $N_{\text{chains}}$ and $N$
-    (the circled points in figures \ref{S:figure:burnin_chunk_WCP_comparison_local_HPC},
-    % \ref{S:figure:burnin_chunk_WCP_comparison_laptop} and \ref{S:figure:burnin_chunk_WCP_comparison_Stan};
-    \ref{S:figure:burnin_chunk_WCP_comparison_laptop}, 
+    Selected burn-in configuration for each model, device and $N$,
+    given as $N_{\text{burn\_chains}} \times N_{\text{threads/chain}}$/$N_{\text{chunks}}$,
+    i.e., the configuration with the largest speed-up in seconds per burn-in iteration
+    over all $N_{\text{burn\_chains}}$
+    (the best of the circled points at each $N$ in figures
+    \ref{S:figure:burnin_chunk_WCP_comparison_local_HPC},
+    \ref{S:figure:burnin_chunk_WCP_comparison_laptop},
     \ref{S:figure:burnin_chunk_WCP_comparison_Stan}
-    and \ref{S:figure:burnin_chunk_WCP_comparison_Stan_laptop};
-    see sections \ref{section:paper1_burnin_design} and \ref{section:paper1_stan_burnin_design}). \\
+    and \ref{S:figure:burnin_chunk_WCP_comparison_Stan_laptop}). \\
     %%
-    For NicoStan+BayesMVP,
-    $^{\dagger}$ marks WCP-only (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP};
-    $N_{\text{chunks}} = N_{\text{threads/chain}}$),
-    $^{\ddagger}$ chunking-only (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak chunking};
-    $N_{\text{threads/chain}} = 1$),
-    and $^{*}$ neither (\texttt{MD\_BayesMVP});
-    every other entry is \texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP\_\allowbreak chunking}. \\
+    The speed-up is relative to $N_{\text{threads/chain}} = 1$ at the same $N_{\text{burn\_chains}}$,
+    with $N_{\text{chunks}} = 1$ for NicoStan+BayesMVP,
+    the best $N_{\text{chunks}}$ for the Stan model via NicoStan,
+    and \texttt{AD\_Stan} for the Stan model via cmdstanr (with $N_{\text{burn\_chains}} = 4$ only;
+    see sections \ref{section:paper1_burnin_design}, \ref{section:paper1_stan_burnin_design}
+    and \ref{section:paper1_stan_cmdstanr_burnin_design}). \\
     %%
-    %     For the Stan model, every entry is \texttt{AD\_Stan\_WCP\_chunking}
-    %     (i.e., $N_{\text{chunks}} > N_{\text{threads/chain}} > 1$).
-    % For the Stan model, every entry is \texttt{AD\_Stan\_WCP\_chunking}
-    For the Stan model (NicoStan), every entry is \texttt{AD\_Stan\_WCP\_chunking}
-    (i.e., $N_{\text{chunks}} > N_{\text{threads/chain}} > 1$). \\
-    For Stan via cmdstanr (burn-in $N_{\text{chains}} = 4$ only;
-    see section \ref{section:paper1_stan_cmdstanr_burnin_design}),
-    $^{\dagger}$ marks \texttt{AD\_Stan\_WCP}; every other entry is \texttt{AD\_Stan\_WCP\_chunking}. \\
-    $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$. \\
+    An entry is WCP-only if $N_{\text{chunks}} = N_{\text{threads/chain}} > 1$
+    (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP} or \texttt{AD\_\allowbreak Stan\_\allowbreak WCP}),
+    chunking-only if $N_{\text{threads/chain}} = 1 < N_{\text{chunks}}$
+    (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak chunking}),
+    neither if $N_{\text{threads/chain}} = N_{\text{chunks}} = 1$ (\texttt{MD\_BayesMVP}),
+    and chunking + WCP otherwise
+    (\texttt{MD\_\allowbreak BayesMVP\_\allowbreak WCP\_\allowbreak chunking}
+    or \texttt{AD\_\allowbreak Stan\_\allowbreak WCP\_\allowbreak chunking}). \\
     %%
-    $^{\P}$within $1\%$ of the second-fastest configuration
-    % (8/8$^{\dagger}$, 2/250 and 6/25, respectively).
-    (8/8$^{\dagger}$, 2/250, 6/25 and 44/44$^{\dagger}$, respectively).
+    $^{\S}$the largest $N_{\text{chunks}}$ tested for that $N$.
+    $^{\P}$within $1\%$ of the second-best configuration
+    ($8 \times 8$/8, $4 \times 8$/8, $8 \times 2$/250 and $4 \times 44$/44, respectively).
 }}
 \label{table:paper1_burnin_selected_configurations}
 \PaperOneFitTable{
-\begin{tabular}{lllcccc}
+\begin{tabular}{lcccc}
 \hline
- & & Burn-in & \multicolumn{4}{c}{$N$} \\
-Model & Device & $N_{\text{chains}}$ & $500$ & $2500$ & $10,000$ & $50,000$ \\ \hline
-NicoStan+BayesMVP & local-HPC & 4  & 8/8$^{\dagger}$ & 8/8$^{\dagger}$ & 16/50 & 16/250 \\
-%%%% ---- to check ---- %%%%
-%                   &           & 8  & 8/10 & 8/8$^{\dagger}$ & 8/25 & 8/100 \\
-%                   &           & 16 & 6/10 & 4/4$^{\dagger}$ & 4/25 & 4/50 \\
-%%%% ---- to check ---- %%%%
-%                   &           & 8  & 8/10$^{\S}$ & 8/8$^{\dagger}$ & 8/25 & 8/100 \\
-                  &           & 8  & 8/10$^{\S\P}$ & 8/8$^{\dagger}$ & 8/25 & 8/100 \\
-                  &           & 16 & 6/10$^{\S}$ & 4/4$^{\dagger}$ & 4/25 & 4/50 \\
-                  & laptop    & 4  & 1/1$^{*}$ & 2/4 & 2/50 & 2/100 \\
-%%%% ---- to check ---- %%%%
-%                   &           & 8  & 1/1$^{*}$ & 1/10$^{\ddagger}$ & 1/25$^{\ddagger}$ & 1/250$^{\ddagger}$ \\
-                  &           & 8  & 1/1$^{*}$ & 1/10$^{\ddagger}$ & 1/25$^{\ddagger}$ & 1/250$^{\ddagger\P}$ \\
+ & \multicolumn{4}{c}{$N$} \\
+Device & $500$ & $2500$ & $10,000$ & $50,000$ \\ \hline
+\multicolumn{5}{l}{NicoStan+BayesMVP} \\
+local-HPC & $8 \times 8$/10$^{\S\P}$ & $8 \times 8$/8$^{\P}$ & $4 \times 16$/50 & $4 \times 16$/250 \\
+laptop    & 4 or $8 \times 1$/1 & $8 \times 1$/10 & $8 \times 1$/25 & $8 \times 1$/250$^{\P}$ \\
 \hline
-%%%% ---- to check ---- %%%%
-% Stan model        & local-HPC & 4  & 8/10 & 8/25 & 16/50 & 16/250 \\
-%                   &           & 8  & 4/10 & 8/25 & 12/50 & 16/500 \\
-%                   &           & 16 & 8/10 & 8/25 & 11/100 & 11/500 \\
-%                   & laptop    & 4  & 4/10 & 4/50 & 4/250 & 4/1000 \\
-%                   &           & 8  & 2/10 & 2/50 & 2/250 & 2/1000 \\
-% Stan model        & local-HPC & 4  & 8/10$^{\S}$ & 8/25 & 16/50 & 16/250 \\
-Stan model (NicoStan) & local-HPC & 4  & 8/10$^{\S}$ & 8/25 & 16/50 & 16/250 \\
-                  &           & 8  & 4/10$^{\S}$ & 8/25 & 12/50 & 16/500 \\
-%%%% ---- to check ---- %%%%
-%                   &           & 16 & 8/10$^{\S}$ & 8/25 & 11/100 & 11/500 \\
-                  &           & 16 & 8/10$^{\S}$ & 8/25$^{\P}$ & 11/100 & 11/500 \\
-                  & laptop    & 4  & 4/10$^{\S}$ & 4/50 & 4/250 & 4/1000 \\
-                  &           & 8  & 2/10$^{\S}$ & 2/50 & 2/250 & 2/1000 \\
+\multicolumn{5}{l}{Stan model (via NicoStan)} \\
+local-HPC & $4 \times 8$/10$^{\S}$ & $8 \times 8$/25 & $4 \times 16$/50 & $4 \times 16$/250 \\
+laptop    & $4 \times 4$/10$^{\S}$ & $4 \times 4$/50 & $4 \times 4$/250 & $4 \times 4$/1000 \\
 \hline
-Stan model (cmdstanr) & local-HPC & 4  & 44/44$^{\dagger}$ & 44/44$^{\dagger}$ & 44/50$^{\P}$ & 44/500 \\
-                      & laptop    & 4  & 4/10 & 4/50 & 4/250 & 4/1000 \\
+\multicolumn{5}{l}{Stan model (via cmdstanr)} \\
+local-HPC & $4 \times 44$/44 & $4 \times 44$/44 & $4 \times 44$/50$^{\P}$ & $4 \times 44$/500 \\
+laptop    & $4 \times 4$/10$^{\S}$ & $4 \times 4$/50 & $4 \times 4$/250 & $4 \times 4$/1000 \\
 \hline
 \end{tabular}
 }

@@ -897,6 +897,8 @@ fn_ps7_extract_tau_sweep <-  function( dir,
                                            eps_tau_shrink_source = if (eps_tau_shrink_recorded) "saved_run" else "file_name",
                                            metric_pooled_settings_source = if (metric_pooled_settings_recorded) "saved_run" else "file_name",
                                            min_ESS = one(r$min_ESS),
+                                           ## the posterior SD's ESS (NicoStan n_eff_sd; NA for runs saved before 4 Oct 2026):
+                                           min_ESS_sd = one(r$min_ESS_sd),
                                            max_Rhat = one(r$max_Rhat),
                                            max_nRhat = max_nested_rhat_interest,
                                            max_nRhat_stored = one(r$max_nRhat),
