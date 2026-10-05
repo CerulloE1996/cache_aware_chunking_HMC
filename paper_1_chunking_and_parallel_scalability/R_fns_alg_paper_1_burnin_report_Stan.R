@@ -662,8 +662,12 @@ fn_paper1_burnin_best_by_cell <-  function( rows,
 ##
 ## ---- fn_paper1_burnin_figure_Stan_panel (private helper): one (N, burn-in chains) panel of fn_paper1_burnin_figure_Stan: ---------------
 ##
-## As fn_paper1_burnin_figure_best_chunks_panel() in R_fns_alg_paper_1_burnin_report.R, plus a dotted grey line at the best measured
-## NicoStan+BayesMVP seconds per burn-in iteration for the same (N, burn-in chains), and a three-line speed-up label.
+## As fn_paper1_burnin_figure_best_chunks_panel() in R_fns_alg_paper_1_burnin_report.R,
+## with a one-line "WCP" speed-up label (E1 compares configurations within one implementation only,
+## so no NicoStan+BayesMVP line is drawn).
+## was: "As fn_paper1_burnin_figure_best_chunks_panel() in R_fns_alg_paper_1_burnin_report.R,
+## plus a dotted grey line at the best measured NicoStan+BayesMVP seconds per burn-in iteration
+## for the same (N, burn-in chains), and a three-line speed-up label."
 ##
 fn_paper1_burnin_figure_Stan_panel <-  function( panel_best_by_WCP,
                                                  panel_no_chunking,
@@ -752,16 +756,17 @@ fn_paper1_burnin_figure_Stan_panel <-  function( panel_best_by_WCP,
         ##
         panel_plot <-  ggplot2::ggplot()
         ##
-        ## ---- dotted level of the best measured NicoStan+BayesMVP configuration (same N and burn-in chains):
+        ## ---- (not drawn) dotted level of the best NicoStan+BayesMVP configuration (same N and burn-in chains):
         ##
-        if (!is.null(x = panel_BayesMVP_best) && nrow(x = panel_BayesMVP_best) > 0) {
-              panel_plot <-  panel_plot +
-                    ggplot2::geom_hline( data      = panel_BayesMVP_best,
-                                         mapping   = ggplot2::aes(yintercept = .data$sec_per_iter,
-                                                                  colour     = .data$series,
-                                                                  linetype   = .data$series),
-                                         linewidth = 0.7)
-        }
+        ## if (!is.null(x = panel_BayesMVP_best) && nrow(x = panel_BayesMVP_best) > 0) {
+        ##       panel_plot <-  panel_plot +
+        ##             ggplot2::geom_hline( data      = panel_BayesMVP_best,
+        ##                                  mapping   = ggplot2::aes(yintercept = .data$sec_per_iter,
+        ##                                                           colour     = .data$series,
+        ##                                                           linetype   = .data$series),
+        ##                                  linewidth = 0.7)
+        ## }
+        ## (not drawn: the tape-chunked Stan burn-in figures compare configurations of tape-chunked Stan only)
         ##
         ## ---- dashed reference level of N_chunks = 1, N_WCP = 1 (the standard Stan model), where measured:
         ##
@@ -845,7 +850,9 @@ fn_paper1_burnin_figure_Stan_panel <-  function( panel_best_by_WCP,
                                  y     = Inf,
                                  label = panel_speed_up_label,
                                  hjust = 1.06,
-                                 vjust = 1.20,
+                                 ## vjust = 1.20,
+                                 ## one-line label: same gap below the border as the old two-line label
+                                 vjust = 1.45,
                                  size  = 3.4) +
               ggplot2::scale_x_continuous( transform    = "log2",
                                            breaks       = measured_WCP_values,
@@ -854,7 +861,9 @@ fn_paper1_burnin_figure_Stan_panel <-  function( panel_best_by_WCP,
                                            expand       = ggplot2::expansion(mult = c(0.08, 0.16))) +
               ggplot2::scale_y_log10( breaks = y_breaks_function,
                                       labels = function(y_breaks) trimws(x = formatC(x = y_breaks, digits = 3, format = "fg")),
-                                      expand = ggplot2::expansion(mult = c(0.20, 0.75)),
+                                      ## expand = ggplot2::expansion(mult = c(0.20, 0.75)),
+                                      ## room below the data for the N_chunks label under the best point
+                                      expand = ggplot2::expansion(mult = c(0.35, 0.75)),
                                       guide  = ggplot2::guide_axis(check.overlap = TRUE)) +
               ggplot2::scale_colour_manual(   name = NULL, values = series_colours,   breaks = series_levels, limits = series_levels, labels = series_labels) +
               ggplot2::scale_linetype_manual( name = NULL, values = series_linetypes, breaks = series_levels, limits = series_levels, labels = series_labels) +
@@ -899,8 +908,12 @@ fn_paper1_burnin_figure_Stan_panel <-  function( panel_best_by_WCP,
 ##   - "Best N_chunks at each N_WCP" = solid line, points labelled with N_chunks; its N_WCP = 1 point is the best chunking-only setting;
 ##   - "Best measured NicoStan+BayesMVP configuration" = dotted grey line at BayesMVP's best seconds per leapfrog step times the mean
 ##     leapfrog steps per timed Stan iteration (i.e., BayesMVP's time for the same trajectory lengths; same N, device and burn-in chains);
+##     no longer drawn: E1 compares configurations within one implementation only;
 ##   - "No chunking, no WCP" (N_chunks = 1, N_WCP = 1) and the "total" label line only if such a run exists (the Stan chunk grid has none);
-##   - label: "WCP" = best chunking-only / best, "BayesMVP" = Stan best / BayesMVP best seconds per leapfrog step.
+##   - label: "WCP" = best chunking-only / best
+##     (the "BayesMVP" line, Stan best / BayesMVP best seconds per leapfrog step, is no longer drawn).
+## was: "- label: "WCP" = best chunking-only / best,
+## "BayesMVP" = Stan best / BayesMVP best seconds per leapfrog step."
 ##
 fn_paper1_burnin_figure_Stan <-  function( Stan_rows_by_device,
                                            Stan_best_by_cell_by_device,
@@ -971,7 +984,11 @@ fn_paper1_burnin_figure_Stan <-  function( Stan_rows_by_device,
         all_series_linetypes <-  c(no_chunking = "dashed",  best_chunks_at_each_WCP = "solid",   WCP_only = "22",      BayesMVP_best = "dotted")
         all_series_shapes    <-  c(no_chunking = 0,         best_chunks_at_each_WCP = 16,        WCP_only = 17,        BayesMVP_best = NA)
         ##
-        series_levels      <-  all_series_levels[c(include_no_chunking_series, TRUE, include_WCP_only_series, include_BayesMVP_series)]
+        ## series_levels      <-  all_series_levels[c(include_no_chunking_series, TRUE, include_WCP_only_series,
+        ##                                             include_BayesMVP_series)]
+        ## (no "BayesMVP_best" legend entry, colour, linetype or shape: the NicoStan+BayesMVP level is not drawn)
+        series_levels      <-  all_series_levels[c(include_no_chunking_series, TRUE, include_WCP_only_series,
+                                                   FALSE)]
         series_labels      <-  do.call(what = c, args = unname(obj = all_series_labels[series_levels]))
         series_colours     <-  all_series_colours[series_levels]
         series_linetypes   <-  all_series_linetypes[series_levels]
@@ -1048,7 +1065,9 @@ fn_paper1_burnin_figure_Stan <-  function( Stan_rows_by_device,
                     label_lines <-  character(0)
                     if (include_no_chunking_series) label_lines <-  c(label_lines, paste0("total ", fn_paper1_burnin_format_fold(fold_vector = speed_up_vs_1_chunk_WCP_1)))
                     label_lines <-  c(label_lines, paste0("WCP ", fn_paper1_burnin_format_fold(fold_vector = speed_up_vs_best_chunks)))
-                    if (include_BayesMVP_series)    label_lines <-  c(label_lines, paste0("BayesMVP ", fn_paper1_burnin_format_fold(fold_vector = Stan_over_BayesMVP)))
+                    ## if (include_BayesMVP_series)    label_lines <-  c(label_lines, paste0("BayesMVP ",
+                    ##       fn_paper1_burnin_format_fold(fold_vector = Stan_over_BayesMVP)))
+                    ## (no "BayesMVP" line in the label; Stan_over_BayesMVP is still computed above)
                     panel_speed_up_label <-  paste(label_lines, collapse = "\n")
                     ##
                     panel_summary[[length(x = panel_summary) + 1]] <-  data.frame( device                     = this_device,
