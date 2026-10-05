@@ -104,6 +104,11 @@ target_min_ESS_by_N <-  c( "500"   = 7000,
 N_values_by_device <-  list( Laptop = c(500, 2500, 10000),
                              HPC    = c(500, 2500, 10000, 50000))
 ##
+## ---- Text written in the table for any value that is not available (the manuscript's [TBD] placeholder macro);
+##      every such cell is also listed in the console, never filled in:
+##
+exp3_placeholder_text <-  "\\EthreeTBD{}"
+##
 ## ---- Output locations -----------------------------------------------------------------------------------------------------------
 ##
 output_dir <-  file.path(helper_dir, "paper_1_computational_outputs", "Exp3_absolute_efficiency_generated")
@@ -208,7 +213,9 @@ for (device_label in names(ps5_csv_file_path_by_device)) {
             N_values          = N_values_present_for_this_device,
             table_caption     = paste0("Experiment 3: mean time (seconds) to reach the target minimum ESS over Se, Sp and ",
                                        "prevalence, and speed-up relative to BayesMVP, device = ", device_label, "."),
-            table_label       = paste0("table:exp3_absolute_efficiency_", tolower(device_label)),
+            ## table_label       = paste0("table:exp3_absolute_efficiency_", tolower(device_label)),
+            table_label       = paste0("S:table:exp3_absolute_efficiency_", tolower(device_label)),
+            placeholder_text  = exp3_placeholder_text,
             output_file_path  = file.path(output_dir, "paper_sections", "Exp3_absolute_efficiency", "tables",
                                           paste0("table_Exp3_absolute_efficiency_", device_label, ".tex")))
 

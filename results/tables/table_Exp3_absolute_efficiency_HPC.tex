@@ -131,17 +131,37 @@ Bold marks the shortest time at each $N$.
 % NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} \\
 % Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} \\
 % Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & -- & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & -- & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ & -- \\
-\begin{tabular}{lrrrrrrrrrrrr}
+% \begin{tabular}{lrrrrrrrrrrrr}
+% \toprule
+%  & \multicolumn{4}{c}{$N = 500$} & \multicolumn{4}{c}{$N = 2500$} & \multicolumn{4}{c}{$N = 10,000$} \\
+%  & Time & Speed-up & ESS/$10^3$ grad. & ESS/s & Time & Speed-up & ESS/$10^3$ grad. & ESS/s & Time & Speed-up & ESS/$10^3$ grad. & ESS/s \\
+%  & Time & Speed-up & \makecell[r]{ESS/ \\ $10^3$ grad.} & ESS/s & Time & Speed-up & \makecell[r]{ESS/ \\ $10^3$ grad.} & ESS/s & Time & Speed-up & \makecell[r]{ESS/ \\ $10^3$ grad.} & ESS/s \\
+% \midrule
+% NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+% \makecell[tl]{NicoStan+ \\ BayesMVP} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+% Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+% Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
+% \makecell[tl]{Mplus \\ (PX-Gibbs)} & 36.03 s & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & \makecell[tr]{110.20 s \\ (1.84 min)} & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & \makecell[tr]{520.52 s \\ (8.68 min)} & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
+%%%%
+% \bottomrule
+%%%%
+% \end{tabular}
+\begin{tabular}{llrrrr}
 \toprule
- & \multicolumn{4}{c}{$N = 500$} & \multicolumn{4}{c}{$N = 2500$} & \multicolumn{4}{c}{$N = 10,000$} \\
- & Time & Speed-up & ESS/$10^3$ grad. & ESS/s & Time & Speed-up & ESS/$10^3$ grad. & ESS/s & Time & Speed-up & ESS/$10^3$ grad. & ESS/s \\
+$N$ & & Time & Speed-up & ESS/$10^3$ grad. & ESS/s \\
 \midrule
-NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
-Stan (NUTS) & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} \\
-Mplus (PX-Gibbs) & 36.03 s & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
-%%%%
+$500$    & NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+         & Stan (NUTS)       & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+         & Mplus (PX-Gibbs)  & 36.03 s & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
+\midrule
+$2500$   & NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+         & Stan (NUTS)       & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+         & Mplus (PX-Gibbs)  & 110.20 s (1.84 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
+\midrule
+$10,000$ & NicoStan+BayesMVP & \textbf{\EthreeTBD{} s} & 1$\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+         & Stan (NUTS)       & \EthreeTBD{} s & $\EthreeTBD{}\times$ & \EthreeTBD{} & \EthreeTBD{} \\
+         & Mplus (PX-Gibbs)  & 520.52 s (8.68 min) & $\EthreeTBD{}\times$ & -- & \EthreeTBD{} \\
 \bottomrule
-%%%%
 \end{tabular}
 }
 %%%%

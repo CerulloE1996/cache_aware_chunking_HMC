@@ -27,6 +27,17 @@
 ##                  min_ESS per run) become one row each, so the mean over runs in fn_paper1_exp3_time_to_target()
 ##                  reproduces ps7's own mean_time_to_target_min_ESS for that configuration.
 ##
+## Per-run efficiency endpoints shown next to the time to the target ESS (both over all chains; means over runs):
+##   min_ESS_per_grad_sampling = min_ESS_over_parameters_of_interest / gradient evaluations during sampling
+##                               (shown per 1000 gradient evaluations)
+##   min_ESS_per_sec_sampling  = min_ESS_over_parameters_of_interest / time_sampling_seconds
+##   - ps5 (Mplus):    PX-Gibbs uses no gradients, so only the ESS per second.
+##   - ps6 (Stan):     gradient evaluations = the saved grad_evals_pb (mean_L_pb * n_chains * n_iter, with
+##                     mean_L_pb the mean of 2^treedepth__ - 1 over the sampling iterations); n_leapfrog__ is not
+##                     saved.
+##   - ps7 (BayesMVP): the saved ESS_per_grad_samp of each run (per expected gradient evaluation of the native
+##                     sampling path, fn_ps7_ESS_per_grad_samp_expected_steps()).
+##
 ## ---- Software row labels used throughout (fixed, so every table and every join uses the identical strings) --------------------------
 ##
 fn_paper1_exp3_software_labels <- function() {
@@ -123,6 +134,9 @@ fn_paper1_exp3_rows_from_ps5_csv <- function( ps5_csv_file_path,
 #' @return tibble, same columns as fn_paper1_exp3_rows_from_ps5_csv(), software_label = "Stan (NUTS)".
 #'         When the CSVs carry a time_summaries column (the production PS6 runs), it is returned as time_summary_seconds and
 #'         enters the time-to-target formula; older CSVs without it contribute zero, as before.
+#'         When the CSVs carry grad_evals_pb (gradient evaluations during sampling, summed over all chains), the
+#'         per-run min_ESS_per_grad_sampling = min_ESS / grad_evals_pb is returned too; otherwise that column is
+#'         absent.
 fn_paper1_exp3_rows_from_ps6_csv <- function( ps6_csv_file_paths,
                                               device_label,
                                               select_fastest_burnin = FALSE,
@@ -182,6 +196,20 @@ fn_paper1_exp3_rows_from_ps6_csv <- function( ps6_csv_file_paths,
               ##      (config_id | burn-in model | warm-up chains | sampling chains), so the selection runs over (arm, burn-in length):
               ##
               if ("arm" %in% names(ps6_raw_table)) ps6_rows_one_file$arm <- ps6_raw_table$arm
+              ##
+              ## ---- gradient evaluations during sampling, summed over all chains (grad_evals_pb =
+              ##      mean_L_pb * n_chains * n_iter, where mean_L_pb is the mean of 2^treedepth__ - 1 over the
+              ##      sampling iterations of every chain; ps_6_MCMC_settings_Stan_functions.R), for the minimum
+              ##      ESS per gradient evaluation during sampling:
+              ##
+              if ("grad_evals_pb" %in% names(ps6_raw_table)) {
+                    if (any(!is.finite(ps6_raw_table$grad_evals_pb)) || any(ps6_raw_table$grad_evals_pb <= 0)) {
+                          stop("fn_paper1_exp3_rows_from_ps6_csv: non-finite or non-positive grad_evals_pb in ",
+                               one_ps6_csv_file_path)
+                    }
+                    ps6_rows_one_file$min_ESS_per_grad_sampling <- ps6_raw_table$min_ESS /
+                                                                   ps6_raw_table$grad_evals_pb
+              }
               ##
               ps6_rows_one_file
 
@@ -408,6 +436,16 @@ fn_paper1_exp3_rows_from_ps7_directory <- function( ps7_runs_directory,
                                               max_Rhat                             = if ("max_Rhat" %in% names(best_runs)) best_runs$max_Rhat else NA_real_,
                                               source_file                          = paste0("ps7 best configuration run: ", best_runs$configuration))
         ##
+        ## ---- minimum ESS per gradient evaluation during sampling, summed over all chains: ps7's
+        ##      ESS_per_grad_samp of each run (per expected gradient evaluation of the native sampling path;
+        ##      fn_ps7_ESS_per_grad_samp_expected_steps() in fn_ps7_extract_tau_sweep.R); NA when the runs table
+        ##      lacks it:
+        ##
+        exp3_rows_from_ps7$min_ESS_per_grad_sampling <- NA_real_
+        if ("ESS_per_grad_samp" %in% names(best_runs)) {
+              exp3_rows_from_ps7$min_ESS_per_grad_sampling <- best_runs$ESS_per_grad_samp
+        }
+        ##
         return(exp3_rows_from_ps7)
 
 }
@@ -422,6 +460,9 @@ fn_paper1_exp3_rows_from_ps7_directory <- function( ps7_runs_directory,
 #'                              source of truth for all three softwares, so the comparison is like-for-like).
 #' @return tibble, one row per (device, software_label, N): target_min_ESS, n_runs_pooled, mean_time_to_target_seconds, median_time_to_target_seconds,
 #'         min_time_to_target_seconds, max_time_to_target_seconds.
+#'         Also mean_min_ESS_per_1000_grad_sampling and mean_min_ESS_per_sec_sampling: the means over runs of
+#'         the minimum ESS per 1000 gradient evaluations and per second of sampling, both over all chains (NA
+#'         unless every pooled run has the value; always NA per gradient for Mplus).
 fn_paper1_exp3_time_to_target <- function( exp3_rows,
                                            target_min_ESS_by_N) {
 
@@ -458,6 +499,21 @@ fn_paper1_exp3_time_to_target <- function( exp3_rows,
         ##
         if (any(!is.finite(exp3_rows$time_to_target_seconds))) stop("fn_paper1_exp3_time_to_target: non-finite time_to_target_seconds produced.")
         ##
+        ## ---- the two efficiency endpoints per run, both over all chains: the minimum ESS per second of sampling
+        ##      (burn-in and posterior summaries excluded) and per gradient evaluation during sampling
+        ##      (min_ESS_per_grad_sampling, from the ps6 / ps7 readers; NA for Mplus, which uses no gradients, and
+        ##      wherever no gradient count was saved):
+        ##
+        exp3_rows$min_ESS_per_sec_sampling <- exp3_rows$min_ESS_over_parameters_of_interest /
+                                              exp3_rows$time_sampling_seconds
+        if (!("min_ESS_per_grad_sampling" %in% names(exp3_rows))) {
+              exp3_rows$min_ESS_per_grad_sampling <- NA_real_
+        }
+        ##
+        ## ---- mean over runs, NA unless every run has a finite value (a partial mean is never reported):
+        ##
+        fn_mean_over_every_run <- function(values) if (all(is.finite(values))) mean(values) else NA_real_
+        ##
         exp3_summary <- exp3_rows |>
             dplyr::group_by(.data$device, .data$software_label, .data$N) |>
             dplyr::summarise( target_min_ESS                = dplyr::first(.data$target_min_ESS),
@@ -466,6 +522,12 @@ fn_paper1_exp3_time_to_target <- function( exp3_rows,
                               median_time_to_target_seconds  = stats::median(.data$time_to_target_seconds),
                               min_time_to_target_seconds     = min(.data$time_to_target_seconds),
                               max_time_to_target_seconds     = max(.data$time_to_target_seconds),
+                              ##
+                              ## the minimum ESS per 1000 gradient evaluations and per second of sampling:
+                              mean_min_ESS_per_1000_grad_sampling =
+                                  1000 * fn_mean_over_every_run(.data$min_ESS_per_grad_sampling),
+                              mean_min_ESS_per_sec_sampling       =
+                                  fn_mean_over_every_run(.data$min_ESS_per_sec_sampling),
                               .groups                        = "drop")
         ##
         return(exp3_summary)
@@ -518,97 +580,334 @@ fn_paper1_exp3_format_seconds <- function(seconds_value) {
 #' @param table_label    LaTeX \\label{} text (no leading/trailing braces).
 #' @param output_file_path   where to write the .tex file.
 #' @return invisibly, list(file_path, device, caption, label): fed straight into fn_paper1_exp3_write_bundle().
+## fn_paper1_exp3_table_tex <- function( exp3_summary,
+                                      ## device_label,
+                                      ## N_values,
+                                      ## table_caption,
+                                      ## table_label,
+                                      ## output_file_path) {
+
+        ## if (!isTRUE(is.character(device_label)) || length(device_label) != 1 || !nzchar(device_label)) {
+              ## stop("fn_paper1_exp3_table_tex: device_label must be one non-empty string.")
+        ## }
+        ## if (length(N_values) == 0) stop("fn_paper1_exp3_table_tex: N_values is empty.")
+        ##
+        ## device_summary <- dplyr::filter(.data = exp3_summary, .data$device == device_label)
+        ##
+        ## software_labels_in_row_order <- unname(fn_paper1_exp3_software_labels()[c("bayesmvp", "stan", "mplus")])
+        ##
+        ## ---- one lookup: time (seconds) for every software x N cell, NA where nothing was found: --------------------------------------
+        ##
+        ## time_seconds_by_software_and_N <- sapply( X   = N_values,
+                                                  ## FUN = function(one_N_value) {
+
+              ## sapply( X   = software_labels_in_row_order,
+                     ## FUN = function(one_software_label) {
+
+                    ## matching_rows <- dplyr::filter( .data      = device_summary,
+                                                    ## .data$N               == one_N_value,
+                                                    ## .data$software_label  == one_software_label)
+                    ##
+                    ## if (nrow(matching_rows) == 0) return(NA_real_)
+                    ## if (nrow(matching_rows) > 1)  stop("fn_paper1_exp3_table_tex: more than one summary row for device = ", device_label,
+                                                       ## ", N = ", one_N_value, ", software = ", one_software_label)
+                    ## return(matching_rows$mean_time_to_target_seconds)
+
+              ## })
+
+        ## })
+        ##
+        ## rownames(time_seconds_by_software_and_N) <- software_labels_in_row_order
+        ## colnames(time_seconds_by_software_and_N) <- as.character(N_values)
+        ##
+        ## bayesmvp_row_name <- software_labels_in_row_order[1]
+        ##
+        ## ---- build the table body, bolding the fastest software in each N column: ---------------------------------------------------
+        ##
+        ## table_body_lines <- character(0)
+        ##
+        ## for (one_software_label in software_labels_in_row_order) {
+
+              ## time_cells_text    <- character(length(N_values))
+              ## speedup_cells_text <- character(length(N_values))
+              ##
+              ## for (N_index in seq_along(N_values)) {
+
+                    ## one_N_value             <- N_values[N_index]
+                    ## this_cell_time_seconds  <- time_seconds_by_software_and_N[one_software_label, N_index]
+                    ## fastest_time_in_column  <- suppressWarnings(min(time_seconds_by_software_and_N[, N_index], na.rm = TRUE))
+                    ##
+                    ## formatted_time <- fn_paper1_exp3_format_seconds(this_cell_time_seconds)
+                    ## if (is.finite(this_cell_time_seconds) && is.finite(fastest_time_in_column) &&
+                        ## isTRUE(all.equal(this_cell_time_seconds, fastest_time_in_column))) {
+                          ## formatted_time <- paste0("\\textbf{", formatted_time, "}")
+                    ## }
+                    ## time_cells_text[N_index] <- formatted_time
+                    ##
+                    ## bayesmvp_time_seconds <- time_seconds_by_software_and_N[bayesmvp_row_name, N_index]
+                    ##
+                    ## speedup_cells_text[N_index] <- if (identical(one_software_label, bayesmvp_row_name)) {
+                          ## if (is.finite(this_cell_time_seconds)) "1$\\times$" else "---"
+                    ## } else if (is.finite(this_cell_time_seconds) && is.finite(bayesmvp_time_seconds)) {
+                          ## paste0(format(signif(this_cell_time_seconds / bayesmvp_time_seconds, 3), trim = TRUE), "$\\times$")
+                    ## } else "---"
+
+              ## }
+              ##
+              ## table_body_lines <- c(table_body_lines,
+                                    ## paste0(paste(c(one_software_label, as.vector(rbind(time_cells_text, speedup_cells_text))), collapse = " & "), " \\\\"))
+
+        ## }
+        ##
+        ## column_spec  <- paste0("l", strrep("rr", length(N_values)))
+        ## header_N_row <- paste0(" & ", paste(paste0("\\multicolumn{2}{c}{$N = ", fn_paper1_format_number_commas_from_10000(N_values), "$}"), collapse = " & "), " \\\\")
+        ## header_2_row <- paste0(" & ", paste(rep("Time & Speed-up", length(N_values)), collapse = " & "), " \\\\")
+        ##
+        ## table_tex_lines <- c( "\\begin{table}[H]",
+                              ## "\\centering",
+                              ## paste0("\\caption{", table_caption, "}"),
+                              ## paste0("\\label{", table_label, "}"),
+                              ## paste0("\\begin{tabular}{", column_spec, "}"),
+                              ## "\\toprule",
+                              ## header_N_row,
+                              ## header_2_row,
+                              ## "\\midrule",
+                              ## table_body_lines,
+                              ## "\\bottomrule",
+                              ## "\\end{tabular}",
+                              ## "\\end{table}")
+        ##
+        ## dir.create(dirname(output_file_path), recursive = TRUE, showWarnings = FALSE)
+        ## writeLines(table_tex_lines, output_file_path)
+        ##
+        ## message(paste0("\033[36m", "Experiment 3 table for device = ", device_label, " written to: ", output_file_path, "\033[0m"))
+        ##
+        ## return(invisible(list( file_path = output_file_path,
+                               ## device    = device_label,
+                               ## caption   = table_caption,
+                               ## label     = table_label)))
+
+## }
+
+
+##
+## ---- Experiment 3 LaTeX table for one device, in the manuscript layout: one block of rows per N --------------
+##      (NicoStan+BayesMVP / Stan (NUTS) / Mplus (PX-Gibbs)); columns Time, Speed-up, ESS/10^3 grad. and ESS/s
+##
+#' @param exp3_summary       the tibble returned by fn_paper1_exp3_time_to_target().
+#' @param device_label       which device's rows of exp3_summary to use (one table per device).
+#' @param N_values           N values to show, one block of rows each, top to bottom in this exact order.
+#' @param table_caption      LaTeX caption text (no leading/trailing \\caption{}).
+#' @param table_label        LaTeX \\label{} text (no leading/trailing braces), e.g.
+#'                            "S:table:exp3_absolute_efficiency_hpc".
+#' @param placeholder_text   LaTeX written for every value that is not available (e.g. "\\EthreeTBD{}", the
+#'                            manuscript's placeholder); each such cell is also listed in the console. The ESS per
+#'                            gradient of Mplus is "--" (PX-Gibbs uses no gradients), not a placeholder.
+#' @param output_file_path   where to write the .tex file.
+#' @return invisibly, list(file_path, device, caption, label): fed straight into fn_paper1_exp3_write_bundle().
 fn_paper1_exp3_table_tex <- function( exp3_summary,
                                       device_label,
                                       N_values,
                                       table_caption,
                                       table_label,
+                                      placeholder_text,
                                       output_file_path) {
 
         if (!isTRUE(is.character(device_label)) || length(device_label) != 1 || !nzchar(device_label)) {
               stop("fn_paper1_exp3_table_tex: device_label must be one non-empty string.")
         }
         if (length(N_values) == 0) stop("fn_paper1_exp3_table_tex: N_values is empty.")
+        if (!is.character(placeholder_text) || length(placeholder_text) != 1 || !nzchar(placeholder_text)) {
+              stop("fn_paper1_exp3_table_tex: placeholder_text must be one non-empty string, ",
+                   "e.g. \"\\\\EthreeTBD{}\".")
+        }
         ##
         device_summary <- dplyr::filter(.data = exp3_summary, .data$device == device_label)
+        if (any(duplicated(device_summary[, c("software_label", "N")]))) {
+              stop("fn_paper1_exp3_table_tex: more than one summary row for a software and N, device = ",
+                   device_label)
+        }
         ##
         software_labels_in_row_order <- unname(fn_paper1_exp3_software_labels()[c("bayesmvp", "stan", "mplus")])
+        bayesmvp_row_name            <- software_labels_in_row_order[1]
+        mplus_row_name               <- software_labels_in_row_order[3]
         ##
-        ## ---- one lookup: time (seconds) for every software x N cell, NA where nothing was found: --------------------------------------
+        ## ---- one lookup per summary column: the value of every software x N cell, NA where nothing was found: -
         ##
-        time_seconds_by_software_and_N <- sapply( X   = N_values,
-                                                  FUN = function(one_N_value) {
+        fn_value_by_software_and_N <- function(summary_column_name) {
 
-              sapply( X   = software_labels_in_row_order,
-                     FUN = function(one_software_label) {
-
-                    matching_rows <- dplyr::filter( .data      = device_summary,
-                                                    .data$N               == one_N_value,
-                                                    .data$software_label  == one_software_label)
-                    ##
-                    if (nrow(matching_rows) == 0) return(NA_real_)
-                    if (nrow(matching_rows) > 1)  stop("fn_paper1_exp3_table_tex: more than one summary row for device = ", device_label,
-                                                       ", N = ", one_N_value, ", software = ", one_software_label)
-                    return(matching_rows$mean_time_to_target_seconds)
-
-              })
-
-        })
-        ##
-        rownames(time_seconds_by_software_and_N) <- software_labels_in_row_order
-        colnames(time_seconds_by_software_and_N) <- as.character(N_values)
-        ##
-        bayesmvp_row_name <- software_labels_in_row_order[1]
-        ##
-        ## ---- build the table body, bolding the fastest software in each N column: ---------------------------------------------------
-        ##
-        table_body_lines <- character(0)
-        ##
-        for (one_software_label in software_labels_in_row_order) {
-
-              time_cells_text    <- character(length(N_values))
-              speedup_cells_text <- character(length(N_values))
+              value_by_software_and_N <- matrix( data     = NA_real_,
+                                                 nrow     = length(software_labels_in_row_order),
+                                                 ncol     = length(N_values),
+                                                 dimnames = list( software_labels_in_row_order,
+                                                                  as.character(N_values)))
               ##
-              for (N_index in seq_along(N_values)) {
+              if (!(summary_column_name %in% names(device_summary))) return(value_by_software_and_N)
+              ##
+              for (row_index in seq_len(nrow(device_summary))) {
 
-                    one_N_value             <- N_values[N_index]
-                    this_cell_time_seconds  <- time_seconds_by_software_and_N[one_software_label, N_index]
-                    fastest_time_in_column  <- suppressWarnings(min(time_seconds_by_software_and_N[, N_index], na.rm = TRUE))
+                    software_index <- match( x     = device_summary$software_label[row_index],
+                                             table = software_labels_in_row_order)
+                    N_index        <- match( x     = device_summary$N[row_index],
+                                             table = N_values)
                     ##
-                    formatted_time <- fn_paper1_exp3_format_seconds(this_cell_time_seconds)
-                    if (is.finite(this_cell_time_seconds) && is.finite(fastest_time_in_column) &&
-                        isTRUE(all.equal(this_cell_time_seconds, fastest_time_in_column))) {
-                          formatted_time <- paste0("\\textbf{", formatted_time, "}")
+                    if (!is.na(software_index) && !is.na(N_index)) {
+                          value_by_software_and_N[software_index, N_index] <-
+                              device_summary[[summary_column_name]][row_index]
                     }
-                    time_cells_text[N_index] <- formatted_time
-                    ##
-                    bayesmvp_time_seconds <- time_seconds_by_software_and_N[bayesmvp_row_name, N_index]
-                    ##
-                    speedup_cells_text[N_index] <- if (identical(one_software_label, bayesmvp_row_name)) {
-                          if (is.finite(this_cell_time_seconds)) "1$\\times$" else "---"
-                    } else if (is.finite(this_cell_time_seconds) && is.finite(bayesmvp_time_seconds)) {
-                          paste0(format(signif(this_cell_time_seconds / bayesmvp_time_seconds, 3), trim = TRUE), "$\\times$")
-                    } else "---"
 
               }
               ##
-              table_body_lines <- c(table_body_lines,
-                                    paste0(paste(c(one_software_label, as.vector(rbind(time_cells_text, speedup_cells_text))), collapse = " & "), " \\\\"))
+              return(value_by_software_and_N)
 
         }
         ##
-        column_spec  <- paste0("l", strrep("rr", length(N_values)))
-        header_N_row <- paste0(" & ", paste(paste0("\\multicolumn{2}{c}{$N = ", fn_paper1_format_number_commas_from_10000(N_values), "$}"), collapse = " & "), " \\\\")
-        header_2_row <- paste0(" & ", paste(rep("Time & Speed-up", length(N_values)), collapse = " & "), " \\\\")
+        time_seconds_by_software_and_N      <- fn_value_by_software_and_N("mean_time_to_target_seconds")
+        ESS_per_1000_grad_by_software_and_N <- fn_value_by_software_and_N("mean_min_ESS_per_1000_grad_sampling")
+        ESS_per_sec_by_software_and_N       <- fn_value_by_software_and_N("mean_min_ESS_per_sec_sampling")
+        ##
+        ## ---- ESS rates: 3 significant figures and thousands separators from 10,000, as for the times:
+        ##
+        fn_format_ESS_rate <- function(ESS_rate) fn_paper1_format_number_commas_from_10000(signif(ESS_rate, 3))
+        ##
+        ## ---- the $N$ and software cells are padded so that the LaTeX source lines up, as in the manuscript:
+        ##
+        N_cell_texts <- paste0("$", fn_paper1_format_number_commas_from_10000(N_values), "$")
+        N_cell_width <- max(nchar(N_cell_texts))
+        label_width  <- max(nchar(software_labels_in_row_order))
+        ##
+        ## ---- build the table body, one block of rows per N; bold marks the shortest time at each N: ----------
+        ##
+        table_body_lines  <- character(0)
+        placeholders_by_N <- character(0)
+        ##
+        for (N_index in seq_along(N_values)) {
+
+              times_at_this_N             <- time_seconds_by_software_and_N[, N_index]
+              ESS_per_1000_grad_at_this_N <- ESS_per_1000_grad_by_software_and_N[, N_index]
+              ESS_per_sec_at_this_N       <- ESS_per_sec_by_software_and_N[, N_index]
+              bayesmvp_time_seconds       <- times_at_this_N[[bayesmvp_row_name]]
+              ##
+              ## ---- the shortest time is known (and bold) only when every software has a time at this N; any
+              ##      other time within 1% of it is reported as a near tie:
+              ##
+              every_time_available  <- all(is.finite(times_at_this_N))
+              shortest_time_seconds <- if (every_time_available) min(times_at_this_N) else NA_real_
+              ##
+              if (!every_time_available) {
+                    message(paste0("\033[36m", "Experiment 3 table (", device_label, "), N = ", N_values[N_index],
+                                   ": not every software has a time, so no time is bold.", "\033[0m"))
+              } else {
+                    near_tie_labels <- names(times_at_this_N)[times_at_this_N >  shortest_time_seconds &
+                                                              times_at_this_N <= 1.01 * shortest_time_seconds]
+                    if (length(near_tie_labels) > 0) {
+                          message(paste0("\033[36m", "Experiment 3 table (", device_label, "), N = ",
+                                         N_values[N_index], ": within 1% of the shortest time (near tie): ",
+                                         paste(near_tie_labels, collapse = ", "), "\033[0m"))
+                    }
+              }
+              ##
+              if (N_index > 1) table_body_lines <- c(table_body_lines, "\\midrule")
+              ##
+              placeholders_at_this_N <- character(0)
+              ##
+              for (software_index in seq_along(software_labels_in_row_order)) {
+
+                    one_software_label          <- software_labels_in_row_order[software_index]
+                    this_cell_time_seconds      <- times_at_this_N[[one_software_label]]
+                    this_cell_ESS_per_1000_grad <- ESS_per_1000_grad_at_this_N[[one_software_label]]
+                    this_cell_ESS_per_sec       <- ESS_per_sec_at_this_N[[one_software_label]]
+                    ##
+                    ## ---- Time:
+                    ##
+                    if (is.finite(this_cell_time_seconds)) {
+                          time_cell_text   <- fn_paper1_exp3_format_seconds(this_cell_time_seconds)
+                          is_shortest_time <- every_time_available &&
+                                              isTRUE(all.equal(this_cell_time_seconds, shortest_time_seconds))
+                          if (is_shortest_time) time_cell_text <- paste0("\\textbf{", time_cell_text, "}")
+                    } else {
+                          time_cell_text <- paste0(placeholder_text, " s")
+                    }
+                    ##
+                    ## ---- Speed-up: the time of each software divided by that of NicoStan+BayesMVP:
+                    ##
+                    if (identical(one_software_label, bayesmvp_row_name) && is.finite(this_cell_time_seconds)) {
+                          speedup_cell_text <- "1$\\times$"
+                    } else if (is.finite(this_cell_time_seconds) && is.finite(bayesmvp_time_seconds)) {
+                          speedup_ratio     <- this_cell_time_seconds / bayesmvp_time_seconds
+                          speedup_cell_text <- paste0(format(signif(speedup_ratio, 3), trim = TRUE), "$\\times$")
+                    } else {
+                          speedup_cell_text <- paste0(placeholder_text, "$\\times$")
+                    }
+                    ##
+                    ## ---- minimum ESS per 1000 gradient evaluations during sampling (Mplus: no gradients, "--"):
+                    ##
+                    if (identical(one_software_label, mplus_row_name)) {
+                          ESS_per_1000_grad_cell_text <- "--"
+                    } else if (is.finite(this_cell_ESS_per_1000_grad)) {
+                          ESS_per_1000_grad_cell_text <- fn_format_ESS_rate(this_cell_ESS_per_1000_grad)
+                    } else {
+                          ESS_per_1000_grad_cell_text <- placeholder_text
+                    }
+                    ##
+                    ## ---- minimum ESS per second of sampling:
+                    ##
+                    if (is.finite(this_cell_ESS_per_sec)) {
+                          ESS_per_sec_cell_text <- fn_format_ESS_rate(this_cell_ESS_per_sec)
+                    } else {
+                          ESS_per_sec_cell_text <- placeholder_text
+                    }
+                    ##
+                    ## ---- the row; every cell written as the placeholder is listed in the console below:
+                    ##
+                    row_cell_texts <- c( "Time"           = time_cell_text,
+                                         "Speed-up"       = speedup_cell_text,
+                                         "ESS/10^3 grad." = ESS_per_1000_grad_cell_text,
+                                         "ESS/s"          = ESS_per_sec_cell_text)
+                    ##
+                    placeholder_columns <- names(row_cell_texts)[startsWith(row_cell_texts, placeholder_text)]
+                    if (length(placeholder_columns) > 0) {
+                          placeholders_at_this_N <- c(placeholders_at_this_N,
+                                                      paste0(one_software_label, " (",
+                                                             paste(placeholder_columns, collapse = ", "), ")"))
+                    }
+                    ##
+                    ## ---- $N$ only on the first row of each block:
+                    ##
+                    N_cell_text      <- if (software_index == 1) N_cell_texts[N_index] else ""
+                    row_label_cells  <- paste0(formatC(N_cell_text, width = N_cell_width, flag = "-"), " & ",
+                                               formatC(one_software_label, width = label_width, flag = "-"))
+                    row_value_cells  <- paste(row_cell_texts, collapse = " & ")
+                    row_text         <- paste0(row_label_cells, " & ", row_value_cells, " \\\\")
+                    table_body_lines <- c(table_body_lines, row_text)
+
+              }
+              ##
+              if (length(placeholders_at_this_N) > 0) {
+                    placeholders_by_N <- c(placeholders_by_N,
+                                           paste0("N = ", N_values[N_index], ": ",
+                                                  paste(placeholders_at_this_N, collapse = "; ")))
+              }
+
+        }
+        ##
+        ## ---- every value that is not available is listed here, never filled in:
+        ##
+        if (length(placeholders_by_N) > 0) {
+              message(paste0("\033[36m", "Experiment 3 table (", device_label, "): not available, written as ",
+                             placeholder_text, ":", "\033[0m"))
+              for (one_placeholder_line in placeholders_by_N) {
+                    message(paste0("\033[36m", "    ", one_placeholder_line, "\033[0m"))
+              }
+        }
         ##
         table_tex_lines <- c( "\\begin{table}[H]",
                               "\\centering",
                               paste0("\\caption{", table_caption, "}"),
                               paste0("\\label{", table_label, "}"),
-                              paste0("\\begin{tabular}{", column_spec, "}"),
+                              "\\begin{tabular}{llrrrr}",
                               "\\toprule",
-                              header_N_row,
-                              header_2_row,
+                              "$N$ & & Time & Speed-up & ESS/$10^3$ grad. & ESS/s \\\\",
                               "\\midrule",
                               table_body_lines,
                               "\\bottomrule",
@@ -618,7 +917,8 @@ fn_paper1_exp3_table_tex <- function( exp3_summary,
         dir.create(dirname(output_file_path), recursive = TRUE, showWarnings = FALSE)
         writeLines(table_tex_lines, output_file_path)
         ##
-        message(paste0("\033[36m", "Experiment 3 table for device = ", device_label, " written to: ", output_file_path, "\033[0m"))
+        message(paste0("\033[36m", "Experiment 3 table for device = ", device_label, " written to: ",
+                       output_file_path, "\033[0m"))
         ##
         return(invisible(list( file_path = output_file_path,
                                device    = device_label,
