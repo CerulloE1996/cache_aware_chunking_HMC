@@ -88,7 +88,7 @@ Stan uses the asymmetric burn-in: 250 burn-in iterations with $N_{\text{chains}}
 then 250 sampling iterations with \texttt{AD\_Stan\_tape\_chunked} ($N_{\text{threads/chain}} = 1$),
 with $N_{\text{chains}} = 96$ and $N_{\text{chunks}} = 5$ at $N=500$,
 and $N_{\text{chains}} = 64$ and $N_{\text{chunks}} = 16$ and $100$ at $N=2500$ and $10,000$, respectively;
-Mplus is standard Mplus with \texttt{FBITERATIONS = 1000}, \texttt{THIN{=}10}
+Mplus is \texttt{Mplus\_\ab standard} with \texttt{FBITERATIONS = 1000}, \texttt{THIN{=}10}
 and $N_{\text{chains}} \times N_{\text{threads/chain}} = 180 \times 1$. \\
 Speed-up is the time of each software divided by that of NicoStan+BayesMVP;
 ESS/$10^3$ grad.\ is the minimum ESS per 1000 gradient evaluations during sampling,

@@ -4,12 +4,19 @@
 ##
 ## Summarises the Stan via cmdstanr burn-in shootout (ps_1_burnin_Stan_cmdstanr_shootout_4_chains.R)
 ## for E1 Part VII:
-##   - the fastest configuration per device and N (seconds per leapfrog step of the slowest chain),
+## was: ##   - the fastest configuration per device and N (seconds per leapfrog step of the slowest chain),
+##   - the fastest configuration per device and N (seconds per burn-in iteration of the slowest chain, i.e.,
+##     time_sampling_slowest_chain_seconds / n_iter per run, averaged over the runs; every configuration ran
+##     2^max_treedepth - 1 = 15 leapfrog steps per iteration, mean_n_leapfrog 14.94-15),
 ##     its speed-up relative to AD_Stan with N_chains x N_threads/chain = 4 x 1,
 ##     and every configuration within 1% of it;
 ##   - the best configuration of each implementation (AD_Stan, tape chunking, WCP-only, WCP + chunking);
-##   - the ratio of its seconds per leapfrog step to that of the best Stan via NicoStan configuration
-##     with burn-in N_chains = 4
+## was: ##   - the ratio of its seconds per leapfrog step to that of the best Stan via NicoStan configuration
+## was: ##     with burn-in N_chains = 4
+##   - the ratio of the seconds per burn-in iteration of the best Stan via NicoStan configuration with burn-in
+##     N_chains = 4 to that of the fastest Stan via cmdstanr configuration, and the same ratio of seconds per
+##     leapfrog step (the two differ because NicoStan's burn-in iterations take a different mean number of
+##     leapfrog steps, best_mean_steps_per_iter)
 ##     (report_outputs/Burnin_chunks_WCP/values/burnin_best_by_cell_BayesMVP_and_Stan.csv);
 ##   - the two rows of table table:paper1_burnin_selected_configurations, given as N_threads/chain / N_chunks.
 ## ===============================================================================================================
@@ -51,17 +58,30 @@ for (device in c("HPC", "Laptop")) {
             runs <-  readRDS(file_path)
             runs$num_chunks[is.na(runs$num_chunks)] <-  0
             ##
-            configurations <-  stats::aggregate( sec_per_step_slowest_chain ~
+            ## ---- seconds per burn-in iteration of the slowest chain, per run:
+            ##
+            runs$sec_per_burnin_iteration_slowest_chain <-  runs$time_sampling_slowest_chain_seconds / runs$n_iter
+            ##
+            ## was: configurations <-  stats::aggregate( sec_per_step_slowest_chain ~
+            ## was:                                          algorithm + n_threads_per_chain + num_chunks,
+            ## was:                                      data = runs, FUN = mean)
+            ## was: configurations <-  configurations[order(configurations$sec_per_step_slowest_chain), ]
+            configurations <-  stats::aggregate( cbind( sec_per_burnin_iteration_slowest_chain,
+                                                        sec_per_step_slowest_chain) ~
                                                      algorithm + n_threads_per_chain + num_chunks,
                                                  data = runs, FUN = mean)
-            configurations <-  configurations[order(configurations$sec_per_step_slowest_chain), ]
+            configurations <-  configurations[order(configurations$sec_per_burnin_iteration_slowest_chain), ]
             ##
-            sec_per_step_AD_Stan <-  configurations$sec_per_step_slowest_chain[
-                                          configurations$algorithm == "AD_Stan"]
+            ## was: sec_per_step_AD_Stan <-  configurations$sec_per_step_slowest_chain[
+            ## was:                               configurations$algorithm == "AD_Stan"]
+            sec_per_burnin_iteration_slowest_chain_AD_Stan <-
+                  configurations$sec_per_burnin_iteration_slowest_chain[configurations$algorithm == "AD_Stan"]
             best <-  configurations[1, ]
             ##
-            within_1_percent <-  configurations[ configurations$sec_per_step_slowest_chain <=
-                                                     1.01 * best$sec_per_step_slowest_chain, ]
+            ## was: within_1_percent <-  configurations[ configurations$sec_per_step_slowest_chain <=
+            ## was:                                          1.01 * best$sec_per_step_slowest_chain, ]
+            within_1_percent <-  configurations[ configurations$sec_per_burnin_iteration_slowest_chain <=
+                                                     1.01 * best$sec_per_burnin_iteration_slowest_chain, ]
             ##
             NicoStan_best <-  NicoStan_values[NicoStan_values$device == device & NicoStan_values$N == N, ]
             ##
@@ -71,11 +91,18 @@ for (device in c("HPC", "Laptop")) {
             message(paste0( "\n", device, ", N = ", N, ": fastest ", best$algorithm,
                             " 4 x ", best$n_threads_per_chain,
                             ", N_chunks ", best$num_chunks, " (",
-                            formatC( sec_per_step_AD_Stan / best$sec_per_step_slowest_chain,
+                            ## was: formatC( sec_per_step_AD_Stan / best$sec_per_step_slowest_chain,
+                            formatC( sec_per_burnin_iteration_slowest_chain_AD_Stan /
+                                         best$sec_per_burnin_iteration_slowest_chain,
                                      format = "f", digits = 2),
                             "x vs AD_Stan 4 x 1); NicoStan best ",
                             NicoStan_best$best_n_threads_WCP_burnin, "/",
-                            NicoStan_best$best_num_chunks_burnin, ", NicoStan sec/step / cmdstanr sec/step = ",
+                            NicoStan_best$best_num_chunks_burnin,
+                            ", NicoStan sec/burn-in iteration / cmdstanr sec/burn-in iteration = ",
+                            formatC( NicoStan_best$best_sec_per_iter /
+                                         best$sec_per_burnin_iteration_slowest_chain,
+                                     format = "f", digits = 2),
+                            ", NicoStan sec/step / cmdstanr sec/step = ",
                             formatC(NicoStan_best$best_sec_per_step / best$sec_per_step_slowest_chain,
                                     format = "f", digits = 2)))
             message(paste0( "  within 1%: ",
@@ -85,7 +112,9 @@ for (device in c("HPC", "Laptop")) {
                   row <-  best_of_each[row_index, ]
                   message(paste0( "  best ", row$algorithm, ": 4 x ", row$n_threads_per_chain, "/",
                                   row$num_chunks, ", ",
-                                  formatC( sec_per_step_AD_Stan / row$sec_per_step_slowest_chain,
+                                  ## was: formatC( sec_per_step_AD_Stan / row$sec_per_step_slowest_chain,
+                                  formatC( sec_per_burnin_iteration_slowest_chain_AD_Stan /
+                                               row$sec_per_burnin_iteration_slowest_chain,
                                            format = "f", digits = 2),
                                   "x"))
             }
@@ -96,11 +125,16 @@ for (device in c("HPC", "Laptop")) {
                   best_algorithm = best$algorithm,
                   best_n_threads_per_chain = best$n_threads_per_chain,
                   best_num_chunks = best$num_chunks,
-                  best_sec_per_step = best$sec_per_step_slowest_chain,
-                  speed_up_vs_AD_Stan_4x1 = sec_per_step_AD_Stan / best$sec_per_step_slowest_chain,
+                  ## was: best_sec_per_step = best$sec_per_step_slowest_chain,
+                  ## was: speed_up_vs_AD_Stan_4x1 = sec_per_step_AD_Stan / best$sec_per_step_slowest_chain,
+                  best_sec_per_burnin_iteration_slowest_chain = best$sec_per_burnin_iteration_slowest_chain,
+                  speed_up_vs_AD_Stan_4x1 = sec_per_burnin_iteration_slowest_chain_AD_Stan /
+                                                best$sec_per_burnin_iteration_slowest_chain,
                   n_within_1_percent = nrow(within_1_percent),
                   NicoStan_best_n_threads_per_chain = NicoStan_best$best_n_threads_WCP_burnin,
                   NicoStan_best_num_chunks = NicoStan_best$best_num_chunks_burnin,
+                  NicoStan_over_cmdstanr_sec_per_burnin_iteration =
+                        NicoStan_best$best_sec_per_iter / best$sec_per_burnin_iteration_slowest_chain,
                   NicoStan_over_cmdstanr_sec_per_step = NicoStan_best$best_sec_per_step /
                                                             best$sec_per_step_slowest_chain)
 

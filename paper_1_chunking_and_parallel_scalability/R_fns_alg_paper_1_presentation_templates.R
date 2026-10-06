@@ -384,18 +384,66 @@ fn_paper1_presentation_templates <-  function() {
                 ##
                 L3_per_core <-  spec$S_L3 / spec$C_L3
                 ##
-                markers <-  data.frame( device          = device,
-                                        after_n_threads = c( max(per_thread$n_threads_total[!per_thread$SMT]),
-                                                             max(per_thread$n_threads_total[per_thread$L3 >= L3_per_core])),
-                                        change          = c( "SMT",
-                                                             paste0("L3 per thread < ", L3_per_core / (1024 * 1024), " MB")),
+              # markers <-  data.frame( device          = device,
+              #                         after_n_threads = c( max(per_thread$n_threads_total[!per_thread$SMT]),
+              #                                              max(per_thread$n_threads_total[per_thread$L3 >= L3_per_core])),
+              #                         change          = c( "SMT",
+              #                                              paste0("L3 per thread < ", L3_per_core / (1024 * 1024), " MB")),
+              #                         stringsAsFactors = FALSE)
+                ##
+                ## ---- 2026-10-06: the marker also names the L2 cache per thread, which falls below the L2 cache
+                ##      per core once SMT is in use (1 MB local-HPC, 512 KB laptop); the two cache sizes share one
+                ##      line, "per thread: L2 < ..., L3 < ...", so the label stays on two lines:
+                fn_format_cache_bytes <-  function(bytes) {
+
+                        if (bytes >= 1024 * 1024) return(paste0(bytes / (1024 * 1024), " MB"))
+                        ##
+                        return(paste0(bytes / 1024, " KB"))
+
+                }
+                ##
+                n_threads_total <-  per_thread$n_threads_total
+                L2_per_core     <-  spec$L2_per_core
+                ##
+                L2_per_thread_change <-  paste0("L2 < ", fn_format_cache_bytes(L2_per_core))
+                L3_per_thread_change <-  paste0("L3 < ", fn_format_cache_bytes(L3_per_core))
+                ##
+                markers <-  data.frame( device           = device,
+                                        after_n_threads  = c( max(n_threads_total[!per_thread$SMT]),
+                                                              max(n_threads_total[per_thread$L2 >= L2_per_core]),
+                                                              max(n_threads_total[per_thread$L3 >= L3_per_core])),
+                                        change           = c("SMT", L2_per_thread_change, L3_per_thread_change),
+                                        per_thread_cache = c(FALSE, TRUE, TRUE),
                                         stringsAsFactors = FALSE)
                 ##
                 markers <-  markers[markers$after_n_threads < n_threads_max, , drop = FALSE]
                 ##
                 if (nrow(markers) == 0) return(data.frame(device = character(), after_n_threads = numeric(), label = character()))
                 ##
-                markers <-  stats::aggregate(change ~ device + after_n_threads, data = markers, FUN = function(changes) paste(changes, collapse = ";\n"))
+              # markers <-  stats::aggregate(change ~ device + after_n_threads, data = markers, FUN = function(changes) paste(changes, collapse = ";\n"))
+                ##
+                ## ---- 2026-10-06: per thread count, "SMT" first, then the cache sizes per thread on one line:
+                fn_combine_changes_at_one_thread_count <-  function(rows) {
+
+                        cache_changes <-  rows$change[rows$per_thread_cache]
+                        ##
+                        if (length(cache_changes)) {
+                            cache_changes <-  paste0("per thread: ", paste(cache_changes, collapse = ", "))
+                        }
+                        ##
+                        changes <-  c(rows$change[!rows$per_thread_cache], cache_changes)
+                        ##
+                        data.frame( device          = rows$device[1],
+                                    after_n_threads = rows$after_n_threads[1],
+                                    change          = paste(changes, collapse = ";\n"),
+                                    stringsAsFactors = FALSE)
+
+                }
+                ##
+                markers <-  do.call(what = rbind, args = lapply(X   = split(markers, markers$after_n_threads),
+                                                                FUN = fn_combine_changes_at_one_thread_count))
+                ##
+                rownames(markers) <-  NULL
                 ##
                 markers$label <-  paste0("> ", markers$after_n_threads, " threads: ", markers$change)
                 ##
@@ -1885,8 +1933,13 @@ fn_paper1_presentation_templates <-  function() {
                 ps2_model_names <-  c( "BayesMVP (1 chunk)"                          = "MD_BayesMVP",
                                        "BayesMVP + chunking"                         = "MD_BayesMVP_chunking",
                                        "BayesMVP + chunking + WCP"                   = "MD_BayesMVP_WCP_chunking",
-                                       "Mplus"                                       = "Mplus (BITERATIONS)",
-                                       "Mplus + WCP"                                 = "Mplus + WCP (BITERATIONS)",
+                                     # "Mplus"                                       = "Mplus (BITERATIONS)",
+                                     # "Mplus + WCP"                                 = "Mplus + WCP (BITERATIONS)",
+                                       ## ---- 2026-10-06: the Mplus entries are named by their model
+                                       ##      names too; the iteration mode (BITERATIONS) is too much
+                                       ##      detail for a figure legend:
+                                       "Mplus"                                       = "Mplus_standard",
+                                       "Mplus + WCP"                                 = "Mplus_WCP",
                                        "Stan model (NicoStan)"                       = "AD_Stan",
                                        "Stan model (NicoStan) + tape chunking"       = "AD_Stan_tape_chunked",
                                        "Stan model (NicoStan) + tape chunking + WCP" = "AD_Stan_WCP_chunking")
@@ -1921,6 +1974,12 @@ fn_paper1_presentation_templates <-  function() {
                     # has_180 <-  configuration_keys[df_dev$n_threads == 180]
                     # drop_176 <-  df_dev$n_threads == 176 & configuration_keys %in% has_180
                     # df_dev <-  df_dev[!drop_176, , drop = FALSE]
+                    ##
+                    ## ---- 2026-10-06: N_threads = 176 vs. 180 is not a real difference, so the
+                    ##      176-thread points are no longer plotted (dropped from the plotted data
+                    ##      only; the values and markers CSVs are unchanged). Hence the "176/180"
+                    ##      tick below is not triggered and no open points are drawn:
+                    df_dev <-  df_dev[df_dev$n_threads != 176, , drop = FALSE]
                     ##
                     ## Show useful budget labels and endpoints; retain all measured points.
                     tick_candidates <-  if (dev == "HPC") c(1, 2, 4, 8, 16, 32, 64, 96, 128, 180) else c(1, 2, 4, 8, 16)

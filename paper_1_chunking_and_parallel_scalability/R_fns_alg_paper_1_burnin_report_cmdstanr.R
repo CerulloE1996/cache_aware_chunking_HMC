@@ -20,6 +20,10 @@
 ##   num_chunks (NA for AD_Stan), chunk_size, run_number, n_iter, max_treedepth, mean_n_leapfrog,
 ##   time_wall_seconds, time_sampling_slowest_chain_seconds, time_sampling_mean_chain_seconds,
 ##   sec_per_step_slowest_chain, n_divergences.
+##
+## The figures and values use seconds per burn-in iteration of the slowest chain, i.e., per run,
+## time_sampling_slowest_chain_seconds / n_iter (every configuration ran 2^max_treedepth - 1 = 15 leapfrog steps
+## per iteration; mean_n_leapfrog 14.94-15), averaged over the runs of each configuration.
 ## ==============================================================================================================
 ##
 ##
@@ -121,9 +125,12 @@ fn_paper1_burnin_cmdstanr_runner_settings <-  function( runner_file_path,
 ##
 fn_paper1_burnin_cmdstanr_read_runs <-  function( runner_settings ) {
 
+        ## was: required_columns <-  c( "device", "N", "algorithm", "n_chains_burnin", "n_threads_per_chain",
+        ## was:                         "num_chunks", "run_number", "n_iter", "max_treedepth", "mean_n_leapfrog",
+        ## was:                         "sec_per_step_slowest_chain", "n_divergences")
         required_columns <-  c( "device", "N", "algorithm", "n_chains_burnin", "n_threads_per_chain",
                                 "num_chunks", "run_number", "n_iter", "max_treedepth", "mean_n_leapfrog",
-                                "sec_per_step_slowest_chain", "n_divergences")
+                                "time_sampling_slowest_chain_seconds", "n_divergences")
         ##
         message_start <-  paste0("Stan via cmdstanr burn-in, ", runner_settings$device)
         ##
@@ -185,7 +192,16 @@ fn_paper1_burnin_cmdstanr_read_runs <-  function( runner_settings ) {
                                                  fg   = "red"))
               }
               ##
-              runs_list[[length(runs_list) + 1]] <-  runs[matches_runner_settings, required_columns, drop = FALSE]
+              ## was: runs_list[[length(runs_list) + 1]] <-  runs[matches_runner_settings, required_columns,
+              ## was:                                             drop = FALSE]
+              runs_matched <-  runs[matches_runner_settings, required_columns, drop = FALSE]
+              ##
+              ## ---- seconds per burn-in iteration of the slowest chain, per run:
+              ##
+              runs_matched$sec_per_burnin_iteration_slowest_chain <-
+                    runs_matched$time_sampling_slowest_chain_seconds / runs_matched$n_iter
+              ##
+              runs_list[[length(runs_list) + 1]] <-  runs_matched
 
         }
         ##
@@ -208,7 +224,9 @@ fn_paper1_burnin_cmdstanr_read_runs <-  function( runner_settings ) {
 ##
 ## ---- fn_paper1_burnin_cmdstanr_summarise_runs: mean over runs per configuration: ------------------------------
 ##
-## Mean seconds per leapfrog step of the slowest chain over the runs of each (device, N, algorithm,
+## was: ## Mean seconds per leapfrog step of the slowest chain over the runs of each (device, N, algorithm,
+## was: ## N_threads/chain, N_chunks), as in ps_1_burnin_Stan_cmdstanr_shootout_summary.R.
+## Mean seconds per burn-in iteration of the slowest chain over the runs of each (device, N, algorithm,
 ## N_threads/chain, N_chunks), as in ps_1_burnin_Stan_cmdstanr_shootout_summary.R.
 ##
 fn_paper1_burnin_cmdstanr_summarise_runs <-  function( runs ) {
@@ -217,10 +235,17 @@ fn_paper1_burnin_cmdstanr_summarise_runs <-  function( runs ) {
         ##
         configuration_summary <-  dplyr::group_by( runs,
                                                    dplyr::across(.cols = dplyr::all_of(grouping_columns)))
-        configuration_summary <-  dplyr::summarise( configuration_summary,
-                                                    sec_per_step     = mean(.data$sec_per_step_slowest_chain),
-                                                    n_runs_available = dplyr::n(),
-                                                    .groups          = "drop")
+        ## was: configuration_summary <-  dplyr::summarise( configuration_summary,
+        ## was:                                             sec_per_step     =
+        ## was:                                                 mean(.data$sec_per_step_slowest_chain),
+        ## was:                                             n_runs_available = dplyr::n(),
+        ## was:                                             .groups          = "drop")
+        configuration_summary <-  dplyr::summarise(
+                                      configuration_summary,
+                                      sec_per_burnin_iteration_slowest_chain =
+                                          mean(.data$sec_per_burnin_iteration_slowest_chain),
+                                      n_runs_available                       = dplyr::n(),
+                                      .groups                                = "drop")
         ##
         return(as.data.frame(configuration_summary))
 
@@ -230,12 +255,19 @@ fn_paper1_burnin_cmdstanr_summarise_runs <-  function( runs ) {
 ##
 ## ---- fn_paper1_burnin_cmdstanr_figure_values: per device and N, the values shown in each figure panel: --------
 ##
-##   - the best measured configuration (lowest mean seconds per leapfrog step of the slowest chain, over every
-##     configuration including AD_Stan) and every runner-up within 1% of it;
+## was: ##   - the best measured configuration (lowest mean seconds per leapfrog step of the slowest chain, over
+## was: ##     every configuration including AD_Stan) and every runner-up within 1% of it;
+## was: ##   - the best tape chunking only configuration (AD_Stan_tape_chunked, N_threads/chain = 1) and the "WCP"
+## was: ##     fold, i.e., its seconds per leapfrog step divided by that of the best measured configuration;
+## was: ##   - AD_Stan (N_threads/chain = 1) and the "total" fold, i.e., its seconds per leapfrog step divided by
+## was: ##     that of the best measured configuration, and the speed-up of tape chunking only relative to
+## was: ##     AD_Stan.
+##   - the best measured configuration (lowest mean seconds per burn-in iteration of the slowest chain, over
+##     every configuration including AD_Stan) and every runner-up within 1% of it;
 ##   - the best tape chunking only configuration (AD_Stan_tape_chunked, N_threads/chain = 1) and the "WCP" fold,
-##     i.e., its seconds per leapfrog step divided by that of the best measured configuration;
-##   - AD_Stan (N_threads/chain = 1) and the "total" fold, i.e., its seconds per leapfrog step divided by that of
-##     the best measured configuration, and the speed-up of tape chunking only relative to AD_Stan.
+##     i.e., its seconds per burn-in iteration divided by that of the best measured configuration;
+##   - AD_Stan (N_threads/chain = 1) and the "total" fold, i.e., its seconds per burn-in iteration divided by
+##     that of the best measured configuration, and the speed-up of tape chunking only relative to AD_Stan.
 ##
 fn_paper1_burnin_cmdstanr_figure_values <-  function( configuration_summary ) {
 
@@ -248,34 +280,67 @@ fn_paper1_burnin_cmdstanr_figure_values <-  function( configuration_summary ) {
 
                     cell <-  configuration_summary[ configuration_summary$device == device &
                                                     configuration_summary$N == N, , drop = FALSE]
-                    cell <-  cell[order(cell$sec_per_step), , drop = FALSE]
+                    ## was: cell <-  cell[order(cell$sec_per_step), , drop = FALSE]
+                    cell <-  cell[order(cell$sec_per_burnin_iteration_slowest_chain), , drop = FALSE]
                     ##
                     best_configuration <-  cell[1, , drop = FALSE]
-                    best_sec_per_step  <-  best_configuration$sec_per_step
+                    ## was: best_sec_per_step  <-  best_configuration$sec_per_step
+                    best_sec_per_burnin_iteration_slowest_chain <-
+                          best_configuration$sec_per_burnin_iteration_slowest_chain
                     ##
                     AD_Stan_rows      <-  cell[cell$algorithm == "AD_Stan", , drop = FALSE]
                     tape_chunked_rows <-  cell[ cell$algorithm == "AD_Stan_tape_chunked" &
                                                 cell$n_threads_per_chain == 1, , drop = FALSE]
                     ##
-                    AD_Stan_sec_per_step           <-  fn_first_or_NA(AD_Stan_rows$sec_per_step)
-                    best_tape_chunked_sec_per_step <-  fn_first_or_NA(tape_chunked_rows$sec_per_step)
+                    ## was: AD_Stan_sec_per_step           <-  fn_first_or_NA(AD_Stan_rows$sec_per_step)
+                    ## was: best_tape_chunked_sec_per_step <-  fn_first_or_NA(tape_chunked_rows$sec_per_step)
+                    AD_Stan_sec_per_burnin_iteration_slowest_chain           <-
+                          fn_first_or_NA(AD_Stan_rows$sec_per_burnin_iteration_slowest_chain)
+                    best_tape_chunked_sec_per_burnin_iteration_slowest_chain <-
+                          fn_first_or_NA(tape_chunked_rows$sec_per_burnin_iteration_slowest_chain)
                     ##
                     ## ---- runners-up within 1% of the best measured configuration (essentially joint-best):
                     ##
                     runners_up <-  cell[-1, , drop = FALSE]
-                    runners_up <-  runners_up[runners_up$sec_per_step <= 1.01 * best_sec_per_step, , drop = FALSE]
+                    ## was: runners_up <-  runners_up[runners_up$sec_per_step <= 1.01 * best_sec_per_step, ,
+                    ## was:                             drop = FALSE]
+                    runners_up <-  runners_up[ runners_up$sec_per_burnin_iteration_slowest_chain <=
+                                                   1.01 * best_sec_per_burnin_iteration_slowest_chain, ,
+                                               drop = FALSE]
                     ##
                     within_1_percent_of_best <-  "none"
                     if (nrow(runners_up) > 0) {
+                          runners_up_percent_slower_than_best <-
+                                100 * ( runners_up$sec_per_burnin_iteration_slowest_chain /
+                                            best_sec_per_burnin_iteration_slowest_chain - 1)
                           within_1_percent_of_best <-  paste0( runners_up$algorithm, " ",
                                                                runners_up$n_threads_per_chain, "/",
                                                                runners_up$num_chunks, " (+",
-                                                               formatC( 100 * (runners_up$sec_per_step /
-                                                                                   best_sec_per_step - 1),
+                                                               ## was: formatC( 100 * (runners_up$sec_per_step /
+                                                               ## was:                     best_sec_per_step - 1),
+                                                               formatC( runners_up_percent_slower_than_best,
                                                                         format = "f", digits = 2),
                                                                "%)",
                                                                collapse = "; ")
                     }
+                    ##
+                    ## ---- was (seconds per leapfrog step columns):
+                    ##        best_sec_per_step                = best_sec_per_step,
+                    ##        best_tape_chunked_sec_per_step   = best_tape_chunked_sec_per_step,
+                    ##        WCP_fold                         = best_tape_chunked_sec_per_step /
+                    ##                                               best_sec_per_step,
+                    ##        AD_Stan_sec_per_step             = AD_Stan_sec_per_step,
+                    ##        total_fold                       = AD_Stan_sec_per_step / best_sec_per_step,
+                    ##        tape_chunked_speed_up_vs_AD_Stan = AD_Stan_sec_per_step /
+                    ##                                               best_tape_chunked_sec_per_step,
+                    ##
+                    WCP_fold   <-  best_tape_chunked_sec_per_burnin_iteration_slowest_chain /
+                                       best_sec_per_burnin_iteration_slowest_chain
+                    total_fold <-  AD_Stan_sec_per_burnin_iteration_slowest_chain /
+                                       best_sec_per_burnin_iteration_slowest_chain
+                    tape_chunked_speed_up_vs_AD_Stan <-
+                          AD_Stan_sec_per_burnin_iteration_slowest_chain /
+                              best_tape_chunked_sec_per_burnin_iteration_slowest_chain
                     ##
                     values_rows[[length(values_rows) + 1]] <-  data.frame(
                           device                           = device,
@@ -283,14 +348,16 @@ fn_paper1_burnin_cmdstanr_figure_values <-  function( configuration_summary ) {
                           best_algorithm                   = best_configuration$algorithm,
                           best_n_threads_per_chain         = best_configuration$n_threads_per_chain,
                           best_num_chunks                  = best_configuration$num_chunks,
-                          best_sec_per_step                = best_sec_per_step,
+                          best_sec_per_burnin_iteration_slowest_chain              =
+                              best_sec_per_burnin_iteration_slowest_chain,
                           best_tape_chunked_num_chunks     = fn_first_or_NA(tape_chunked_rows$num_chunks),
-                          best_tape_chunked_sec_per_step   = best_tape_chunked_sec_per_step,
-                          WCP_fold                         = best_tape_chunked_sec_per_step / best_sec_per_step,
-                          AD_Stan_sec_per_step             = AD_Stan_sec_per_step,
-                          total_fold                       = AD_Stan_sec_per_step / best_sec_per_step,
-                          tape_chunked_speed_up_vs_AD_Stan = AD_Stan_sec_per_step /
-                                                                 best_tape_chunked_sec_per_step,
+                          best_tape_chunked_sec_per_burnin_iteration_slowest_chain =
+                              best_tape_chunked_sec_per_burnin_iteration_slowest_chain,
+                          WCP_fold                         = WCP_fold,
+                          AD_Stan_sec_per_burnin_iteration_slowest_chain           =
+                              AD_Stan_sec_per_burnin_iteration_slowest_chain,
+                          total_fold                       = total_fold,
+                          tape_chunked_speed_up_vs_AD_Stan = tape_chunked_speed_up_vs_AD_Stan,
                           within_1_percent_of_best         = within_1_percent_of_best)
 
               }
@@ -306,7 +373,9 @@ fn_paper1_burnin_cmdstanr_figure_values <-  function( configuration_summary ) {
 ##
 ## Same look as fn_paper1_burnin_figure_best_chunks_panel() in R_fns_alg_paper_1_burnin_report.R:
 ## x = N_threads/chain on a log2 scale with a tick at every measured value (two rows of tick labels where adjacent
-## values are close), y = seconds per leapfrog step of the slowest chain (log10), with this panel's own range.
+## was: ## values are close), y = seconds per leapfrog step of the slowest chain (log10), with this panel's own
+## was: ## range.
+## values are close), y = seconds per burn-in iteration of the slowest chain (log10), with this panel's own range.
 ## AD_Stan is an open square with a dashed line at its level, the best N_chunks at each N_threads/chain is a solid
 ## line (points labelled with N_chunks, leaving out any label that would overlap a label drawn before it),
 ## WCP-only (AD_Stan_WCP) is a green dashed line with triangles, and the best measured configuration is circled.
@@ -376,12 +445,15 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
         ##
         panel_best_by_threads <-  panel_best_by_threads[ order(panel_best_by_threads$n_threads_per_chain), ,
                                                          drop = FALSE]
-        rises_from_left <-  c(FALSE, diff(panel_best_by_threads$sec_per_step) > 0)
+        ## was: rises_from_left <-  c(FALSE, diff(panel_best_by_threads$sec_per_step) > 0)
+        rises_from_left <-  c(FALSE, diff(panel_best_by_threads$sec_per_burnin_iteration_slowest_chain) > 0)
         ##
         no_chunking_index    <-  match( panel_best_by_threads$n_threads_per_chain,
                                         panel_no_chunking$n_threads_per_chain)
-        is_above_no_chunking <-  panel_best_by_threads$sec_per_step >
-                                     panel_no_chunking$sec_per_step[no_chunking_index]
+        ## was: is_above_no_chunking <-  panel_best_by_threads$sec_per_step >
+        ## was:                              panel_no_chunking$sec_per_step[no_chunking_index]
+        is_above_no_chunking <-  panel_best_by_threads$sec_per_burnin_iteration_slowest_chain >
+                                     panel_no_chunking$sec_per_burnin_iteration_slowest_chain[no_chunking_index]
         is_above_no_chunking[is.na(is_above_no_chunking)] <-  FALSE
         ##
         is_best_overall <-  panel_best_by_threads$algorithm  == panel_best_overall$algorithm[1] &
@@ -411,12 +483,16 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
         best_overall_fill <-  c(NA)
         names(best_overall_fill) <-  best_overall_label
         ##
+        ## ---- every y mapping below was .data$sec_per_step (seconds per leapfrog step of the slowest chain)
+        ##      and is now .data$sec_per_burnin_iteration_slowest_chain:
+        ##
         panel_plot <-  ggplot2::ggplot() +
               ##
               ## ---- dashed reference level of AD_Stan (N_chunks = 1, N_threads/chain = 1) across the panel:
               ##
               ggplot2::geom_hline( data      = panel_no_chunking,
-                                   mapping   = ggplot2::aes( yintercept = .data$sec_per_step,
+                                   mapping   = ggplot2::aes( yintercept =
+                                                                 .data$sec_per_burnin_iteration_slowest_chain,
                                                              colour     = .data$series,
                                                              linetype   = .data$series),
                                    linewidth = 0.6) +
@@ -425,19 +501,21 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
               ##
               ggplot2::geom_line( data      = panel_best_by_threads,
                                   mapping   = ggplot2::aes( x        = .data$n_threads_per_chain,
-                                                            y        = .data$sec_per_step,
+                                                            y        =
+                                                                .data$sec_per_burnin_iteration_slowest_chain,
                                                             colour   = .data$series,
                                                             linetype = .data$series),
                                   linewidth = 0.8) +
               ggplot2::geom_point( data    = panel_best_by_threads,
                                    mapping = ggplot2::aes( x      = .data$n_threads_per_chain,
-                                                           y      = .data$sec_per_step,
+                                                           y      = .data$sec_per_burnin_iteration_slowest_chain,
                                                            colour = .data$series,
                                                            shape  = .data$series),
                                    size    = 2.2) +
               ggplot2::geom_text( data          = panel_labels,
                                   mapping       = ggplot2::aes( x     = .data$n_threads_per_chain,
-                                                                y     = .data$sec_per_step,
+                                                                y     =
+                                                                    .data$sec_per_burnin_iteration_slowest_chain,
                                                                 label = .data$num_chunks,
                                                                 vjust = .data$label_vjust),
                                   colour        = series_colours[[2]],
@@ -449,13 +527,14 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
               ##
               ggplot2::geom_line( data      = panel_WCP_only,
                                   mapping   = ggplot2::aes( x        = .data$n_threads_per_chain,
-                                                            y        = .data$sec_per_step,
+                                                            y        =
+                                                                .data$sec_per_burnin_iteration_slowest_chain,
                                                             colour   = .data$series,
                                                             linetype = .data$series),
                                   linewidth = 0.8) +
               ggplot2::geom_point( data    = panel_WCP_only,
                                    mapping = ggplot2::aes( x      = .data$n_threads_per_chain,
-                                                           y      = .data$sec_per_step,
+                                                           y      = .data$sec_per_burnin_iteration_slowest_chain,
                                                            colour = .data$series,
                                                            shape  = .data$series),
                                    size    = 2.6) +
@@ -464,7 +543,7 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
               ##
               ggplot2::geom_point( data    = panel_no_chunking,
                                    mapping = ggplot2::aes( x      = .data$n_threads_per_chain,
-                                                           y      = .data$sec_per_step,
+                                                           y      = .data$sec_per_burnin_iteration_slowest_chain,
                                                            colour = .data$series,
                                                            shape  = .data$series),
                                    size    = 3.4,
@@ -474,7 +553,7 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
               ##
               ggplot2::geom_point( data    = panel_best_overall,
                                    mapping = ggplot2::aes( x    = .data$n_threads_per_chain,
-                                                           y    = .data$sec_per_step,
+                                                           y    = .data$sec_per_burnin_iteration_slowest_chain,
                                                            fill = .data$best_overall_series),
                                    shape   = 21,
                                    size    = 5.0,
@@ -554,7 +633,9 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
 ##
 ##
 ##
-## ---- fn_paper1_burnin_cmdstanr_figure: seconds per leapfrog step against N_threads/chain, one panel per N: ----
+## was: ## ---- fn_paper1_burnin_cmdstanr_figure: seconds per leapfrog step against N_threads/chain, one panel per
+## was: ##      N: ----
+## ---- fn_paper1_burnin_cmdstanr_figure: seconds per burn-in iteration against N_threads/chain, per N: ---------
 ##
 ## One row of panels (the shootout fixes the burn-in N_chains), one panel per N, each with its own x and y range;
 ## the fold labels come from fn_paper1_burnin_cmdstanr_figure_values(), so the figure and the values file agree.
@@ -602,7 +683,8 @@ fn_paper1_burnin_cmdstanr_figure <-  function( configuration_summary,
                              expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"))
         best_overall_label <-  "Best measured configuration"
         ##
-        y_axis_title <-  "Seconds per leapfrog step\n(slowest chain, log scale)"
+        ## was: y_axis_title <-  "Seconds per leapfrog step\n(slowest chain, log scale)"
+        y_axis_title <-  "Seconds per burn-in iteration\n(slowest chain, log scale)"
         ##
         ## ---- AD_Stan (no chunking, N_threads/chain = 1):
         ##
@@ -615,7 +697,9 @@ fn_paper1_burnin_cmdstanr_figure <-  function( configuration_summary,
         ##
         best_by_threads <-  dplyr::group_by( device_rows[device_rows$algorithm != "AD_Stan", , drop = FALSE],
                                              .data$N, .data$n_threads_per_chain)
-        best_by_threads <-  dplyr::slice(best_by_threads, which.min(.data$sec_per_step))
+        ## was: best_by_threads <-  dplyr::slice(best_by_threads, which.min(.data$sec_per_step))
+        best_by_threads <-  dplyr::slice( best_by_threads,
+                                          which.min(.data$sec_per_burnin_iteration_slowest_chain))
         best_by_threads <-  as.data.frame(dplyr::ungroup(best_by_threads))
         best_by_threads$series <-  factor("best_chunks_at_each_threads_per_chain", levels = series_levels)
         ##
@@ -627,7 +711,8 @@ fn_paper1_burnin_cmdstanr_figure <-  function( configuration_summary,
         ## ---- best measured configuration per N (over every configuration, as in the shootout summary):
         ##
         best_overall <-  dplyr::group_by(device_rows, .data$N)
-        best_overall <-  dplyr::slice(best_overall, which.min(.data$sec_per_step))
+        ## was: best_overall <-  dplyr::slice(best_overall, which.min(.data$sec_per_step))
+        best_overall <-  dplyr::slice(best_overall, which.min(.data$sec_per_burnin_iteration_slowest_chain))
         best_overall <-  as.data.frame(dplyr::ungroup(best_overall))
         best_overall$best_overall_series <-  best_overall_label
         ##

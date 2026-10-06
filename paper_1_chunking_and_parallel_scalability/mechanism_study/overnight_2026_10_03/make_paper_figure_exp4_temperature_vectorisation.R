@@ -33,7 +33,10 @@
             expression(paste("AD_Stan_tape_chunked (", N[chunks], " = 250)")),
             expression(paste("MD_BayesMVP (", N[chunks], " = 1)")),
             expression(paste("AD_Stan (", N[chunks], " = 1)")),
-            "Mplus (BITERATIONS)")
+          # "Mplus (BITERATIONS)")
+            ## ---- 2026-10-06: Mplus is named by its model name, as the other runs; the iteration mode
+            ##      (BITERATIONS) is too much detail for a figure legend:
+            "Mplus_standard")
       run_colours <-  c(MD_BayesMVP_chunking_500            = "#D55E00",
                         MD_BayesMVP_chunking_500_continuous = "#D55E00",
                         AD_Stan_tape_chunked_250            = "#0072B2",

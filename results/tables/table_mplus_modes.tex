@@ -12,11 +12,11 @@
         (each the mean of three repeats per mode; see section \ref{section:paper1_mplus_timing_design});
         a ratio $> 1$ means that \texttt{FBITERATIONS} was slower, and a ratio $< 1$ that it was faster. \\
         %%
-        Allocations with $N_{\text{threads/chain}} = 1$ are standard Mplus,
-        and those with $N_{\text{threads/chain}} \ge 2$ are Mplus + WCP;
+        Allocations with $N_{\text{threads/chain}} = 1$ are \texttt{Mplus\_\ab standard},
+        and those with $N_{\text{threads/chain}} \ge 2$ are \texttt{Mplus\_\ab WCP};
         each median is across the allocations of its block,
         and hyphens mark allocations which were not run at that $N$.
-        Bold marks the Mplus + WCP allocation which we used in E2 at each $N_{\text{threads}}$
+        Bold marks the \texttt{Mplus\_\ab WCP} allocation which we used in E2 at each $N_{\text{threads}}$
         (i.e., the fastest; see section \ref{section:paper1_chunk_wcp_selection_design}).
 }}
 %%%%

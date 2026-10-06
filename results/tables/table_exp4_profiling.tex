@@ -125,7 +125,7 @@
         $N_{\text{chains}} = 8$ (one per core) vs. $16$ (two per core), on the 8 cores of one local-HPC CCD,
         and on the laptop's 8 cores ($N_{\text{chains}} = 16$ not pinned).
         Panel F: full-load runs (design (v); local-HPC, $N{=}50,000$, $N_{\text{chains}} = 180$,
-        $N_{\text{threads/chain}} = 1$; Mplus standard with BITERATIONS), each of ${\sim}{600}$\,s,
+        $N_{\text{threads/chain}} = 1$; \texttt{Mplus\_\ab standard} with BITERATIONS), each of ${\sim}{600}$\,s,
         started within $2^{\circ}$C of idle:
         Tctl is the CPU's control temperature (mean of the last 120\,s),
         power the CPU package power whilst sampling
@@ -393,7 +393,7 @@ Configuration & $N_{\text{chains}}$ & \makecell[r]{Tctl \\ ($^{\circ}$C)} & \mak
 %%%%
 Idle & - & 57.2 & 119 & - & - & - \\
 % Mplus standard (BITERATIONS) & 180 & 63.6 & 258 & 55 & 50 & 0.06 \\
-\makecell[tl]{Mplus standard \\ (BITERATIONS)} & 180 & 63.6 & 258 & 55 & 50 & 0.06 \\
+\makecell[tl]{\texttt{Mplus\_standard} \\ (BITERATIONS)} & 180 & 63.6 & 258 & 55 & 50 & 0.06 \\
 \texttt{MD\_BayesMVP}, $N_{\text{chunks}} = 1$ & 180 & 70.4 & 322 & 88 & 346 & 0.02 \\
 % \texttt{MD\_BayesMVP\_chunking}, $N_{\text{chunks}} = 500$ & 180 & 74.5 & 369 & 24 & 169 & 0.44 \\
 \makecell[tl]{\texttt{MD\_BayesMVP\_chunking}, \\ $N_{\text{chunks}} = 500$} & 180 & 74.5 & 369 & 24 & 169 & 0.44 \\

@@ -3,7 +3,10 @@
 ## alg_paper_1_burnin_report_cmdstanr.R
 ##
 ## Runner for the burn-in figures of the Stan via cmdstanr burn-in study (E1, Stan via cmdstanr), one per device:
-## seconds per leapfrog step of the slowest chain against N_threads/chain, with the burn-in N_chains of the
+## was: ## seconds per leapfrog step of the slowest chain against N_threads/chain, with the burn-in N_chains of
+## was: ## the shootout (4), for AD_Stan, AD_Stan_tape_chunked, AD_Stan_WCP and AD_Stan_WCP_chunking, in the
+## was: ## visual design of the NicoStan+BayesMVP and Stan via NicoStan burn-in figures.
+## seconds per burn-in iteration of the slowest chain against N_threads/chain, with the burn-in N_chains of the
 ## shootout (4), for AD_Stan, AD_Stan_tape_chunked, AD_Stan_WCP and AD_Stan_WCP_chunking, in the visual design of
 ## the NicoStan+BayesMVP and Stan via NicoStan burn-in figures.
 ##
@@ -100,7 +103,8 @@ message(NicoStan::colourise(text = paste0("Wrote ", values_file_path), fg = "gre
 ##
 ##
 ##
-## ---- Check against the shootout summary (best configuration and its seconds per leapfrog step): -------------
+## was: ## ---- Check against the shootout summary (best configuration and its seconds per leapfrog step): ------
+## ---- Check against the shootout summary (best configuration and its seconds per burn-in iteration): ----------
 ##
 if (!file.exists(summary_file_path)) {
 
@@ -134,13 +138,18 @@ if (!file.exists(summary_file_path)) {
                                             summary_row$best_n_threads_per_chain &&
                                         figure_best_num_chunks == summary_row$best_num_chunks
             ##
-            relative_difference_sec_per_step <-  abs( figure_row$best_sec_per_step /
-                                                          summary_row$best_sec_per_step - 1)
+            ## was: relative_difference_sec_per_step <-  abs( figure_row$best_sec_per_step /
+            ## was:                                               summary_row$best_sec_per_step - 1)
+            relative_difference_sec_per_burnin_iteration_slowest_chain <-
+                  abs( figure_row$best_sec_per_burnin_iteration_slowest_chain /
+                           summary_row$best_sec_per_burnin_iteration_slowest_chain - 1)
             relative_difference_total_fold   <-  abs( figure_row$total_fold /
                                                           summary_row$speed_up_vs_AD_Stan_4x1 - 1)
             ##
+            ## was: all_match <-  same_best_configuration &&
+            ## was:               relative_difference_sec_per_step < 1e-9 &&
             all_match <-  same_best_configuration &&
-                          relative_difference_sec_per_step < 1e-9 &&
+                          relative_difference_sec_per_burnin_iteration_slowest_chain < 1e-9 &&
                           relative_difference_total_fold < 1e-9
             ##
             message(NicoStan::colourise( text = paste0( check_start,
