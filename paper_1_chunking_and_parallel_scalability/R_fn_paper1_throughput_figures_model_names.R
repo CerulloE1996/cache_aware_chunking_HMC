@@ -21,7 +21,11 @@ paper_1_dir <-  path.expand("~/Documents/Work/PhD_work/Alg_paper_analysis/paper_
 views_path  <-  file.path(paper_1_dir, "paper_1_computational_outputs",
                           "manuscript_outputs_final_both_devices_narrow_WCP_2026_10_03", "data", "presentation_views.rds")
 # output_dir  <-  path.expand("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v42_2026_10_03/figures_v42")
-output_dir  <-  path.expand("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v42_2026_10_03/figures_v45")
+# output_dir  <-  path.expand("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v42_2026_10_03/figures_v45")
+## 2026-10-06: the figures with the WCP pairs in one colour (WCP-only solid, chunking + WCP dashed) go to
+##             their own staging folder (the figures_v45 outputs above are kept unchanged):
+output_dir  <-  path.expand(paste0("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v47_2026_10_04/",
+                                   "audit_2026_10_06/fixB_staging"))
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 ##
 message(paste0("\033[36m", "Reading presentation views: ", views_path, "\033[0m"))
@@ -38,7 +42,12 @@ fn_plot_throughput_by_model_name <-  function( df,
         df$model_name <-  factor(df$model_name, levels = model_order)
         ##
         ## WCP-only dashed, every other configuration solid:
-        linetype_values <-  stats::setNames(ifelse(grepl("WCP-only", model_order), "22", "solid"), model_order)
+        # linetype_values <-  stats::setNames(ifelse(grepl("WCP-only", model_order), "22", "solid"), model_order)
+        ## ---- 2026-10-06: each WCP pair shares one colour (that of chunking + WCP; see the colours below), with
+        ##      WCP-only (MD_BayesMVP_WCP, AD_Stan_WCP) drawn solid and chunking + WCP (MD_BayesMVP_WCP_chunking,
+        ##      AD_Stan_WCP_chunking) drawn dashed; every other configuration solid, as before:
+        linetype_values <-  stats::setNames( ifelse(grepl("_WCP_chunking", model_order), "22", "solid"),
+                                             model_order)
         ##
         plot_list <-  list()
         ##
@@ -114,7 +123,13 @@ Stan_names <-  c( AD_Stan              = "AD_Stan",
                   AD_Stan_tape_chunked = "AD_Stan_tape_chunked",
                   WCP_only             = "AD_Stan_WCP (WCP-only)",
                   WCP_chunking         = "AD_Stan_WCP_chunking")
-Stan_colours <-  stats::setNames( c(four_colours[1], scales::hue_pal()(3)[3], four_colours[2], four_colours[4], four_colours[3]),
+# Stan_colours <-  stats::setNames( c(four_colours[1], scales::hue_pal()(3)[3], four_colours[2], four_colours[4], four_colours[3]),
+#                                   unname(Stan_names))
+## ---- 2026-10-06: AD_Stan_WCP (WCP-only) in the colour of AD_Stan_WCP_chunking (four_colours[3]),
+##      drawn solid, with AD_Stan_WCP_chunking drawn dashed (linetype_values above); the other colours
+##      are unchanged:
+Stan_colours <-  stats::setNames( c( four_colours[1], scales::hue_pal()(3)[3], four_colours[2],
+                                     four_colours[3], four_colours[3]),
                                   unname(Stan_names))
 ##
 Stan_implementations <-  views$stan[views$stan$algorithm %in% c("AD_Stan", "AD_Stan_chunked", "AD_Stan_tape_chunked"), , drop = FALSE]
@@ -140,8 +155,14 @@ BayesMVP_mode_to_name <-  c( "BayesMVP"                  = "MD_BayesMVP",
                              "BayesMVP-chunking"         = "MD_BayesMVP_chunking",
                              "BayesMVP-WCP"              = "MD_BayesMVP_WCP (WCP-only)",
                              "BayesMVP-chunking_and_WCP" = "MD_BayesMVP_WCP_chunking")
-BayesMVP_colours <-  stats::setNames(four_colours, c("MD_BayesMVP", "MD_BayesMVP_chunking", "MD_BayesMVP_WCP_chunking",
-                                                     "MD_BayesMVP_WCP (WCP-only)"))
+# BayesMVP_colours <-  stats::setNames(four_colours, c("MD_BayesMVP", "MD_BayesMVP_chunking", "MD_BayesMVP_WCP_chunking",
+#                                                      "MD_BayesMVP_WCP (WCP-only)"))
+## ---- 2026-10-06: MD_BayesMVP_WCP (WCP-only) in the colour of MD_BayesMVP_WCP_chunking
+##      (four_colours[3]), drawn solid, with MD_BayesMVP_WCP_chunking drawn dashed (linetype_values above);
+##      the other colours are unchanged:
+BayesMVP_colours <-  stats::setNames(four_colours[c(1, 2, 3, 3)], c("MD_BayesMVP", "MD_BayesMVP_chunking",
+                                                                    "MD_BayesMVP_WCP_chunking",
+                                                                    "MD_BayesMVP_WCP (WCP-only)"))
 BayesMVP_all <-  views$BayesMVP_by_budget
 BayesMVP_all$model_name <-  unname(BayesMVP_mode_to_name[as.character(BayesMVP_all$comparison_mode)])
 fn_plot_throughput_by_model_name( df = BayesMVP_all[BayesMVP_all$model_name %in% c("MD_BayesMVP", "MD_BayesMVP_chunking"), , drop = FALSE],

@@ -1942,7 +1942,10 @@ fn_paper1_presentation_templates <-  function() {
                                        "Mplus + WCP"                                 = "Mplus_WCP",
                                        "Stan model (NicoStan)"                       = "AD_Stan",
                                        "Stan model (NicoStan) + tape chunking"       = "AD_Stan_tape_chunked",
-                                       "Stan model (NicoStan) + tape chunking + WCP" = "AD_Stan_WCP_chunking")
+                                       "Stan model (NicoStan) + tape chunking + WCP" = "AD_Stan_WCP_chunking",
+                                       ## ---- 2026-10-06: the WCP-only arms (one chunk per WCP thread):
+                                       "BayesMVP + WCP"                              = "MD_BayesMVP_WCP",
+                                       "Stan model (NicoStan) + WCP"                 = "AD_Stan_WCP")
                 ps2_df$Algorithm_label <-  ifelse(as.character(ps2_df$Algorithm_label) %in% names(ps2_model_names),
                                                   unname(ps2_model_names[as.character(ps2_df$Algorithm_label)]),
                                                   as.character(ps2_df$Algorithm_label))
@@ -1951,7 +1954,64 @@ fn_paper1_presentation_templates <-  function() {
                                                    unname(ps2_model_names[as.character(df_plot$Algorithm_label)]),
                                                    as.character(df_plot$Algorithm_label))
                 ##
-                colour_scale <-  shared_colour_scale(ps2_df$Algorithm_label)
+                # colour_scale <-  shared_colour_scale(ps2_df$Algorithm_label)
+                ##
+                ## ---- 2026-10-06: WCP-only (MD_BayesMVP_WCP, AD_Stan_WCP) is drawn dashed, in a darker
+                ##      shade of the colour of the matching chunking + WCP line, and is listed just before it
+                ##      in the legend (later on 6 Oct, Enzo: same colour as chunking + WCP, WCP-only solid and
+                ##      chunking + WCP dashed; see below). The colours of all other lines are computed exactly as
+                ##      shared_colour_scale() did, over the other configurations only, so they are unchanged:
+                WCP_only_counterpart_names <-  c( MD_BayesMVP_WCP = "MD_BayesMVP_WCP_chunking",
+                                                  AD_Stan_WCP     = "AD_Stan_WCP_chunking")
+                all_model_names  <-  unique(as.character(ps2_df$Algorithm_label[!is.na(ps2_df$Algorithm_label)]))
+                base_model_names <-  sort(setdiff(all_model_names, names(WCP_only_counterpart_names)))
+                base_colours     <-  if (length(base_model_names)) {
+                                         scales::hue_pal()(length(base_model_names))
+                                     } else character()
+                colour_values    <-  stats::setNames(base_colours, base_model_names)
+                legend_order     <-  base_model_names
+                ##
+                for (WCP_only_name in intersect(names(WCP_only_counterpart_names), all_model_names)) {
+
+                    counterpart_name   <-  WCP_only_counterpart_names[[WCP_only_name]]
+                    counterpart_colour <-  if (counterpart_name %in% names(colour_values))
+                                               colour_values[[counterpart_name]] else "grey50"
+                    ## (60% of each RGB channel of the chunking + WCP colour)
+                    # darker_RGB <-  t(grDevices::col2rgb(counterpart_colour) * 0.6)
+                    # colour_values[[WCP_only_name]] <-  grDevices::rgb(darker_RGB, maxColorValue = 255)
+                    ## ---- 2026-10-06 (Enzo): each WCP pair has ONE colour, that of its chunking + WCP line;
+                    ##      WCP-only is drawn solid and chunking + WCP dashed (linetype_values below):
+                    colour_values[[WCP_only_name]] <-  counterpart_colour
+                    counterpart_position <-  match(counterpart_name, legend_order)
+                    legend_order <-  if (is.na(counterpart_position)) c(legend_order, WCP_only_name) else
+                        append(legend_order, WCP_only_name, after = counterpart_position - 1)
+
+                }
+                ##
+                # linetype_values <-  stats::setNames( ifelse( legend_order %in%
+                #                                                  names(WCP_only_counterpart_names),
+                #                                              "22",
+                #                                              "solid"),
+                #                                      legend_order)
+                ## (2026-10-06, Enzo: chunking + WCP dashed, WCP-only and every other configuration solid)
+                is_chunking_and_WCP_with_WCP_only <-  legend_order %in%
+                    WCP_only_counterpart_names[names(WCP_only_counterpart_names) %in% all_model_names]
+                linetype_values <-  stats::setNames( ifelse(is_chunking_and_WCP_with_WCP_only, "22", "solid"),
+                                                     legend_order)
+                colour_scale    <-  ggplot2::scale_colour_manual( values = colour_values[legend_order],
+                                                                   limits = legend_order,
+                                                                   drop = FALSE)
+                linetype_scale  <-  ggplot2::scale_linetype_manual( values = linetype_values,
+                                                                     limits = legend_order,
+                                                                     drop = FALSE)
+                ## (with the two WCP-only entries the legend has 3 columns - Stan, NicoStan+BayesMVP, Mplus -
+                ##  so that it keeps 4 rows and the panels keep their size; otherwise 2 columns, as before)
+                legend_ncol <-  if (any(legend_order %in% names(WCP_only_counterpart_names))) 3 else 2
+                ## (2026-10-06: with the dashed chunking + WCP lines, the legend keys are 3 lines wide - as in the
+                ##  E1 throughput figures - so that the dashes are visible next to the points)
+                legend_key_width_theme <-  if (any(linetype_values != "solid")) {
+                                               ggplot2::theme(legend.key.width = ggplot2::unit(3, "lines"))
+                                           } else NULL
                 ##
                 plot_list <-  list()
                 ##
@@ -1979,7 +2039,11 @@ fn_paper1_presentation_templates <-  function() {
                     ##      176-thread points are no longer plotted (dropped from the plotted data
                     ##      only; the values and markers CSVs are unchanged). Hence the "176/180"
                     ##      tick below is not triggered and no open points are drawn:
-                    df_dev <-  df_dev[df_dev$n_threads != 176, , drop = FALSE]
+                    # df_dev <-  df_dev[df_dev$n_threads != 176, , drop = FALSE]
+                    ## ---- 2026-10-06 (correction, the same evening): the 176-thread points are plotted again,
+                    ##      exactly like any other point (joined to their lines; no open markers, no annotation):
+                    ##      176 is treated as ~180. The drop above is kept, commented out. (Enzo, later: the
+                    ##      x-axis keeps the "176/180" tick label below.)
                     ##
                     ## Show useful budget labels and endpoints; retain all measured points.
                     tick_candidates <-  if (dev == "HPC") c(1, 2, 4, 8, 16, 32, 64, 96, 128, 180) else c(1, 2, 4, 8, 16)
@@ -1990,6 +2054,8 @@ fn_paper1_presentation_templates <-  function() {
                     ##
                     ## ---- the 176-thread (WCP) and 180-thread points are too close to label separately on a log scale: one tick,
                     ##      "176/180", midway between them:
+                    ##      (2026-10-06, Enzo: this "176/180" tick is kept; the 176-thread points themselves are
+                    ##       drawn like all other points)
                     if (all(c(176, 180) %in% df_dev$n_threads)) {
                         keep_break <-  !(x_breaks %in% c(176, 180))
                         x_breaks   <-  c(x_breaks[keep_break], 178)
@@ -2023,10 +2089,43 @@ fn_paper1_presentation_templates <-  function() {
                     }
                     ##
                     ## The speed-up reference is shared by every arm: ideal scaling is S = N_threads, from 1 thread.
+                    y_limits_layer <-  NULL
+                    y_scale_layer  <-  NULL
+                    panel_y_top    <-  NULL
                     if (metric == "serial_speedup") {
 
                         ref_line <-  dplyr::distinct(df_dev, device, N_num, N_label, n_threads)
                         ref_line$perfect <-  ref_line$n_threads
+                        ##
+                        ## ---- 2026-10-06 (Enzo): each panel's y-axis runs from 0 to ~10% above the highest
+                        ##      plotted value in that panel; the dashed perfect-scaling line is cut where it
+                        ##      leaves the panel (at S = N_threads = the panel top), as a clipped line would be:
+                        panel_y_top <-  df_dev %>%
+                            dplyr::group_by(N_label) %>%
+                            dplyr::summarise(y_top = 1.1 * max(y_val, na.rm = TRUE), .groups = "drop")
+                        ref_line_by_panel <-  split(ref_line, ref_line$N_label, drop = TRUE)
+                        ref_line <-  do.call(rbind, lapply(ref_line_by_panel, function(r) {
+
+                            y_top <-  panel_y_top$y_top[match(r$N_label[1], panel_y_top$N_label)]
+                            kept  <-  r[r$perfect <= y_top, , drop = FALSE]
+                            if (max(r$n_threads) > y_top) {
+
+                                end <-  r[1, , drop = FALSE]
+                                end$n_threads <-  end$perfect <-  y_top
+                                kept <-  rbind(kept, end)
+
+                            }
+                            kept
+
+                        }))
+                        y_limits <-  data.frame( N_label   = rep(panel_y_top$N_label, 2),
+                                                 n_threads = min(df_dev$n_threads),
+                                                 y_val     = c(rep(0, nrow(panel_y_top)), panel_y_top$y_top))
+                        y_limits_layer <-  ggplot2::geom_blank( data = y_limits,
+                                                                mapping = ggplot2::aes(x = n_threads, y = y_val),
+                                                                inherit.aes = FALSE)
+                        y_scale_layer  <-  ggplot2::scale_y_continuous(
+                                               expand = ggplot2::expansion(mult = c(0.03, 0)))
 
                     }
                     ##
@@ -2067,15 +2166,35 @@ fn_paper1_presentation_templates <-  function() {
 
                             thread_markers$vjust <-  1.15 + 2.7 * (seq_len(nrow(thread_markers)) - 1)
                             ##
+                            ## ---- 2026-10-06 (Enzo): on the local-HPC panels the label ends at 55% of the
+                            ##      panel's y-axis top on the x-axis (left of the dotted line), so that the dashed
+                            ##      perfect-scaling line (S = N_threads, cut at the panel top) no longer crosses
+                            ##      it; the laptop labels are unchanged (right edge at the dotted line):
+                            marker_labels <-  thread_markers
+                            marker_labels$label_x <-  marker_labels$after_n_threads
+                            label_hjust <-  1.04
+                            if (dev == "HPC" && !is.null(panel_y_top)) {
+
+                                marker_labels <-  merge(marker_labels, panel_y_top, by = NULL)
+                                marker_labels$label_x <-  0.55 * marker_labels$y_top
+                                label_hjust <-  1
+
+                            }
+                            ##
                             marker_layers <-  list( ggplot2::geom_vline( data = thread_markers,
                                                                          mapping = ggplot2::aes(xintercept = after_n_threads),
                                                                          colour = "grey55",
                                                                          linetype = "dotted",
                                                                          linewidth = 1.1),
-                                                    ggplot2::geom_label( data = thread_markers,
-                                                                         mapping = ggplot2::aes(x = after_n_threads, y = Inf, label = label, vjust = vjust),
+                                                    ## (before 2026-10-06: geom_label(data = thread_markers,
+                                                    ##  mapping = aes(x = after_n_threads, y = Inf, label = label,
+                                                    ##  vjust = vjust), inherit.aes = FALSE, hjust = 1.04, ...))
+                                                    ggplot2::geom_label( data = marker_labels,
+                                                                         mapping = ggplot2::aes(
+                                                                             x = label_x, y = Inf,
+                                                                             label = label, vjust = vjust),
                                                                          inherit.aes = FALSE,
-                                                                         hjust = 1.04,
+                                                                         hjust = label_hjust,
                                                                          colour = "grey30",
                                                                          size = 5.5,
                                                                          lineheight = 0.95,
@@ -2096,9 +2215,51 @@ fn_paper1_presentation_templates <-  function() {
                     ##      it drew a spurious dip at the shared "176/180" tick; the 176-thread points
                     ##      are therefore drawn as open points, not joined to the lines
                     ##      (no point is dropped, and the plotted values CSV is unchanged):
-                    is_176_point <-  df_dev$n_threads == 176
-                    df_line      <-  df_dev[!is_176_point, , drop = FALSE]
-                    df_176       <-  df_dev[is_176_point, , drop = FALSE]
+                    # is_176_point <-  df_dev$n_threads == 176
+                    # df_line      <-  df_dev[!is_176_point, , drop = FALSE]
+                    # df_176       <-  df_dev[is_176_point, , drop = FALSE]
+                    ## (2026-10-06, correction: the 176-thread points are joined to their lines like any other
+                    ##  point, so no open points are drawn)
+                    df_line      <-  df_dev
+                    df_176       <-  df_dev[0, , drop = FALSE]
+                    ##
+                    ## ---- 2026-10-06: the WCP-only lines are drawn after (on top of) the other lines,
+                    ##      dashed and with smaller points, so that where WCP-only and chunking + WCP coincide
+                    ##      (the chunk search selected N_chunks = N_threads/chain) both remain visible;
+                    ##      df_line keeps every other configuration:
+                    is_WCP_only_line <-  df_line$Algorithm_label %in% names(WCP_only_counterpart_names)
+                    df_line_WCP_only <-  df_line[is_WCP_only_line, , drop = FALSE]
+                    df_line          <-  df_line[!is_WCP_only_line, , drop = FALSE]
+                    ##
+                    WCP_only_layers <-  NULL
+                    if (nrow(df_line_WCP_only)) {
+
+                        ## (2026-10-06, Enzo: the WCP-only points have the same size as every other point)
+                        # WCP_only_layers <-  list( ggplot2::geom_point( data      = df_line_WCP_only,
+                        #                                                size      = 3.5),
+                        # WCP_only_layers <-  list( ggplot2::geom_point( data      = df_line_WCP_only,
+                        #                                                size      = 5),
+                        #                           ggplot2::geom_line(  data      = df_line_WCP_only,
+                        #                                                mapping   = ggplot2::aes(
+                        #                                                    linetype = Algorithm_label),
+                        #                                                linewidth = 2))
+                        ## (2026-10-06, Enzo: points 40% smaller and lines 50% thinner, as for every line)
+                        ## (2026-10-06, Enzo, later: points 80% and lines 75% of the original size, i.e.
+                        ##  halfway between the original and the values above)
+                        # WCP_only_layers <-  list( ggplot2::geom_point( data      = df_line_WCP_only,
+                        #                                                size      = 3),
+                        #                           ggplot2::geom_line(  data      = df_line_WCP_only,
+                        #                                                mapping   = ggplot2::aes(
+                        #                                                    linetype = Algorithm_label),
+                        #                                                linewidth = 1))
+                        WCP_only_layers <-  list( ggplot2::geom_point( data      = df_line_WCP_only,
+                                                                       size      = 4),
+                                                  ggplot2::geom_line(  data      = df_line_WCP_only,
+                                                                       mapping   = ggplot2::aes(
+                                                                           linetype = Algorithm_label),
+                                                                       linewidth = 1.5))
+
+                    }
                     ##
                     open_176_layer <-  NULL
                     if (nrow(df_176)) {
@@ -2120,16 +2281,38 @@ fn_paper1_presentation_templates <-  function() {
                         marker_layers +
                         # geom_point(size = 5) +
                         # geom_line(linewidth = 2) +
-                        ggplot2::geom_point(data = df_line, size = 5) +
-                        ggplot2::geom_line(data = df_line, linewidth = 2) +
+                        # ggplot2::geom_point(data = df_line, size = 5) +
+                        ## (2026-10-06, Enzo: points 40% smaller and data lines 50% thinner)
+                        # ggplot2::geom_point(data = df_line, size = 3) +
+                        ## (2026-10-06, Enzo, later: points 80% and lines 75% of the original size)
+                        ggplot2::geom_point(data = df_line, size = 4) +
+                        # ggplot2::geom_line(data = df_line, linewidth = 2) +
+                        ## (2026-10-06: linetype mapped for the shared legend with the dashed
+                        ##  WCP-only lines; every configuration in df_line is drawn solid, as before)
+                        # ggplot2::geom_line( data = df_line,
+                        #                     mapping = ggplot2::aes(linetype = Algorithm_label),
+                        #                     linewidth = 2) +
+                        # ggplot2::geom_line( data = df_line,
+                        #                     mapping = ggplot2::aes(linetype = Algorithm_label),
+                        #                     linewidth = 1) +
+                        ggplot2::geom_line( data = df_line,
+                                            mapping = ggplot2::aes(linetype = Algorithm_label),
+                                            linewidth = 1.5) +
+                        WCP_only_layers +
                         open_176_layer +
                         reference_layer +
+                        y_limits_layer +
+                        y_scale_layer +
                         theme_bw(base_size = 28) +
                         theme( legend.position = ifelse(dev == "Laptop", "bottom", "none"),
                                legend.text = element_text(size = 20),
                                axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
                         colour_scale +
-                        guides(colour = guide_legend(title = NULL, ncol = 2)) +
+                        linetype_scale +
+                        legend_key_width_theme +
+                        # guides(colour = guide_legend(title = NULL, ncol = 2)) +
+                        guides( colour   = guide_legend(title = NULL, ncol = legend_ncol),
+                                linetype = guide_legend(title = NULL, ncol = legend_ncol)) +
                         ylab(y_lab) +
                         ## xlab(expression(log[2](N[threads]~total))) +
                         ## scale_x_continuous(breaks = x_breaks, trans = "log2") +
@@ -2234,6 +2417,13 @@ fn_paper1_presentation_templates <-  function() {
         wcp_counterpart_label <-  c( "BayesMVP + chunking + WCP"                   = "BayesMVP + chunking",
                                      "Stan model (NicoStan) + tape chunking + WCP" = "Stan model (NicoStan) + tape chunking",
                                      "Mplus + WCP"                                 = "Mplus")
+        ##
+        ## ---- 2026-10-06: the WCP-only arms (one chunk per WCP thread) use the same one-thread reference
+        ##      as chunking + WCP, i.e. the counterpart arm without WCP at one chain, scaled to the WCP
+        ##      iteration count:
+        wcp_counterpart_label <-  c( wcp_counterpart_label,
+                                     "BayesMVP + WCP"              = "BayesMVP + chunking",
+                                     "Stan model (NicoStan) + WCP" = "Stan model (NicoStan) + tape chunking")
         ##
         get_serial_time_equivalent <-  function( df,
                                                  dev,
@@ -2878,6 +3068,520 @@ fn_paper1_presentation_templates <-  function() {
                 }
                 ##
                 invisible(combined)
+
+        }
+
+        ##
+        ## ---- 2026-10-06: the E2 scaling tables in the manuscript's format (one table per device, rows
+        ##      grouped by N), so that the paper's tables come from code (they were previously reformatted by
+        ##      hand from the make_ratio_table_tex() and make_smt_gain_table_tex() output). Columns:
+        ##      Configuration (model name), Setting, T_0^eq, T_phys, T_smt, R_{1 -> phys}, R_{1 -> smt},
+        ##      Gain_{1 -> phys} (optional) and Gain_{phys -> smt} (SMT, %):
+        ##        - T_0^eq: get_serial_time_equivalent(), i.e. the arm's own one-thread time, or, for a WCP arm,
+        ##          the counterpart arm without WCP (wcp_counterpart_label) at one chain, scaled to the WCP arm's
+        ##          iteration count;
+        ##        - R_{1 -> t} = (T_t / N_chains,t x t) / (T_0^eq / N_chains,1 x 1), as in make_ratio_table_tex();
+        ##        - Gain_{1 -> phys} = t_phys / R_{1 -> phys}, with R_{1 -> phys} rounded as displayed
+        ##          (3 significant figures) when compute_gain_from_ratio_rounded_as_displayed = TRUE,
+        ##          the convention of the manuscript's tables (2026-10-06);
+        ##        - Gain_{phys -> smt} = 100 ((chains / time at t_smt) / (chains / time at t_phys) - 1), as in
+        ##          make_smt_gain_table_tex();
+        ##        - Setting: N_chunks at 1, t_phys and t_smt threads ("1" if unchunked; "--" for Mplus_standard),
+        ##          or, for a WCP arm, N_chains x N_threads/chain (N_chunks) at t_phys and t_smt (no N_chunks for
+        ##          Mplus_WCP);
+        ##        - bold: the smallest ratio and the largest gain within each N (exact ties are all bold).
+        ##      table_rows maps each Algorithm_label of df to the LaTeX model name of its row, in row order.
+        ##
+        make_paper_scaling_table_tex <-  function( df,
+                                                   dev,
+                                                   t_phys,
+                                                   t_smt,
+                                                   N_vals,
+                                                   table_rows,
+                                                   caption_lines,
+                                                   labels,
+                                                   file_path,
+                                                   include_gain_1_to_phys = TRUE,
+                                                   compute_gain_from_ratio_rounded_as_displayed = TRUE,
+                                                   main_tex_spacer_comment_layout = c( "local_HPC_table",
+                                                                                       "laptop_table"),
+                                                   two_line_WCP_setting   = TRUE,
+                                                   preamble_lines         = character(0),
+                                                   t_serial               = 1,
+                                                   ## (2026-10-06) a value within this relative distance of
+                                                   ## the bold value of its column at the same N gets
+                                                   ## near_tie_marker_tex (0 = no near-tie marks):
+                                                   near_tie_relative_tolerance = 0.01,
+                                                   near_tie_marker_tex         = "$^{\\P}$",
+                                                   ## (2026-10-06, Enzo) the last column gives Gain_{1 -> smt} =
+                                                   ## t_smt / R_{1 -> smt} (R as displayed), with the SMT gain
+                                                   ## Gain_{phys -> smt} (%) in brackets:
+                                                   last_column_gain_1_to_smt_with_SMT_gain_in_brackets = TRUE,
+                                                   ## (2026-10-07) for a WCP row, the SMT columns use the
+                                                   ## fastest (highest chain throughput) of these thread
+                                                   ## budgets (NULL = t_smt only, as before); a chosen budget
+                                                   ## other than t_smt gets the marker below, and its R and
+                                                   ## Gain use its own N_threads:
+                                                   WCP_rows_SMT_columns_fastest_of_thread_budgets = NULL,
+                                                   WCP_rows_SMT_columns_other_budget_marker_tex   =
+                                                       "$^{\\ddagger}$",
+                                                   ## (2026-10-07) every measured configuration (e.g.
+                                                   ## views$configurations; NULL = no allocation near-tie
+                                                   ## marks): a WCP row's allocation gets the marker below if
+                                                   ## another allocation with the same N_threads (each at its
+                                                   ## fastest N_chunks) was within near_tie_relative_tolerance
+                                                   ## of its chain throughput:
+                                                   allocation_candidates                    = NULL,
+                                                   allocation_near_tie_marker_tex           = "$^{\\S}$"
+        ) {
+
+                fmt_time_or_ratio <-  function(x) {
+
+                        ifelse(is.finite(x), trimws(formatC(x, digits = 3, format = "fg")), "---")
+
+                }
+                fmt_speed_up <-  function(x) {
+
+                        speed_up <-  sub("\\.$", "", trimws(formatC(x, digits = 3, format = "fg", flag = "#")))
+                        ifelse(is.finite(x), paste0(speed_up, "$\\times$"), "---")
+
+                }
+                fmt_SMT_gain <-  function(x) {
+
+                        ifelse(is.finite(x), formatC(x, format = "f", digits = 1, flag = "+"), "---")
+
+                }
+                bold_if <-  function(text, is_best) {
+
+                        ifelse(is_best %in% TRUE, paste0("\\textbf{", text, "}"), text)
+
+                }
+                is_min  <-  function(x) is.finite(x) & x == min(x[is.finite(x)])
+                is_max  <-  function(x) is.finite(x) & x == max(x[is.finite(x)])
+                ##
+                ## ---- 2026-10-06: near-tie marks - a value which is not bold, but within
+                ##      near_tie_relative_tolerance (1%) of the bold value of its column at the same N, gets
+                ##      near_tie_marker_tex: for the ratios (lower is better), R <= (1 + tolerance) x the
+                ##      smallest R; for Gain_{1 -> phys} (a speed-up), Gain >= (1 - tolerance) x the largest;
+                ##      for Gain_{phys -> smt} (SMT, %), the same on the speed-up factor 1 + Gain / 100:
+                is_near_min <-  function(x) is.finite(x) & !is_min(x) &
+                                            x <= (1 + near_tie_relative_tolerance) * min(x[is.finite(x)])
+                is_near_max <-  function(x) is.finite(x) & !is_max(x) &
+                                            x >= (1 - near_tie_relative_tolerance) * max(x[is.finite(x)])
+                is_near_max_SMT_gain <-  function(x) is_near_max(1 + x / 100)
+                mark_if_near_tie <-  function(text, is_near_tie) {
+
+                        ifelse(is_near_tie %in% TRUE, paste0(text, near_tie_marker_tex), text)
+
+                }
+                any_near_tie_marked <-  FALSE
+                ##
+                ## ---- 2026-10-07: allocation near-ties of the WCP rows (only when allocation_candidates is
+                ##      given). The candidates of each WCP row are those of its own selection: for WCP-only,
+                ##      N_chunks = N_threads/chain; for chunking + WCP and Mplus_WCP, any N_chunks. Each
+                ##      allocation (N_chains x N_threads/chain) is taken at its fastest N_chunks, and the other
+                ##      allocations with the same N_threads whose chain throughput is within
+                ##      near_tie_relative_tolerance of that of the selected allocation are returned
+                ##      (as "N_chains \times N_threads/chain"), for the caption:
+                WCP_row_candidate_rules <-  list(
+                    "BayesMVP + WCP"                              = list( algorithm = "MD_BayesMVP_WCP",
+                                                                          WCP_only  = TRUE),
+                    "BayesMVP + chunking + WCP"                   = list( algorithm = "MD_BayesMVP_WCP",
+                                                                          WCP_only  = FALSE),
+                    "Stan model (NicoStan) + WCP"                 = list( algorithm = "AD_Stan_WCP",
+                                                                          WCP_only  = TRUE),
+                    "Stan model (NicoStan) + tape chunking + WCP" = list( algorithm = "AD_Stan_WCP",
+                                                                          WCP_only  = FALSE),
+                    "Mplus + WCP"                                 = list( algorithm = "Mplus_WCP",
+                                                                          WCP_only  = FALSE))
+                allocation_near_tie_runners_up <-  function( label,
+                                                             N_value,
+                                                             threads,
+                                                             N_chains_selected,
+                                                             threads_per_chain_selected
+                ) {
+
+                        if (is.null(allocation_candidates) || is.na(threads) ||
+                            !label %in% names(WCP_row_candidate_rules)) return(character(0))
+                        rule <-  WCP_row_candidate_rules[[label]]
+                        candidates <-  as.data.frame(allocation_candidates)
+                        candidates <-  candidates[ candidates$device    == dev &
+                                                   candidates$N_num     == N_value &
+                                                   candidates$algorithm == rule$algorithm &
+                                                   candidates$n_threads == threads, , drop = FALSE]
+                        if (rule$WCP_only) {
+
+                            candidates <-  candidates[ candidates$num_chunks == candidates$threads_per_chain, ,
+                                                       drop = FALSE]
+
+                        }
+                        if (nrow(candidates) == 0) return(character(0))
+                        ## (each allocation at its fastest N_chunks)
+                        allocation_key <-  paste0( candidates$n_chains, " \\times ",
+                                                   candidates$threads_per_chain)
+                        fastest_by_allocation <-  tapply( X     = candidates$chain_rate,
+                                                          INDEX = allocation_key,
+                                                          FUN   = max)
+                        selected_key <-  paste0(N_chains_selected, " \\times ", threads_per_chain_selected)
+                        if (!selected_key %in% names(fastest_by_allocation)) return(character(0))
+                        selected_rate <-  fastest_by_allocation[[selected_key]]
+                        others <-  fastest_by_allocation[names(fastest_by_allocation) != selected_key]
+                        if (any(others > selected_rate * (1 + 1e-9))) {
+
+                            message(paste0( "\033[31mmake_paper_scaling_table_tex: another allocation is ",
+                                            "faster than the selected ", selected_key, " for ", label,
+                                            " (", dev, ", N = ", N_value, ", N_threads = ", threads,
+                                            ").\033[0m"))
+
+                        }
+                        names(others)[others >= (1 - near_tie_relative_tolerance) * selected_rate]
+
+                }
+                allocation_near_tie_caption_entries <-  character(0)
+                ##
+                ## (the %%%% spacer comment lines of the corresponding table in Main.tex)
+                main_tex_spacer_comment_layout <-  match.arg(main_tex_spacer_comment_layout)
+                is_local_HPC_layout <-  main_tex_spacer_comment_layout == "local_HPC_table"
+                ##
+                n_columns <-  if (include_gain_1_to_phys) 9 else 8
+                R_label   <-  function(t) paste0("$R_{1 \\rightarrow ", t, "}$")
+                G_label   <-  function(a, b) paste0("$\\text{Gain}_{", a, " \\rightarrow ", b, "}$")
+                header    <-  paste0( "Configuration & Setting & $T_0^{\\mathrm{eq}}$ & ",
+                                      "$T_{", t_phys, "}$ & $T_{", t_smt, "}$ & ",
+                                      R_label(t_phys), " & ", R_label(t_smt), " & ",
+                                      if (include_gain_1_to_phys) paste0(G_label(1, t_phys), " & ") else "",
+                                      # "\\makecell[r]{", G_label(t_phys, t_smt), "\\\\(SMT, \\%)} \\\\")
+                                      if (last_column_gain_1_to_smt_with_SMT_gain_in_brackets) {
+                                          paste0( "\\makecell[r]{", G_label(1, t_smt), " \\\\ (",
+                                                  G_label(t_phys, t_smt), ", SMT, \\%)} \\\\")
+                                      } else {
+                                          paste0("\\makecell[r]{", G_label(t_phys, t_smt), "\\\\(SMT, \\%)} \\\\")
+                                      })
+                ##
+                lines <-  c( "\\begin{table}[H]", "%%%%", "\\centering", "%%%%", "\\small", "%%%%",
+                             "\\caption{", "\\scriptfootnotesize{", caption_lines, "}}", "%%%%",
+                             paste0("\\label{", labels, "}"), "%%%%",
+                             preamble_lines,
+                             "\\PaperOneFitTable{",
+                             paste0("\\begin{tabular}{ll", paste(rep("r", n_columns - 2), collapse = ""), "}"),
+                             if (is_local_HPC_layout) "%%%%",
+                             "\\toprule", header,
+                             if (!is_local_HPC_layout) "%%%%",
+                             "\\midrule")
+                ##
+                for (N_value in N_vals) {
+
+                    cells <-  lapply(X = names(table_rows), FUN = function(label) {
+
+                        is_WCP   <-  label %in% names(wcp_counterpart_label)
+                        is_Mplus <-  grepl("^Mplus", label)
+                        at <-  function(threads, column) {
+
+                                if (is.na(threads)) NA else get_val(df, dev, N_value, label, threads, column)
+
+                        }
+                        T_0_eq     <-  get_serial_time_equivalent(df, dev, N_value, label, t_serial, t_phys)
+                        T_0_eq_smt <-  get_serial_time_equivalent(df, dev, N_value, label, t_serial, t_smt)
+                        if (is.finite(T_0_eq) && is.finite(T_0_eq_smt) &&
+                            abs(T_0_eq - T_0_eq_smt) > 1e-12 * T_0_eq) {
+
+                            message(paste0( "\033[31mmake_paper_scaling_table_tex: T_0^eq differs between ",
+                                            t_phys, " and ", t_smt, " threads for ", label,
+                                            " (", dev, ", N = ", N_value, ").\033[0m"))
+
+                        }
+                        chains_0    <-  at(t_serial, "N_chains")
+                        ## (the serial equivalent is one chain)
+                        chains_0    <-  if (is.na(chains_0)) 1 else chains_0
+                        smt_budget  <-  get_stand_in_budget(df, dev, N_value, label, t_smt, t_phys)
+                        ##
+                        ## ---- 2026-10-07: for a WCP row, the SMT columns use the fastest (highest chain
+                        ##      throughput) of WCP_rows_SMT_columns_fastest_of_thread_budgets (on the local-HPC,
+                        ##      176 and 180, since the WCP allocations with N_threads/chain = 11, 22 or 44 use 176
+                        ##      threads); a budget other than t_smt is marked, and T_0^eq, R and Gain_{1 -> smt}
+                        ##      use its own N_threads:
+                        is_other_SMT_budget <-  FALSE
+                        if (is_WCP && length(WCP_rows_SMT_columns_fastest_of_thread_budgets) > 0) {
+
+                            budget_chain_throughputs <-  vapply(
+                                X         = WCP_rows_SMT_columns_fastest_of_thread_budgets,
+                                FUN       = function(threads) at(threads, "N_chains") / at(threads, "time_avg"),
+                                FUN.VALUE = numeric(1))
+                            if (any(is.finite(budget_chain_throughputs))) {
+
+                                smt_budget <-  WCP_rows_SMT_columns_fastest_of_thread_budgets[
+                                                   which.max(budget_chain_throughputs)]
+                                is_other_SMT_budget <-  smt_budget != t_smt
+                                T_0_eq_smt <-  get_serial_time_equivalent( df, dev, N_value, label,
+                                                                           t_serial, smt_budget)
+
+                            }
+
+                        }
+                        T_phys      <-  at(t_phys, "time_avg")
+                        T_smt       <-  at(smt_budget, "time_avg")
+                        chains_phys <-  at(t_phys, "N_chains")
+                        chains_smt  <-  at(smt_budget, "N_chains")
+                        R_phys <-  (T_phys / chains_phys * t_phys) / (T_0_eq / chains_0 * t_serial)
+                        R_smt  <-  (T_smt / chains_smt * smt_budget) / (T_0_eq_smt / chains_0 * t_serial)
+                        ##
+                        allocation <-  function(threads) {
+
+                                if (is.na(threads)) return("---")
+                                out <-  paste0( "$", at(threads, "N_chains"), "\\times",
+                                                at(threads, "threads_per_chain"), "$")
+                                if (!is_Mplus) out <-  paste0(out, " (", at(threads, "num_chunks"), ")")
+                                out
+
+                        }
+                        ## (a stand-in budget below t_smt, from get_stand_in_budget(), is marked with an asterisk)
+                        # is_stand_in    <-  !is.na(smt_budget) && smt_budget != t_smt
+                        # allocation_smt <-  paste0(allocation(smt_budget), if (is_stand_in) "$^{*}$" else "")
+                        ## ---- 2026-10-07: a budget chosen from WCP_rows_SMT_columns_fastest_of_thread_budgets
+                        ##      is not a stand-in (it gets WCP_rows_SMT_columns_other_budget_marker_tex instead),
+                        ##      and an allocation with a near-tie (allocation_near_tie_runners_up()) gets
+                        ##      allocation_near_tie_marker_tex:
+                        is_stand_in     <-  !is.na(smt_budget) && smt_budget != t_smt && !is_other_SMT_budget
+                        runners_up_phys <-  if (is_WCP) {
+                                                allocation_near_tie_runners_up( label, N_value, t_phys,
+                                                                                at(t_phys, "N_chains"),
+                                                                                at(t_phys, "threads_per_chain"))
+                                            } else character(0)
+                        runners_up_smt  <-  if (is_WCP) {
+                                                allocation_near_tie_runners_up( label, N_value, smt_budget,
+                                                                                at(smt_budget, "N_chains"),
+                                                                                at(smt_budget,
+                                                                                   "threads_per_chain"))
+                                            } else character(0)
+                        allocation_phys <-  paste0( allocation(t_phys),
+                                                    if (length(runners_up_phys)) {
+                                                        allocation_near_tie_marker_tex
+                                                    } else "")
+                        allocation_smt  <-  paste0( allocation(smt_budget),
+                                                    if (is_stand_in) "$^{*}$" else "",
+                                                    if (is_other_SMT_budget) {
+                                                        WCP_rows_SMT_columns_other_budget_marker_tex
+                                                    } else "",
+                                                    if (length(runners_up_smt)) {
+                                                        allocation_near_tie_marker_tex
+                                                    } else "")
+                        setting <-  if (is_WCP && two_line_WCP_setting && !is_Mplus) {
+
+                            # paste0("\\makecell[tl]{", allocation(t_phys), ",\\\\", allocation_smt, "}")
+                            paste0("\\makecell[tl]{", allocation_phys, ",\\\\", allocation_smt, "}")
+
+                        } else if (is_WCP) {
+
+                            # paste0(allocation(t_phys), ", ", allocation_smt)
+                            paste0(allocation_phys, ", ", allocation_smt)
+
+                        } else if (is_Mplus) {
+
+                            "--"
+
+                        } else {
+
+                            chunks <-  c( at(t_serial, "num_chunks"),
+                                          at(t_phys, "num_chunks"),
+                                          at(smt_budget, "num_chunks"))
+                            if (all(chunks %in% 1)) "1" else paste(chunks, collapse = ", ")
+
+                        }
+                        ## (Gain_{1 -> phys} from the ratio rounded as displayed, as in the manuscript's tables)
+                        use_displayed_ratio <-  compute_gain_from_ratio_rounded_as_displayed && is.finite(R_phys)
+                        R_phys_for_gain <-  if (use_displayed_ratio) {
+                                                as.numeric(fmt_time_or_ratio(R_phys))
+                                            } else R_phys
+                        ## (2026-10-06: Gain_{1 -> smt} = t_smt / R_{1 -> smt}, R as displayed, in the same way)
+                        use_displayed_ratio_smt <-  compute_gain_from_ratio_rounded_as_displayed &&
+                                                    is.finite(R_smt)
+                        R_smt_for_gain <-  if (use_displayed_ratio_smt) {
+                                               as.numeric(fmt_time_or_ratio(R_smt))
+                                           } else R_smt
+                        ##
+                        # list( name = table_rows[[label]], setting = setting,
+                        #       T_0_eq = T_0_eq, T_phys = T_phys, T_smt = T_smt, R_phys = R_phys, R_smt = R_smt,
+                        #       gain_1_to_phys = t_phys / R_phys_for_gain,
+                        #       gain_1_to_smt  = t_smt / R_smt_for_gain,
+                        #       gain_SMT = 100 * ((chains_smt / T_smt) / (chains_phys / T_phys) - 1))
+                        ## ---- 2026-10-07: Gain_{1 -> smt} with the N_threads of the budget actually used
+                        ##      (e.g. 176), and the allocation near-ties for the caption:
+                        list( name = table_rows[[label]], setting = setting,
+                              T_0_eq = T_0_eq, T_phys = T_phys, T_smt = T_smt, R_phys = R_phys, R_smt = R_smt,
+                              gain_1_to_phys = t_phys / R_phys_for_gain,
+                              gain_1_to_smt  = (if (is_other_SMT_budget) smt_budget else t_smt) /
+                                               R_smt_for_gain,
+                              gain_SMT = 100 * ((chains_smt / T_smt) / (chains_phys / T_phys) - 1),
+                              allocation_near_ties = list( list( threads    = t_phys,
+                                                                 runners_up = runners_up_phys),
+                                                           list( threads    = smt_budget,
+                                                                 runners_up = runners_up_smt)))
+
+                    })
+                    ##
+                    ## ---- 2026-10-07: caption entries for the allocation near-ties of this N
+                    for (cell in cells) for (near_tie in cell$allocation_near_ties) {
+
+                        if (length(near_tie$runners_up)) {
+
+                            N_tex <-  gsub( ",", "{,}", fn_paper1_format_number_commas_from_10000(N_value),
+                                            fixed = TRUE)
+                            allocation_near_tie_caption_entries <-  c(
+                                allocation_near_tie_caption_entries,
+                                paste0( cell$name, " at $N{=}", N_tex, "$ and $N_{\\text{threads}} = ",
+                                        near_tie$threads, "$ (",
+                                        paste0("$", near_tie$runners_up, "$", collapse = " and "), ")"))
+
+                        }
+
+                    }
+                    ##
+                    column <-  function(name) {
+
+                            vapply( X = cells,
+                                    FUN = function(cell) as.numeric(cell[[name]]),
+                                    FUN.VALUE = numeric(1))
+
+                    }
+                    R_phys         <-  column("R_phys")
+                    R_smt          <-  column("R_smt")
+                    gain_1_to_phys <-  column("gain_1_to_phys")
+                    gain_SMT       <-  column("gain_SMT")
+                    gain_1_to_smt  <-  column("gain_1_to_smt")
+                    ##
+                    row_lines <-  vapply(X = seq_along(cells), FUN = function(i) {
+
+                        # gain_1_to_phys_cell <-  bold_if( fmt_speed_up(gain_1_to_phys[i]),
+                        #                                  is_max(gain_1_to_phys)[i])
+                        # values <-  c( cells[[i]]$name, cells[[i]]$setting,
+                        #               fmt_time_or_ratio(cells[[i]]$T_0_eq),
+                        #               fmt_time_or_ratio(cells[[i]]$T_phys),
+                        #               fmt_time_or_ratio(cells[[i]]$T_smt),
+                        #               bold_if(fmt_time_or_ratio(R_phys[i]), is_min(R_phys)[i]),
+                        #               bold_if(fmt_time_or_ratio(R_smt[i]), is_min(R_smt)[i]),
+                        #               if (include_gain_1_to_phys) gain_1_to_phys_cell,
+                        #               bold_if(fmt_SMT_gain(gain_SMT[i]), is_max(gain_SMT)[i]))
+                        ## ---- 2026-10-06: as above, with the near-tie mark after a value within 1% of the
+                        ##      bold one:
+                        gain_1_to_phys_cell <-  mark_if_near_tie( bold_if( fmt_speed_up(gain_1_to_phys[i]),
+                                                                           is_max(gain_1_to_phys)[i]),
+                                                                  is_near_max(gain_1_to_phys)[i])
+                        values <-  c( cells[[i]]$name, cells[[i]]$setting,
+                                      fmt_time_or_ratio(cells[[i]]$T_0_eq),
+                                      fmt_time_or_ratio(cells[[i]]$T_phys),
+                                      fmt_time_or_ratio(cells[[i]]$T_smt),
+                                      mark_if_near_tie( bold_if(fmt_time_or_ratio(R_phys[i]), is_min(R_phys)[i]),
+                                                        is_near_min(R_phys)[i]),
+                                      mark_if_near_tie( bold_if(fmt_time_or_ratio(R_smt[i]), is_min(R_smt)[i]),
+                                                        is_near_min(R_smt)[i]),
+                                      if (include_gain_1_to_phys) gain_1_to_phys_cell,
+                                      mark_if_near_tie( bold_if(fmt_SMT_gain(gain_SMT[i]), is_max(gain_SMT)[i]),
+                                                        is_near_max_SMT_gain(gain_SMT)[i]))
+                        ## ---- 2026-10-06 (Enzo): last column = Gain_{1 -> smt} (SMT gain in brackets); the bold
+                        ##      and near-tie marks of Gain_{1 -> smt} are those of R_{1 -> smt} (the same
+                        ##      ranking), and the SMT gain keeps its own marks:
+                        if (last_column_gain_1_to_smt_with_SMT_gain_in_brackets) {
+
+                            gain_1_to_smt_part <-  mark_if_near_tie( bold_if( fmt_speed_up(gain_1_to_smt[i]),
+                                                                              is_min(R_smt)[i]),
+                                                                     is_near_min(R_smt)[i])
+                            values[length(values)] <-  paste0( gain_1_to_smt_part,
+                                                               " (", values[length(values)], ")")
+
+                        }
+                        paste0(paste(values, collapse = " & "), " \\\\")
+
+                    }, FUN.VALUE = character(1))
+                    ## (whether this N has any near-tie mark, for the caption line below)
+                    any_near_tie_marked <-  any_near_tie_marked ||
+                                            any(is_near_min(R_phys) | is_near_min(R_smt) |
+                                                (include_gain_1_to_phys & is_near_max(gain_1_to_phys)) |
+                                                is_near_max_SMT_gain(gain_SMT))
+                    ##
+                    # N_header <-  paste0( "\\multicolumn{", n_columns, "}{l}{$N=",
+                    #                      fn_paper1_format_number_commas_from_10000(N_value), "$} \\\\")
+                    ## (2026-10-06: thousands separator as in Main.tex, i.e. $N=10{,}000$)
+                    N_header <-  paste0( "\\multicolumn{", n_columns, "}{l}{$N=",
+                                         gsub(",", "{,}", fn_paper1_format_number_commas_from_10000(N_value),
+                                              fixed = TRUE),
+                                         "$} \\\\")
+                    ## (the local-HPC table in Main.tex has no spacer comment after its last N header)
+                    is_last_N <-  N_value == N_vals[length(N_vals)]
+                    lines <-  c( lines, "%%%%", N_header,
+                                 if (!(is_local_HPC_layout && is_last_N)) "%%%%",
+                                 row_lines, "%%%%", "\\midrule")
+
+                }
+                ##
+                lines <-  c( lines, "%%%%", "\\end{tabular}",
+                             if (is_local_HPC_layout) "%%%%",
+                             "}", "%%%%", "\\end{table}")
+                ##
+                ## ---- 2026-10-06: when a near-tie mark is used, the caption explains it, directly after the
+                ##      caption line on the bold values (ending with a line break if that line ends with one):
+                if (any_near_tie_marked) {
+
+                    near_tie_caption_line <-  paste0( "        ", near_tie_marker_tex, "within $",
+                                                      100 * near_tie_relative_tolerance,
+                                                      "\\%$ of the bold value (i.e., essentially tied).")
+                    bold_caption_line_index <-  grep("Bold marks", lines, fixed = TRUE)[1]
+                    if (is.na(bold_caption_line_index)) bold_caption_line_index <-  match("}}", lines) - 1
+                    if (grepl("\\\\\\\\\\s*$", lines[bold_caption_line_index])) {
+
+                        near_tie_caption_line <-  paste0(near_tie_caption_line, " \\\\")
+
+                    }
+                    lines <-  append(lines, near_tie_caption_line, after = bold_caption_line_index)
+
+                }
+                ##
+                ## ---- 2026-10-07: when an allocation near-tie mark is used, the caption names the other
+                ##      allocations (within near_tie_relative_tolerance), directly after the near-tie line above
+                ##      (or, if there is none, after the caption line on the bold values; with a line break if
+                ##      that line ends with one):
+                if (length(allocation_near_tie_caption_entries)) {
+
+                    ## (one entry per line, so that no source line passes the separator line of Main.tex,
+                    ##  i.e. 114 characters; an entry which would is broken before its bracket of allocations)
+                    entry_lines <-  paste0( "        ", allocation_near_tie_caption_entries,
+                                            c(rep(";", length(allocation_near_tie_caption_entries) - 1), "."))
+                    entry_lines <-  unlist(lapply(X = entry_lines, FUN = function(entry_line) {
+
+                        if (nchar(entry_line) <= 114) return(entry_line)
+                        bracket_start <-  regexpr(" ($", entry_line, fixed = TRUE)[1]
+                        if (bracket_start < 0) return(entry_line)
+                        c( substr(entry_line, 1, bracket_start - 1),
+                           paste0("        ", substr(entry_line, bracket_start + 1, nchar(entry_line))))
+
+                    }))
+                    allocation_near_tie_caption_lines <-  c( paste0( "        ", allocation_near_tie_marker_tex,
+                                                                     "another allocation with the same ",
+                                                                     "$N_{\\text{threads}}$ was within $",
+                                                                     100 * near_tie_relative_tolerance,
+                                                                     "\\%$ (i.e., essentially tied):"),
+                                                             entry_lines)
+                    anchor_line_index <-  grep(paste0(near_tie_marker_tex, "within $"), lines, fixed = TRUE)[1]
+                    if (is.na(anchor_line_index)) {
+
+                        anchor_line_index <-  grep("Bold marks", lines, fixed = TRUE)[1]
+
+                    }
+                    if (is.na(anchor_line_index)) anchor_line_index <-  match("}}", lines) - 1
+                    if (grepl("\\\\\\\\\\s*$", lines[anchor_line_index])) {
+
+                        last_line <-  length(allocation_near_tie_caption_lines)
+                        allocation_near_tie_caption_lines[last_line] <-  paste0(
+                            allocation_near_tie_caption_lines[last_line], " \\\\")
+
+                    }
+                    lines <-  append(lines, allocation_near_tie_caption_lines, after = anchor_line_index)
+
+                }
+                ##
+                writeLines(lines, file_path)
+                message(paste0("\033[32mWrote: ", file_path, "\033[0m"))
+                ##
+                return(invisible(lines))
 
         }
 

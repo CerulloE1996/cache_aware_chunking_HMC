@@ -22,6 +22,10 @@
 ##   - fn_paper1_burnin_checks():                       checks of the existing burn-in sentences against the current results;
 ##   - fn_paper1_burnin_fill_placeholders():            a filled copy of the draft section (the draft itself is not changed);
 ##   - fn_paper1_burnin_write_Stan_bundle():            writes the figures, CSV files, the research-output table and the filled draft.
+##   - fn_paper1_burnin_select_lowest_time_over_all_burn_chains(): per N, the fastest configuration over all
+##                                                      burn-in chain counts, and its near-ties (the rule of
+##                                                      table table:paper1_burnin_selected_configurations);
+##   - fn_paper1_burnin_selected_configurations_table_rows_tex(): the body rows of that table.
 ##
 ## This file only defines functions. It never runs sampling, compiles anything, or edits the benchmark scripts or their saved .rds files.
 ##
@@ -1550,6 +1554,196 @@ fn_paper1_burnin_write_Stan_bundle <-  function( BayesMVP_rows_by_device,
                                checks             = checks)))
 
 }
+
+
+##
+## ---- fn_paper1_burnin_select_lowest_time_over_all_burn_chains: fastest configuration per N: ----------------
+##
+## For one implementation and device: per N, the configuration with the lowest mean seconds per (joint) burn-in
+## iteration across repetitions, over ALL burn-in chain counts (the selection rule of table
+## table:paper1_burnin_selected_configurations), and every near-tie of it:
+##   - within 1%:                  mean within near_tie_relative_gap (0.01 = 1%) of the selected configuration;
+##   - within run-to-run noise:    the difference in means is smaller than the coefficient of variation across
+##                                 repetitions of BOTH configurations, and the other configuration was faster
+##                                 in at least one repetition (repetitions paired by run_number, i.e., for the
+##                                 NicoStan burn-in studies, by the same trajectory-length draws).
+## rows: one row per run, with the columns N, n_chains_burnin, n_threads_per_chain, num_chunks, run_number,
+## sec_per_iter (num_chunks = 1 for a configuration without chunking, e.g. AD_Stan).
+##
+fn_paper1_burnin_select_lowest_time_over_all_burn_chains <-  function( rows,
+                                                                       near_tie_relative_gap
+) {
+
+        required_columns <-  c("N", "n_chains_burnin", "n_threads_per_chain", "num_chunks", "run_number",
+                               "sec_per_iter")
+        if (!all(required_columns %in% names(x = rows))) {
+              stop("fn_paper1_burnin_select_lowest_time_over_all_burn_chains: rows need the columns ",
+                   paste(required_columns, collapse = ", "), ".")
+        }
+        if (!is.numeric(x = near_tie_relative_gap) || length(x = near_tie_relative_gap) != 1 ||
+            near_tie_relative_gap < 0) {
+              stop("fn_paper1_burnin_select_lowest_time_over_all_burn_chains: near_tie_relative_gap must be ",
+                   "one non-negative number.")
+        }
+        ##
+        rows$configuration_label <-  paste0( rows$n_chains_burnin, " x ", rows$n_threads_per_chain, "/",
+                                             rows$num_chunks)
+        ##
+        selections <-  list()
+        for (this_N in sort(x = unique(x = rows$N))) {
+
+              N_rows <-  rows[rows$N == this_N, , drop = FALSE]
+              ##
+              ## ---- mean and coefficient of variation over the repetitions of each configuration:
+              ##
+              means <-  stats::aggregate( sec_per_iter ~ configuration_label + n_chains_burnin +
+                                                         n_threads_per_chain + num_chunks,
+                                          data = N_rows,
+                                          FUN  = mean)
+              sds   <-  stats::aggregate( sec_per_iter ~ configuration_label,
+                                          data = N_rows,
+                                          FUN  = stats::sd)
+              means$cv <-  sds$sec_per_iter[match( x     = means$configuration_label,
+                                                   table = sds$configuration_label)] / means$sec_per_iter
+              means <-  means[order(means$sec_per_iter), , drop = FALSE]
+              ##
+              selected      <-  means[1, , drop = FALSE]
+              selected_runs <-  N_rows[N_rows$configuration_label == selected$configuration_label,
+                                       c("run_number", "sec_per_iter")]
+              ##
+              ## ---- near-ties of the selected configuration:
+              ##
+              ties_within_1_percent <-  character(0)
+              ties_within_noise     <-  character(0)
+              for (other_index in seq_len(length.out = nrow(x = means))[-1]) {
+
+                    other      <-  means[other_index, , drop = FALSE]
+                    gap        <-  other$sec_per_iter / selected$sec_per_iter - 1
+                    other_runs <-  N_rows[N_rows$configuration_label == other$configuration_label,
+                                          c("run_number", "sec_per_iter")]
+                    paired     <-  merge( x = selected_runs, y = other_runs, by = "run_number",
+                                          suffixes = c("_selected", "_other"))
+                    faster_in_a_repetition <-  any(paired$sec_per_iter_other < paired$sec_per_iter_selected)
+                    gap_label  <-  paste0( other$configuration_label, " (+",
+                                           formatC(x = 100 * gap, digits = 1, format = "f"), "%)")
+                    ##
+                    if (gap <= near_tie_relative_gap) {
+                          ties_within_1_percent <-  c(ties_within_1_percent, gap_label)
+                    } else if (gap < min(selected$cv, other$cv) && faster_in_a_repetition) {
+                          ties_within_noise <-  c(ties_within_noise, gap_label)
+                    }
+
+              }
+              ##
+              ## ---- configuration type (as in table table:paper1_configurations) and grid edges:
+              ##
+              configuration_type <-  if (selected$n_threads_per_chain == 1 && selected$num_chunks == 1) {
+                                           "neither"
+                                     } else if (selected$n_threads_per_chain == 1) {
+                                           "chunking-only"
+                                     } else if (selected$num_chunks == selected$n_threads_per_chain) {
+                                           "WCP-only"
+                                     } else "chunking + WCP"
+              same_chains_rows <-  N_rows[N_rows$n_chains_burnin == selected$n_chains_burnin, , drop = FALSE]
+              ##
+              ## ---- the N_chunks grid excludes WCP-only (whose N_chunks is set by N_threads/chain):
+              ##
+              chunk_grid_rows  <-  N_rows[!(N_rows$n_threads_per_chain > 1 &
+                                            N_rows$num_chunks == N_rows$n_threads_per_chain), , drop = FALSE]
+              ##
+              selections[[length(x = selections) + 1]] <-  data.frame(
+                    N                                  = this_N,
+                    n_chains_burnin                    = selected$n_chains_burnin,
+                    n_threads_per_chain                = selected$n_threads_per_chain,
+                    num_chunks                         = selected$num_chunks,
+                    configuration_label                = selected$configuration_label,
+                    configuration_type                 = configuration_type,
+                    mean_sec_per_iter                  = selected$sec_per_iter,
+                    cv_sec_per_iter                    = selected$cv,
+                    largest_num_chunks_tested          = configuration_type != "WCP-only" &&
+                                                         selected$num_chunks == max(chunk_grid_rows$num_chunks),
+                    largest_n_threads_per_chain_tested = selected$n_threads_per_chain ==
+                                                         max(same_chains_rows$n_threads_per_chain),
+                    near_ties_within_1_percent         = paste(ties_within_1_percent, collapse = "; "),
+                    near_ties_within_run_to_run_noise  = paste(ties_within_noise, collapse = "; "),
+                    stringsAsFactors                   = FALSE)
+
+        }
+        ##
+        return(do.call(what = rbind, args = selections))
+
+}
+
+
+##
+## ---- fn_paper1_burnin_selected_configurations_table_rows_tex: body rows of the selected-configurations table: -
+##
+## selections_by_model: a named list (model block title, e.g. "NicoStan+BayesMVP") of named lists (device:
+## "HPC", "Laptop") of the data frames returned by fn_paper1_burnin_select_lowest_time_over_all_burn_chains().
+## Each device gives one row of N_burn_chains x N_threads/chain/N_chunks entries, with the markers of the table
+## caption (section mark = largest N_chunks tested; pilcrow = near-tie within 1%; dagger = near-tie within
+## run-to-run noise), and one row of the mean seconds per (joint) burn-in iteration, in brackets.
+##
+fn_paper1_burnin_selected_configurations_table_rows_tex <-  function( selections_by_model,
+                                                                      N_values,
+                                                                      file_path
+) {
+
+        device_full_name <-  c(HPC = "local-HPC", Laptop = "laptop")
+        table_lines      <-  character(0)
+        ##
+        for (model_title in names(x = selections_by_model)) {
+
+              table_lines <-  c( table_lines,
+                                 "%%%%", "\\hline", "%%%%",
+                                 paste0( "\\multicolumn{", length(x = N_values) + 1, "}{l}{", model_title,
+                                         "} \\\\"),
+                                 "%%%%")
+              for (device in names(x = selections_by_model[[model_title]])) {
+
+                    selections <-  selections_by_model[[model_title]][[device]]
+                    entries    <-  character(0)
+                    seconds    <-  character(0)
+                    for (this_N in N_values) {
+
+                          s <-  selections[selections$N == this_N, , drop = FALSE]
+                          if (nrow(x = s) != 1) {
+                                entries <-  c(entries, "-")
+                                seconds <-  c(seconds, "")
+                                next
+                          }
+                          markers <-  paste0(
+                                if (s$largest_num_chunks_tested) "\\S" else "",
+                                if (nzchar(x = s$near_ties_within_1_percent)) "\\P" else "",
+                                if (nzchar(x = s$near_ties_within_run_to_run_noise)) "\\dagger" else "")
+                          entries <-  c( entries,
+                                         paste0( "$", s$n_chains_burnin, " \\times ", s$n_threads_per_chain, "$/",
+                                                 s$num_chunks,
+                                                 if (nzchar(x = markers)) paste0("$^{", markers, "}$") else ""))
+                          seconds <-  c( seconds,
+                                         paste0( "(", formatC(x = s$mean_sec_per_iter, digits = 3, format = "g",
+                                                              flag = "#"), "\\,s)"))
+
+                    }
+                    table_lines <-  c( table_lines,
+                                       paste0( formatC(x = device_full_name[[device]], width = -9), " & ",
+                                               paste(entries, collapse = " & "), " \\\\"),
+                                       paste0( formatC(x = "", width = -9), " & ",
+                                               paste(seconds, collapse = " & "), " \\\\"))
+
+              }
+
+        }
+        table_lines <-  c(table_lines, "%%%%", "\\hline")
+        ##
+        dir.create(path = dirname(path = file_path), recursive = TRUE, showWarnings = FALSE)
+        writeLines(text = table_lines, con = file_path)
+        fn_paper1_burnin_message(text = paste0( "fn_paper1_burnin_selected_configurations_table_rows_tex: wrote ",
+                                                file_path))
+        return(invisible(table_lines))
+
+}
+
 
 
 

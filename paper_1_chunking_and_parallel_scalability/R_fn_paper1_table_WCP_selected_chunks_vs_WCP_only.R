@@ -25,8 +25,12 @@ data_dir   <-  "paper_1_computational_outputs/manuscript_outputs_final_both_devi
 # output_dir <-  path.expand("~/Paper1_upload_WCP_only_tables/Files/Supplement/assets/WCP_selected_chunks/tables")
 # output_dir <-  path.expand("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v42_2026_10_03/tables_v45")
 ## 2026-10-04: the re-based tables go to their own folder (the tables_v45 outputs above are kept unchanged):
-output_dir <-  path.expand(paste0("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v46_2026_10_03/",
-                                  "tables_2026_10_04_rebased"))
+# output_dir <-  path.expand(paste0("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v46_2026_10_03/",
+#                                   "tables_2026_10_04_rebased"))
+## 2026-10-06: the tables with the allocation near-tie marks go to their own folder (the 2026-10-04 outputs above
+##             are kept unchanged):
+output_dir <-  path.expand(paste0("~/Documents/Work/PhD_work/Alg_papers_LaTeX/paper_1_v47_2026_10_04/",
+                                  "audit_2026_10_06/fixB_staging/tables"))
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 ##
 N_values <-  c(500, 2500, 10000, 50000)
@@ -100,6 +104,24 @@ for (algorithm in names(table_settings)) {
                 per_allocation$largest_tested_num_chunks <-  per_allocation$selected_num_chunks ==
                                                              max(chunk_search$num_chunks)
                 ##
+                ## ---- 2026-10-06: allocation near-ties (double-dagger mark in the table) - the chunking + WCP
+                ##      throughput of this allocation is within 1% of (but below) that of the fastest allocation
+                ##      with the same N_threads = N_chains x N_threads/chain at this device and N (i.e. of the
+                ##      allocation used in E2 at that N_threads); and, for information (named in the caption),
+                ##      the WCP-only allocations within 1% of (but below) the fastest WCP-only allocation (the
+                ##      dagger row):
+                N_threads_of_allocation <-  per_allocation$n_chains * per_allocation$threads_per_chain
+                fastest_chunking_WCP_at_same_N_threads <-  stats::ave( per_allocation$selected_total_iter_per_sec,
+                                                                       N_threads_of_allocation,
+                                                                       FUN = max)
+                per_allocation$within_1_percent_of_fastest_allocation_at_same_N_threads <-
+                    per_allocation$selected_total_iter_per_sec <  fastest_chunking_WCP_at_same_N_threads &
+                    per_allocation$selected_total_iter_per_sec >= 0.99 * fastest_chunking_WCP_at_same_N_threads
+                per_allocation$WCP_only_within_1_percent_of_fastest_WCP_only <-
+                    !per_allocation$fastest_WCP_only &
+                    per_allocation$WCP_only_total_iter_per_sec >=
+                        0.99 * max(per_allocation$WCP_only_total_iter_per_sec)
+                ##
                 per_allocation
 
         }))))
@@ -110,9 +132,18 @@ for (algorithm in names(table_settings)) {
         #                                formatC(cells$ratio_vs_WCP_only, format = "f", digits = 2)), ")")
         ## ---- 2026-10-04: cell text "N_chunks (ratio vs. the fastest WCP-only allocation, with the times
         ##      sign)", with a section mark on the largest N_chunks tested at that N:
+        # cells$cell <-  paste0( cells$selected_num_chunks,
+        #                        ifelse(cells$largest_tested_num_chunks, "$^{\\S}$", ""),
+        #                        ifelse(cells$near_tie, "$^{*}$", ""),
+        #                        " (", formatC(cells$ratio_vs_fastest_WCP_only, format = "f", digits = 2),
+        #                        "$\\times$)")
+        ## ---- 2026-10-06: as above, plus a double dagger on an allocation within 1% of the fastest allocation
+        ##      with the same N_threads (every other part of the cell is unchanged):
         cells$cell <-  paste0( cells$selected_num_chunks,
                                ifelse(cells$largest_tested_num_chunks, "$^{\\S}$", ""),
                                ifelse(cells$near_tie, "$^{*}$", ""),
+                               ifelse(cells$within_1_percent_of_fastest_allocation_at_same_N_threads,
+                                      "$^{\\ddagger}$", ""),
                                " (", formatC(cells$ratio_vs_fastest_WCP_only, format = "f", digits = 2),
                                "$\\times$)")
         cells$cell <-  ifelse(cells$fastest_chunking_WCP, paste0("\\textbf{", cells$cell, "}"), cells$cell)
@@ -149,6 +180,26 @@ for (algorithm in names(table_settings)) {
                         paste(row_cells, collapse = " & "), " \\\\")
 
         }, character(1))
+        ##
+        ## ---- 2026-10-06: the WCP-only allocations within 1% of the dagger allocation, named in the caption:
+        WCP_only_near_ties <-  cells[cells$WCP_only_within_1_percent_of_fastest_WCP_only, , drop = FALSE]
+        fn_format_N_for_caption <-  function(N) ifelse(N >= 10000, formatC(N, format = "d", big.mark = ","),
+                                                       as.character(N))
+        WCP_only_near_tie_caption_line <-  if (nrow(WCP_only_near_ties) == 0) character(0) else c(
+            paste0( "        WCP-only at ",
+                    paste0( "$", WCP_only_near_ties$n_chains, " \\times ", WCP_only_near_ties$threads_per_chain,
+                            "$ (", ifelse(WCP_only_near_ties$device == "HPC", "local-HPC", "laptop"), ", $N{=}",
+                            fn_format_N_for_caption(WCP_only_near_ties$N), "$)", collapse = " and ")),
+            "        was also within $1\\%$ of the \\dag{} allocation.")
+        ## (the double-dagger line of the caption only when at least one allocation is marked)
+        allocation_near_tie_caption_line <-
+            if (!any(cells$within_1_percent_of_fastest_allocation_at_same_N_threads)) character(0) else
+                paste0( "        $^{\\ddagger}$within $1\\%$ of the fastest allocation at the same ",
+                        "$N_{\\text{threads}}$ (i.e., essentially tied).")
+        message(paste0("\033[36m", algorithm, ": allocations within 1% of the fastest at the same N_threads: ",
+                       sum(cells$within_1_percent_of_fastest_allocation_at_same_N_threads),
+                       "; WCP-only allocations within 1% of the dagger allocation: ", nrow(WCP_only_near_ties),
+                       "\033[0m"))
         ##
         WCP_only_name     <-  fn_texttt(algorithm)
         WCP_chunking_name <-  fn_texttt(paste0(algorithm, "_chunking"))
@@ -194,6 +245,9 @@ for (algorithm in names(table_settings)) {
                    "        Hyphens mark allocations which were not tested at that $N$.",
                    "        $^{\\S}$the largest $N_{\\text{chunks}}$ tested for that $N$;",
                    "        $^{*}$the second-best $N_{\\text{chunks}}$ for that allocation was within $1\\%$ (i.e., essentially tied).",
+                   ## ---- 2026-10-06: the allocation near-ties (double dagger) and the WCP-only near-ties:
+                   allocation_near_tie_caption_line,
+                   WCP_only_near_tie_caption_line,
                    "}}",
                    "%%%%",
                    paste0("\\label{", settings$label, "}"),

@@ -778,6 +778,33 @@ fn_paper1_presentation_data <-  function( results,
         candidates <-  df[(df$algorithm != 'MD_BayesMVP' | df$num_chunks > 1) &
             (main_threads | WCP_rows), , drop = FALSE]
         ##
+        ## ---- 2026-10-06: WCP-only is its own arm in the scaling view, next to chunking + WCP, for both
+        ##      implementations. WCP-only = one chunk per WCP thread (num_chunks = threads_per_chain), as
+        ##      "BayesMVP-WCP" and "NicoStan-WCP" in fn_paper1_BayesMVP_comparisons() and
+        ##      fn_paper1_NicoStan_comparisons(); chunking + WCP = every chunk count (the joint chunk / WCP
+        ##      search).
+        ##      Both modes share one algorithm value (MD_BayesMVP_WCP, AD_Stan_WCP), so the one-row-per-algorithm
+        ##      selections below kept only the faster of the two at each thread budget, and WCP-only was missing
+        ##      wherever chunking + WCP was faster. The WCP-only rows are taken here, before the chunk filter, and
+        ##      carry their own Algorithm_label (the chunking + WCP selection is unchanged):
+        WCP_only_labels <-  c(MD_BayesMVP_WCP = 'BayesMVP + WCP', AD_Stan_WCP = 'Stan + WCP')
+        WCP_only_candidates <-  candidates[candidates$algorithm %in% names(WCP_only_labels) &
+                                           candidates$num_chunks == candidates$threads_per_chain, , drop = FALSE]
+        WCP_only_candidates$Algorithm_label <-  unname(WCP_only_labels[WCP_only_candidates$algorithm])
+        WCP_only_via_NicoStan <-  WCP_only_candidates$execution_backend == 'NicoStan_BridgeStan'
+        WCP_only_candidates$Algorithm_label[WCP_only_via_NicoStan] <-
+            sub( pattern = '^Stan',
+                 replacement = 'Stan model (NicoStan)',
+                 x = WCP_only_candidates$Algorithm_label[WCP_only_via_NicoStan])
+        WCP_only_candidates$Stan_variant_label <-  WCP_only_candidates$Algorithm_label
+        ##
+        ## ---- 2026-10-06: the arms (Algorithm_label) with candidate rows at each (device, N), recorded before
+        ##      the chunk filter and the selections below, for the check that no arm is dropped from `scaling`:
+        arm_columns <-  c('device', 'N', 'Algorithm_label')
+        candidate_arms <-  unique(x = rbind( serial[, arm_columns, drop = FALSE],
+                                             candidates[, arm_columns, drop = FALSE],
+                                             WCP_only_candidates[, arm_columns, drop = FALSE]))
+        ##
         chunked_WCP_rows <-  candidates$algorithm %in% c('MD_BayesMVP_WCP', 'AD_Stan_WCP')
         candidates <-  candidates[!chunked_WCP_rows | candidates$configuration_id %in% wcp_best_chunks$configuration_id, , drop = FALSE]
         ##
@@ -793,10 +820,37 @@ fn_paper1_presentation_data <-  function( results,
         scaling_columns <-  setdiff(x = allocation_columns, y = c('n_chains', 'threads_per_chain'))
         best <-  candidates[!duplicated(x = candidates[, scaling_columns, drop = FALSE]), , drop = FALSE]
         ##
-        scaling <-  rbind(serial, best)
+        ## ---- 2026-10-06: the WCP-only arm is selected exactly like the other arms (one row per allocation,
+        ##      then the fastest allocation at each total thread budget), separately from chunking + WCP:
+        WCP_only_candidates <-  WCP_only_candidates[order( -WCP_only_candidates$chain_rate,
+                                                           WCP_only_candidates$num_chunks,
+                                                           WCP_only_candidates$threads_per_chain), , drop = FALSE]
+        WCP_only_one_per_allocation <-  !duplicated(x = WCP_only_candidates[, allocation_columns, drop = FALSE])
+        WCP_only_candidates <-  WCP_only_candidates[WCP_only_one_per_allocation, , drop = FALSE]
+        WCP_only_one_per_budget <-  !duplicated(x = WCP_only_candidates[, scaling_columns, drop = FALSE])
+        WCP_only_best <-  WCP_only_candidates[WCP_only_one_per_budget, , drop = FALSE]
+        ##
+        # scaling <-  rbind(serial, best)
+        scaling <-  rbind(serial, best, WCP_only_best)
         ##
         scaling <-  scaling[order(scaling$device, scaling$N, scaling$Algorithm_label, scaling$n_threads), , drop = FALSE]
         scaling <-  fn_paper1_adjusted_scaling(configurations = scaling)
+        ##
+        ## ---- 2026-10-06: no arm is dropped silently from the E2 scaling view: every arm with candidate rows at
+        ##      a (device, N) must keep at least one row in `scaling` at that (device, N), otherwise the run stops.
+        candidate_arm_keys <-  paste0( candidate_arms$device, ' | N = ', candidate_arms$N, ' | ',
+                                       candidate_arms$Algorithm_label)
+        scaling_arm_keys <-  paste0( scaling$device, ' | N = ', scaling$N, ' | ',
+                                     scaling$Algorithm_label)
+        arms_missing_from_scaling <-  setdiff(x = candidate_arm_keys, y = scaling_arm_keys)
+        if (length(x = arms_missing_from_scaling)) {
+
+            stop(paste0( 'fn_paper1_presentation_data: ', length(x = arms_missing_from_scaling),
+                         ' arm(s) with candidate rows have no row in the E2 scaling view (device | N | arm): ',
+                         paste0(arms_missing_from_scaling, collapse = '; ')))
+
+        }
+        ##
         NicoStan_comparisons <-  fn_paper1_NicoStan_comparisons(configurations = df)
         BayesMVP_comparisons <-  fn_paper1_BayesMVP_comparisons(configurations = df)
         ##
@@ -807,7 +861,13 @@ fn_paper1_presentation_data <-  function( results,
               wcp_best_chunks = wcp_best_chunks,
               comparison_candidates = comparison_candidates,
               scaling = scaling,
-              stan = scaling[grepl('^AD_', scaling$algorithm), , drop = FALSE],
+              # stan = scaling[grepl('^AD_', scaling$algorithm), , drop = FALSE],
+              ## (2026-10-06: the E1 Stan views add their own WCP-only rows in
+              ##  fn_paper1_Stan_variants_with_WCP_only(), so the E2 WCP-only rows are left out of views$stan,
+              ##  which is therefore unchanged)
+              stan = scaling[grepl('^AD_', scaling$algorithm) &
+                             !scaling$Algorithm_label %in% WCP_only_candidates$Algorithm_label, ,
+                             drop = FALSE],
               NicoStan_candidates = NicoStan_comparisons$candidates,
               NicoStan_by_budget = NicoStan_comparisons$by_budget,
               NicoStan_best_by_N = NicoStan_comparisons$best_by_N,
@@ -907,6 +967,206 @@ fn_paper1_Stan_variants_with_WCP_only <-  function( stan,
         for (column in setdiff(x = names(WCP_only), y = names(stan))) stan[[column]] <-  rep(NA, nrow(stan))
         ##
         return(rbind(stan, WCP_only[, names(stan), drop = FALSE]))
+
+}
+##
+## ---- 2026-10-06: E2 scaling tables in the manuscript's format ----------------------------------------------
+##
+## One table per device (labels as in Main.tex), written by templates$make_paper_scaling_table_tex() from the
+## scaling view, with WCP-only directly before chunking + WCP for both implementations. The caption is the
+## manuscript caption (raw strings; the changed WCP reference line is marked "to check", the old line kept as a
+## LaTeX comment). Rows: Algorithm_label of the scaling view = LaTeX model name, in row order.
+##
+fn_paper1_E2_scaling_table_rows <-  c(
+    "BayesMVP (1 chunk)"                          = r"(\texttt{MD\_BayesMVP})",
+    "BayesMVP + chunking"                         = r"(\texttt{MD\_BayesMVP\_chunking})",
+    "BayesMVP + WCP"                              = r"(\texttt{MD\_BayesMVP\_WCP})",
+    "BayesMVP + chunking + WCP"                   = r"(\texttt{MD\_BayesMVP\_WCP\_chunking})",
+    "Mplus"                                       = r"(\texttt{Mplus\_standard})",
+    "Mplus + WCP"                                 = r"(\texttt{Mplus\_WCP})",
+    "Stan model (NicoStan)"                       = r"(\texttt{AD\_Stan})",
+    "Stan model (NicoStan) + tape chunking"       = r"(\texttt{AD\_Stan\_tape\_chunked})",
+    "Stan model (NicoStan) + WCP"                 = r"(\texttt{AD\_Stan\_WCP})",
+    "Stan model (NicoStan) + tape chunking + WCP" = r"(\texttt{AD\_Stan\_WCP\_chunking})")
+##
+## ---- 2026-10-06: captions as in Main.tex (synced 22:58), with the clause on Gain_{1 -> smt} (last column);
+##      the near-tie line is added by make_paper_scaling_table_tex(). Previous version, commented out:
+# fn_paper1_E2_scaling_table_captions <-  list(
+# HPC = r"---(
+#         Parallel scaling on the local-HPC (all times in seconds). \\
+#         %%
+#         $T_0^{\mathrm{eq}}$ is the time of one chain on one thread at the same $N_{\text{iter}}$
+# %        (for the WCP rows, that of the implementation in the row above - i.e., without WCP -
+# %%%% ---- to check ---- %%%%
+#         (for the WCP rows, that of the same implementation without WCP - i.e., \texttt{MD\_BayesMVP\_chunking},
+#         \texttt{AD\_Stan\_tape\_chunked} or \texttt{Mplus\_standard} -
+#         but at the larger $N_{\text{iter}}$ of the WCP runs;
+#         see table \ref{table:ps2_parallel_scalability_algorithm_setup_parameters}). \\
+#         %%
+#         $T_{96}$ and $T_{180}$ are the times with $96$ threads
+#         (one per physical core) and $180$ threads (SMT), respectively. \\
+#         %%
+#         $R_{1 \rightarrow 96}$ and $R_{1 \rightarrow 180}$ are the corresponding inverse parallel efficiencies
+#         (equation \ref{eq:paper1_serial_efficiency}; $R = 1$ is ideal scaling, and lower is better). \\
+#         %%
+#         $\text{Gain}_{1 \rightarrow 96}$ is the speed-up in chain throughput from $1$ to $96$ threads
+#         (i.e., $96 / R_{1 \rightarrow 96}$; equation \ref{eq:paper1_serial_efficiency}),
+#         and $\text{Gain}_{96 \rightarrow 180}$ (SMT) the percentage change in chain throughput
+#         from $96$ to $180$ threads
+#         (equation \ref{eq:paper1_smt_gain}). \\
+#         %%
+#         "Setting" gives the configuration selected in E1 at $T_0^{\mathrm{eq}}$, $T_{96}$ and $T_{180}$
+#         (i.e., $N_{\text{chunks}}$, or, for WCP,
+#         $N_{\text{chains}} \times N_{\text{threads/chain}}$ ($N_{\text{chunks}}$);
+#         see sections \ref{section:paper1_chunk_wcp_selection_design}, 
+#         \ref{section:paper1_bayesmvp_selection_results}
+#         and \ref{section:paper1_stan_selection_results}). \\
+#         %%
+# %%%% ---- to check ---- %%%%
+#         Note that at $N{=}500$ the fastest $N_{\text{chunks}}$ for \texttt{MD\_BayesMVP\_WCP\_chunking}
+#         is $N_{\text{threads/chain}}$, so its row is the same as that of \texttt{MD\_BayesMVP\_WCP}. \\
+#         %%
+#         \texttt{Mplus\_standard} and \texttt{Mplus\_WCP} used \texttt{BITERATIONS}. \\
+#         %%
+#         Bold marks the best ratio or gain within each $N$. \\
+#         %%
+#         Note that each row's ratios are relative to its own $T_0^{\mathrm{eq}}$,
+#         so a smaller ratio need not mean a shorter time, 
+#         and that the WCP rows used more iterations
+#         (see table \ref{table:ps2_parallel_scalability_algorithm_setup_parameters}),
+#         so only their ratios and gains are comparable with the other rows.
+# )---",
+# Laptop = r"---(
+#         Parallel scaling on the laptop (all times in seconds),
+#         as in table \ref{table:ps2_times_and_efficiency_HPC_8_and_96_threads},
+#         but with $T_{8}$ and $T_{16}$ the times with $8$ threads (one per physical core) and $16$ threads
+#         (SMT; for \texttt{Mplus\_\ab WCP}, $8 \times 2$ at every $N$),
+#         and $\text{Gain}_{8 \rightarrow 16}$ (SMT) from $8$ to $16$ threads. \\
+# %%%% ---- to check ---- %%%%
+#         Similarly to the local-HPC, the \texttt{MD\_BayesMVP\_WCP} and \texttt{MD\_BayesMVP\_WCP\_chunking} rows
+#         are the same at $N{=}500$. \\
+#         Bold marks the best ratio or gain within each $N$.
+# )---")
+fn_paper1_E2_scaling_table_captions <-  list(
+HPC = r"---(
+        Parallel scaling on the local-HPC (all times in seconds). \\
+        %%
+        $T_0^{\mathrm{eq}}$ is the time of one chain on one thread at the same $N_{\text{iter}}$
+        (for the WCP rows, that of the same implementation without WCP - i.e., \texttt{MD\_BayesMVP\_chunking},
+        \texttt{AD\_Stan\_tape\_chunked} or \texttt{Mplus\_standard} -
+        but at the larger $N_{\text{iter}}$ of the WCP runs;
+        see table \ref{table:ps2_parallel_scalability_algorithm_setup_parameters}). \\
+        %%
+        $T_{96}$ and $T_{180}$ are the times with $96$ threads
+        (one per physical core) and $180$ threads (SMT), respectively. \\
+        %%
+        $R_{1 \rightarrow 96}$ and $R_{1 \rightarrow 180}$ are the corresponding inverse parallel efficiencies
+        (equation \ref{eq:paper1_serial_efficiency}; $R = 1$ is ideal scaling, and lower is better). \\
+        %%
+        $\text{Gain}_{1 \rightarrow 96}$ is the speed-up in chain throughput from $1$ to $96$ threads
+        (i.e., $96 / R_{1 \rightarrow 96}$; equation \ref{eq:paper1_serial_efficiency}),
+        and $\text{Gain}_{96 \rightarrow 180}$ (SMT) the percentage change in chain throughput
+        from $96$ to $180$ threads
+        (equation \ref{eq:paper1_smt_gain}). \\
+        %%
+%%%% ---- to check ---- %%%%
+        $\text{Gain}_{1 \rightarrow 180}$ is the speed-up in chain throughput from $1$ to $180$ threads
+        (i.e., $180 / R_{1 \rightarrow 180}$), given with $\text{Gain}_{96 \rightarrow 180}$ in brackets. \\
+        %%
+%%%% ---- to check ---- %%%%
+        For the WCP rows, $T_{180}$ is that of the fastest allocation with $N_{\text{threads}} = 176$ or $180$;
+        $^{\ddagger}$$N_{\text{threads}} = 176$ (i.e., $N_{\text{threads/chain}} = 11$, $22$ or $44$),
+        which is then also used for $R_{1 \rightarrow 180}$, $\text{Gain}_{1 \rightarrow 180}$
+        and $\text{Gain}_{96 \rightarrow 180}$. \\
+        %%
+        "Setting" gives the configuration selected in E1 at $T_0^{\mathrm{eq}}$, $T_{96}$ and $T_{180}$
+        (i.e., $N_{\text{chunks}}$, or, for WCP,
+        $N_{\text{chains}} \times N_{\text{threads/chain}}$ ($N_{\text{chunks}}$);
+        see sections \ref{section:paper1_chunk_wcp_selection_design}, 
+        \ref{section:paper1_bayesmvp_selection_results},
+        and \ref{section:paper1_stan_selection_results},
+        and, for the $N_{\text{chunks}}$ without WCP, tables \ref{table:ps1_best_n_chunks_HPC}
+        and \ref{table:ps1_best_n_chunks_Stan_HPC}). \\
+        %%
+        Note that at $N{=}500$ the fastest $N_{\text{chunks}}$ for \texttt{MD\_BayesMVP\_WCP\_chunking}
+        is $N_{\text{threads/chain}}$, so its row is the same as that of \texttt{MD\_BayesMVP\_WCP}. \\
+        %%
+        \texttt{Mplus\_standard} and \texttt{Mplus\_WCP} used \texttt{BITERATIONS}. \\
+        %%
+        Bold marks the best ratio or gain within each $N$. \\
+        %%
+        Note that each row's ratios are relative to its own $T_0^{\mathrm{eq}}$,
+        so a smaller ratio need not mean a shorter time, 
+        and that the WCP rows used more iterations
+        (see table \ref{table:ps2_parallel_scalability_algorithm_setup_parameters}),
+        so only their ratios and gains are comparable with the other rows.
+)---",
+Laptop = r"---(
+        Parallel scaling on the laptop (all times in seconds),
+        as in table \ref{table:ps2_times_and_efficiency_HPC_8_and_96_threads},
+        but with $T_{8}$ and $T_{16}$ the times with $8$ threads (one per physical core) and $16$ threads
+        (SMT; for \texttt{Mplus\_\ab WCP}, $8 \times 2$ at every $N$),
+        and $\text{Gain}_{8 \rightarrow 16}$ (SMT) from $8$ to $16$ threads. \\
+%%%% ---- to check ---- %%%%
+        $\text{Gain}_{1 \rightarrow 16}$ is the speed-up in chain throughput from $1$ to $16$ threads
+        (i.e., $16 / R_{1 \rightarrow 16}$), given with $\text{Gain}_{8 \rightarrow 16}$ in brackets. \\
+%%%% ---- to check ---- %%%%
+        Similarly to the local-HPC, the \texttt{MD\_BayesMVP\_WCP} and \texttt{MD\_BayesMVP\_WCP\_chunking} rows
+        are the same at $N{=}500$. \\
+        Bold marks the best ratio or gain within each $N$.
+)---")
+##
+## ---- 2026-10-07: on the local-HPC, the SMT columns of the WCP rows use the fastest of N_threads = 176 and
+##      180 (the WCP allocations with N_threads/chain = 11, 22 or 44 use 176 threads; marked in the table and
+##      explained in the HPC caption); allocation_candidates (e.g. views$configurations) adds the allocation
+##      near-tie marks of the WCP rows (NULL = none, as before).
+##
+fn_paper1_E2_scaling_table_tex <-  function( templates,
+                                             scaling,
+                                             dev,
+                                             N_vals,
+                                             file_path,
+                                             table_rows = fn_paper1_E2_scaling_table_rows,
+                                             allocation_candidates = NULL) {
+
+        is_HPC <-  dev == "HPC"
+        caption_lines <-  strsplit( x = fn_paper1_E2_scaling_table_captions[[dev]],
+                                    split = "\n",
+                                    fixed = TRUE)[[1]]
+        caption_lines <-  caption_lines[caption_lines != ""]
+        labels <-  if (is_HPC) c( "table:ps2_times_and_efficiency_HPC_8_and_96_threads",
+                                  "table:ps2_times_and_efficiency_HPC_8_and_190_threads",
+                                  "table:ps2_SMT_times_and_efficiency_HPC_96_and_190_threads") else
+                               c( "table:ps2_times_and_efficiency_Laptop_2_and_8_threads",
+                                  "table:ps2_times_and_efficiency_Laptop_2_and_16_threads",
+                                  "table:ps2_SMT_times_and_efficiency_Laptop_8_and_16_threads")
+        HPC_preamble_lines <-  if (is_HPC) {
+                                   c(r"(\setlength{\tabcolsep}{3.5pt})", r"(\renewcommand{\arraystretch}{0.94})")
+                               } else character(0)
+        ## (only the rows present in the scaling view of this device)
+        table_rows <-  table_rows[names(table_rows) %in% scaling$Algorithm_label[scaling$device == dev]]
+        ##
+        templates$make_paper_scaling_table_tex( df                     = scaling,
+                                                dev                    = dev,
+                                                t_phys                 = if (is_HPC) 96 else 8,
+                                                t_smt                  = if (is_HPC) 180 else 16,
+                                                N_vals                 = N_vals,
+                                                table_rows             = table_rows,
+                                                caption_lines          = caption_lines,
+                                                labels                 = labels,
+                                                file_path              = file_path,
+                                                include_gain_1_to_phys = is_HPC,
+                                                # two_line_WCP_setting   = is_HPC,
+                                                ## (2026-10-06: one-line WCP settings, as in Main.tex)
+                                                two_line_WCP_setting   = FALSE,
+                                                main_tex_spacer_comment_layout =
+                                                    if (is_HPC) "local_HPC_table" else "laptop_table",
+                                                # preamble_lines         = HPC_preamble_lines)
+                                                preamble_lines         = HPC_preamble_lines,
+                                                ## (2026-10-07: see the comment above this function)
+                                                WCP_rows_SMT_columns_fastest_of_thread_budgets =
+                                                    if (is_HPC) c(176, 180) else NULL,
+                                                allocation_candidates  = allocation_candidates)
 
 }
 ##
@@ -1620,6 +1880,29 @@ fn_paper1_export_manuscript <-  function( study_output_dirs,
                     add_asset('table', file.path('tables', filename), '', label)
 
                 }
+
+            }
+            ##
+            ## ---- 2026-10-06: the two E2 scaling tables as they appear in the manuscript (one per device, rows
+            ##      grouped by N, WCP-only next to chunking + WCP), to be pasted into Main.tex:
+            for (dev in names(input$studies)) {
+
+                filename <-  paste0('table_ps2_scaling_', dev, '_manuscript_format.tex')
+                # fn_paper1_E2_scaling_table_tex( templates = templates,
+                #                                 scaling   = views$scaling,
+                #                                 dev       = dev,
+                #                                 N_vals    = sort(unique(views$scaling$N_num[
+                #                                                 views$scaling$device == dev])),
+                #                                 file_path = file.path(tabledir, filename))
+                ## ---- 2026-10-07: with every measured configuration, for the allocation near-tie marks of the
+                ##      WCP rows (as in Main.tex):
+                fn_paper1_E2_scaling_table_tex( templates = templates,
+                                                scaling   = views$scaling,
+                                                dev       = dev,
+                                                N_vals    = sort(unique(views$scaling$N_num[
+                                                                views$scaling$device == dev])),
+                                                file_path = file.path(tabledir, filename),
+                                                allocation_candidates = views$configurations)
 
             }
 
