@@ -470,6 +470,13 @@ fn_paper1_burnin_cmdstanr_figure_panel <-  function( panel_best_by_threads,
         label_order  <-  order(!is_best_overall, panel_best_by_threads$n_threads_per_chain)
         panel_labels <-  panel_best_by_threads[label_order, , drop = FALSE]
         ##
+        ## ---- with options(paper1.Stan_N_chunks_as_partial_sums = TRUE), the labels give the number of partial sums which
+        ##      reduce_sum_static() actually ran (R_fn_number_of_partial_sums_run_by_reduce_sum_static.R), not the requested N_chunks:
+        if (isTRUE(x = getOption(x = "paper1.Stan_N_chunks_as_partial_sums")) && nrow(x = panel_labels) > 0) {
+              panel_labels$num_chunks <-  fn_number_of_partial_sums_run_by_reduce_sum_static( N_units            = panel_labels$N,
+                                                                              N_chunks_requested = panel_labels$num_chunks)
+        }
+        ##
         ## ---- series styles (no chunking = AD_Stan, best N_chunks at each N_threads/chain,
         ##      WCP-only = AD_Stan_WCP), as in fn_paper1_burnin_figure_best_chunks_panel():
         ##
@@ -680,7 +687,10 @@ fn_paper1_burnin_cmdstanr_figure <-  function( configuration_summary,
         series_labels <-  c( expression("AD_Stan (" * N[chunks] * " = 1, " * N["threads/chain"] * " = 1)"),
                              expression("Best " * N[chunks] * " at each " * N["threads/chain"] *
                                         " (point labels give " * N[chunks] * ")"),
-                             expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"))
+                             # expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"))
+                             if (isTRUE(x = getOption(x = "paper1.Stan_N_chunks_as_partial_sums"))) {
+                                 expression("AD_Stan_WCP (WCP-only: requested " * N[chunks] * " = " * N["threads/chain"] * ")")
+                             } else expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"))
         best_overall_label <-  "Best measured configuration"
         ##
         ## was: y_axis_title <-  "Seconds per leapfrog step\n(slowest chain, log scale)"

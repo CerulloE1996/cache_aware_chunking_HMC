@@ -755,6 +755,13 @@ fn_paper1_burnin_figure_Stan_panel <-  function( panel_best_by_WCP,
         }
         panel_point_labels <-  panel_best_by_WCP[is_labelled, , drop = FALSE]
         ##
+        ## ---- with options(paper1.Stan_N_chunks_as_partial_sums = TRUE), the labels give the number of partial sums which
+        ##      reduce_sum_static() actually ran (R_fn_number_of_partial_sums_run_by_reduce_sum_static.R), not the requested N_chunks:
+        if (isTRUE(x = getOption(x = "paper1.Stan_N_chunks_as_partial_sums")) && nrow(x = panel_point_labels) > 0) {
+              panel_point_labels$num_chunks_burnin <-  fn_number_of_partial_sums_run_by_reduce_sum_static( N_units            = panel_point_labels$N,
+                                                                              N_chunks_requested = panel_point_labels$num_chunks_burnin)
+        }
+        ##
         best_overall_fill <-  c(NA)
         names(x = best_overall_fill) <-  best_overall_label
         ##
@@ -982,7 +989,10 @@ fn_paper1_burnin_figure_Stan <-  function( Stan_rows_by_device,
         all_series_levels    <-  c("no_chunking", "best_chunks_at_each_WCP", "WCP_only", "BayesMVP_best")
         all_series_labels    <-  list( no_chunking             = expression("AD_Stan (" * N[chunks] * " = 1, " * N["threads/chain"] * " = 1)"),
                                        best_chunks_at_each_WCP = expression("Best " * N[chunks] * " at each " * N["threads/chain"] * " (point labels give " * N[chunks] * ")"),
-                                       WCP_only                = expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"),
+                                       # WCP_only                = expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"),
+                                       WCP_only                = if (isTRUE(x = getOption(x = "paper1.Stan_N_chunks_as_partial_sums"))) {
+                                                                     expression("AD_Stan_WCP (WCP-only: requested " * N[chunks] * " = " * N["threads/chain"] * ")")
+                                                                 } else expression("AD_Stan_WCP (WCP-only: " * N[chunks] * " = " * N["threads/chain"] * ")"),
                                        BayesMVP_best           = expression("Best measured NicoStan+BayesMVP configuration"))
         all_series_colours   <-  c(no_chunking = "#D55E00", best_chunks_at_each_WCP = "#0072B2", WCP_only = "#009E73", BayesMVP_best = "grey45")
         all_series_linetypes <-  c(no_chunking = "dashed",  best_chunks_at_each_WCP = "solid",   WCP_only = "22",      BayesMVP_best = "dotted")
